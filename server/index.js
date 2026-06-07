@@ -30,36 +30,60 @@ const pool = new Pool({
  * Requires: server/credentials.json (Service Account key) and GOOGLE_SHEET_ID in .env
  */
 async function fetchGoogleSheetData() {
-  const auth = new google.auth.GoogleAuth({
-    // Fallback to parsing the env string if running on Vercel production
-    credentials: process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS) : undefined,
-    keyFile: process.env.GOOGLE_CREDENTIALS ? undefined : 'credentials.json',
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-  });
+  let auth;
 
-  const sheets = google.sheets({ version: 'v4', auth });
-  const range = process.env.GOOGLE_SHEET_RANGE || 'Sheet1!A:Z';
+  if (process.env.GOOGLE_CREDENTIALS) {
+    try {
+      // Vercel Production Environment
+      // Replace any accidental raw string character literal newlines with actual structural newlines
+      const formattedCredentials = JSON.parse(
+        process.env.GOOGLE_CREDENTIALS.replace(/\\n/g, '\n')
+      );
 
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    range,
-  });
-
-  const rows = response.data.values;
-  if (!rows || rows.length < 2) {
-    console.warn('⚠️ Google Sheet returned no data rows.');
-    return [];
+      auth = new google.auth.GoogleAuth({
+        credentials: formattedCredentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+    } catch (err) {
+      console.error('Error parsing GOOGLE_CREDENTIALS environment variable:', err);
+      throw new Error('Failed to parse GOOGLE_CREDENTIALS');
+    }
+  } else {
+    // Local Development Environment (looks for credentials.json in your server folder)
+    auth = new google.auth.GoogleAuth({
+      keyFile: 'credentials.json',
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
   }
 
-  // Row 0 = headers, rows 1..n = data — convert to array of objects
-  const headers = rows[0];
-  return rows.slice(1).map(row => {
-    const obj = {};
-    headers.forEach((header, index) => {
-      obj[header] = row[index] ?? '';
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+    const range = process.env.GOOGLE_SHEET_RANGE || 'Sheet1!A:BZ';
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range,
     });
-    return obj;
-  });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) {
+      console.warn('⚠️ Google Sheet returned no data rows.');
+      return [];
+    }
+
+    // Row 0 = headers, rows 1..n = data — convert to array of objects
+    const headers = rows[0];
+    return rows.slice(1).map(row => {
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = row[index] ?? '';
+      });
+      return obj;
+    });
+  } catch (sheetError) {
+    console.error('❌ Google Sheets API Error:', sheetError.message);
+    throw sheetError;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,7 +95,15 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     // 1. Fetch live Tally.so data from the connected Google Sheet
     console.log('📊 Fetching live data from Google Sheet...');
-    const sheetData = await fetchGoogleSheetData();
+    let sheetData;
+    try {
+      sheetData = await fetchGoogleSheetData();
+    } catch (sheetError) {
+      return res.status(500).json({
+        error: 'Failed to communicate with Google Sheets configuration.',
+        details: sheetError.message
+      });
+    }
     console.log(`   → ${sheetData.length} row(s) found in sheet.`);
 
     // 2. Ask Gemini to find this user in the sheet rows
@@ -119,7 +151,7 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {}); // safe rollback — may not have started
+    await pool.query('ROLLBACK').catch(() => { }); // safe rollback — may not have started
     console.error('Registration Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
@@ -142,7 +174,7 @@ app.post('/api/auth/login', async (req, res) => {
       WHERE LOWER(email) = LOWER($1) AND username = $2
     `;
     const result = await pool.query(query, [email.trim(), username.trim()]);
-    
+
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Invalid username or email.' });
     }
