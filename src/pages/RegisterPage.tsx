@@ -34,6 +34,14 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
   // Navigate automatically once the user finishes the tutorial AND the backend finishes
   useEffect(() => {
     if (waitingForBackend && backendFinished) {
@@ -108,6 +116,12 @@ export default function RegisterPage() {
       if (response.status === 429) {
         setToastMessage({ type: 'error', text: data.message });
         setPostTutorialAction('stay');
+        return;
+      }
+
+      if (response.status === 409) {
+        setToastMessage({ type: 'error', text: data.message || 'User already exists. Please login.' });
+        setPostTutorialAction('login');
         return;
       }
 
@@ -213,7 +227,7 @@ export default function RegisterPage() {
                     initial={{ opacity: 0, y: -40 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -40 }}
-                    className={`absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full shadow-lg text-sm font-semibold z-10 flex items-center gap-2 whitespace-nowrap border ${toastMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                    className={`absolute -top-14 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full shadow-lg text-sm font-semibold z-10 flex items-center gap-2 whitespace-nowrap border ${toastMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
                       }`}
                   >
                     {toastMessage.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}

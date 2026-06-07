@@ -15,20 +15,6 @@ function Navigation() {
           <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" className="h-9 object-contain" />
         </Link>
       </div>
-      <div className="flex gap-6">
-        <Link
-          to="/login"
-          className={`text-sm font-medium transition-colors ${location.pathname === '/login' || location.pathname === '/' || location.pathname === '/dashboard' ? 'text-[#1A1A19]' : 'text-[#8B8B86] hover:text-[#1A1A19]'}`}
-        >
-          Patient Portal
-        </Link>
-        <Link
-          to="/admin"
-          className={`text-sm font-medium transition-colors ${location.pathname === '/admin' ? 'text-[#1A1A19]' : 'text-[#8B8B86] hover:text-[#1A1A19]'}`}
-        >
-          Lab Dashboard
-        </Link>
-      </div>
     </div>
   );
 }

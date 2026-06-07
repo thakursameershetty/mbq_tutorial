@@ -159,6 +159,15 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     await pool.query('ROLLBACK').catch(() => { }); // safe rollback — may not have started
     console.error('Registration Error:', error);
+    
+    // 23505 is the PostgreSQL error code for unique violation
+    if (error.code === '23505') {
+      return res.status(409).json({
+        success: false,
+        message: 'This email or username is already registered. Please login instead.'
+      });
+    }
+
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

@@ -43,7 +43,7 @@ export default function LoginPage() {
       className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
     >
       <div className={theme.card}>
-        <h2 className={theme.heading}>Patient Login</h2>
+        <h2 className={theme.heading}>User Login</h2>
         <form onSubmit={handleLogin}>
           <input
             type="text"

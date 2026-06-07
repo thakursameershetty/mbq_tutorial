@@ -28,7 +28,7 @@ export default function PatientDashboardPage() {
     >
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8">
         <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2">Hello, {user.full_name}</h1>
-        <p className="text-[#8B8B86] text-sm">Patient ID: {user.id}</p>
+        <p className="text-[#8B8B86] text-sm">User ID: {user.id}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -79,7 +79,7 @@ export default function LabDashboard() {
               </svg>
               <input
                 type="text"
-                placeholder="Search patients..."
+                placeholder="Search users..."
                 className={theme.searchBox}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -201,26 +201,11 @@ export default function LabDashboard() {
                         className={theme.expandedPanel}
                       >
                         <div className="p-4 sm:p-5 rounded-xl bg-[#F4F4F2]/30">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-[#8B8B86] mb-4 text-left">Linked Phenotype Data (Tally.so)</h4>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                            <div className="bg-white/60 p-3 rounded-lg border border-[#E8E8E5]">
-                              <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-1 text-left">Activity Level</div>
-                              <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.diet}</div>
-                            </div>
-                            <div className="bg-white/60 p-3 rounded-lg border border-[#E8E8E5]">
-                              <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-1 text-left">Sleep Timing</div>
-                              <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.sleep}</div>
-                            </div>
-                            <div className="bg-white/60 p-3 rounded-lg border border-[#E8E8E5]">
-                              <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-1 text-left">Sweat Tendency</div>
-                              <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.activity}</div>
-                            </div>
-                            <div className="bg-white/60 p-3 rounded-lg border border-[#E8E8E5]">
-                              <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-1 text-left">Caffeine Sens.</div>
-                              <div className="text-sm font-medium text-[#2C2C2A] truncate text-left">{patient.surveyData.traits}</div>
-                            </div>
-                          </div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[#8B8B86] mb-3 text-left">Lab Result / Description</h4>
+                          <textarea 
+                            className="w-full bg-white/60 border border-[#E8E8E5] rounded-lg p-3 text-sm text-[#2C2C2A] outline-none focus:border-[#6057D7]/30 focus:ring-2 focus:ring-[#6057D7]/10 transition-all min-h-[100px] resize-y"
+                            placeholder="Enter the lab result description or report summary here..."
+                          />
                         </div>
                       </motion.div>
                     )}
@@ -270,7 +255,7 @@ export default function LabDashboard() {
                       onClick={() => toggleExpand(patient.id)}
                       className="w-full flex items-center justify-between p-3 mb-4 rounded-xl bg-white/50 hover:bg-white text-sm font-medium text-[#2C2C2A] border border-[#E8E8E5] transition-colors"
                     >
-                      View Phenotype Profile
+                      Enter Lab Result
                       <motion.svg
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.3 }}
@@ -291,24 +276,11 @@ export default function LabDashboard() {
                           className="overflow-hidden"
                         >
                           <div className="p-4 rounded-xl bg-[#F4F4F2]/50 border border-[#E8E8E5]/50">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-0.5 text-left">Dietary</div>
-                                <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.diet}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-0.5 text-left">Avg Sleep</div>
-                                <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.sleep}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-0.5 text-left">Activity Level</div>
-                                <div className="text-sm font-medium text-[#2C2C2A] text-left">{patient.surveyData.activity}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] uppercase text-[#8B8B86] font-semibold mb-0.5 text-left">Noted Traits</div>
-                                <div className="text-sm font-medium text-[#2C2C2A] truncate text-left">{patient.surveyData.traits}</div>
-                              </div>
-                            </div>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[#8B8B86] mb-2 text-left">Lab Result</h4>
+                            <textarea 
+                              className="w-full bg-white/60 border border-[#E8E8E5] rounded-lg p-3 text-sm text-[#2C2C2A] outline-none focus:border-[#6057D7]/30 focus:ring-2 focus:ring-[#6057D7]/10 transition-all min-h-[80px] resize-y"
+                              placeholder="Enter result summary..."
+                            />
                           </div>
                         </motion.div>
                       )}

@@ -84,7 +84,7 @@ async function generatePhenotypicAnalysis(rawSurveyData) {
 
   const prompt = `
     You are an expert genetic and lifestyle data analyst.
-    Analyze the following raw survey data provided by a patient:
+    Analyze the following raw survey data provided by a user:
     ${JSON.stringify(rawSurveyData, null, 2)}
 
     Convert their answers into a highly structured JSON profile exactly matching the categories provided below.
