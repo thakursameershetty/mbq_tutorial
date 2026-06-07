@@ -58,6 +58,16 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
       matched_survey_data: parsedData.matched_survey_data || null,
     };
   } catch (error) {
+    // Check if the error is an AI Studio Rate Limit (429)
+    if (error.status === 429 || error.message.includes('429') || error.message.includes('quota')) {
+      console.error("⚠️ Gemini API Rate Limit Hit!");
+      return { 
+        rate_limited: true, 
+        matched: false, 
+        matched_survey_data: null 
+      };
+    }
+    
     console.error("Gemini AI Mapping Error:", error);
     // Fail gracefully — registration will prompt the user to complete the survey
     return { matched: false, matched_survey_data: null };

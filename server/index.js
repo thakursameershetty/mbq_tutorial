@@ -108,6 +108,14 @@ app.post('/api/auth/register', async (req, res) => {
     console.log('🤖 Running Gemini smart match...');
     const matchResult = await attemptSmartMapWithAI(fullName, email, phone, sheetData);
 
+    // If the API minute or daily limit was hit, inform the frontend gently
+    if (matchResult.rate_limited) {
+      return res.status(429).json({
+        success: false,
+        message: "Our AI systems are currently very busy analyzing profiles. Please wait a minute and try again!"
+      });
+    }
+
     // 3. If no match found, halt registration and prompt the frontend to show the survey
     if (!matchResult.matched || !matchResult.matched_survey_data) {
       console.log('❌ Gemini could not confidently match this user to any sheet row.');
