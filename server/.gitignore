@@ -1,0 +1,4 @@
+node_modules/
+.env
+# Google Service Account key — NEVER commit this
+credentials.json
