@@ -35,10 +35,8 @@ async function fetchGoogleSheetData() {
   if (process.env.GOOGLE_CREDENTIALS) {
     try {
       // Vercel Production Environment
-      // Replace any accidental raw string character literal newlines with actual structural newlines
-      const formattedCredentials = JSON.parse(
-        process.env.GOOGLE_CREDENTIALS.replace(/\\n/g, '\n')
-      );
+      // Vercel Production Environment
+      const formattedCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
       auth = new google.auth.GoogleAuth({
         credentials: formattedCredentials,
