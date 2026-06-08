@@ -380,47 +380,50 @@ export default function RegisterPage() {
             </div>
 
             {/* Date of Birth Input (Split) */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="number"
-                name="dobDay"
-                value={formData.dobDay}
-                onChange={handleChange}
-                placeholder="Day"
-                min="1" max="31"
-                className={`${theme.input} !mb-0 w-[80px] sm:w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
-                required
-              />
-              <div className="relative flex-1">
-                <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full`} required defaultValue="">
-                  <option value="" disabled>Month</option>
-                  <option value="0">January</option>
-                  <option value="1">February</option>
-                  <option value="2">March</option>
-                  <option value="3">April</option>
-                  <option value="4">May</option>
-                  <option value="5">June</option>
-                  <option value="6">July</option>
-                  <option value="7">August</option>
-                  <option value="8">September</option>
-                  <option value="9">October</option>
-                  <option value="10">November</option>
-                  <option value="11">December</option>
-                </select>
-                <div className="absolute right-3 sm:right-4 top-[18px] pointer-events-none text-[#8B8B86]">
-                  <ChevronDown size={16} strokeWidth={2.5} />
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 text-left pl-1">Date of Birth</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  name="dobDay"
+                  value={formData.dobDay}
+                  onChange={handleChange}
+                  placeholder="Day"
+                  min="1" max="31"
+                  className={`${theme.input} !mb-0 w-[80px] sm:w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  required
+                />
+                <div className="relative flex-1">
+                  <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full`} required defaultValue="">
+                    <option value="" disabled>Month</option>
+                    <option value="0">January</option>
+                    <option value="1">February</option>
+                    <option value="2">March</option>
+                    <option value="3">April</option>
+                    <option value="4">May</option>
+                    <option value="5">June</option>
+                    <option value="6">July</option>
+                    <option value="7">August</option>
+                    <option value="8">September</option>
+                    <option value="9">October</option>
+                    <option value="10">November</option>
+                    <option value="11">December</option>
+                  </select>
+                  <div className="absolute right-3 sm:right-4 top-[18px] pointer-events-none text-[#8B8B86]">
+                    <ChevronDown size={16} strokeWidth={2.5} />
+                  </div>
                 </div>
+                <input
+                  type="number"
+                  name="dobYear"
+                  value={formData.dobYear}
+                  onChange={handleChange}
+                  placeholder="Year"
+                  min="1900" max={new Date().getFullYear()}
+                  className={`${theme.input} !mb-0 w-[90px] sm:w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  required
+                />
               </div>
-              <input
-                type="number"
-                name="dobYear"
-                value={formData.dobYear}
-                onChange={handleChange}
-                placeholder="Year"
-                min="1900" max={new Date().getFullYear()}
-                className={`${theme.input} !mb-0 w-[90px] sm:w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
-                required
-              />
             </div>
             <div className="relative">
               <select name="gender" onChange={handleChange} className={`${theme.input} appearance-none cursor-pointer`} required defaultValue="">
