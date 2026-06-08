@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { theme } from './theme';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
@@ -6,8 +6,6 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import PatientDashboardPage from './pages/PatientDashboardPage';
 
 function Navigation() {
-  const location = useLocation();
-
   return (
     <div className="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 mt-4 px-4 mx-auto">
       <div className="flex items-center gap-3">
