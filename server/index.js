@@ -205,6 +205,36 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Update User Details Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/users/:id', async (req, res) => {
+  const userId = req.params.id;
+  const { full_name, email, phone, age, phenotypic_analysis } = req.body;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET full_name = $1, email = $2, phone = $3, age = $4, phenotypic_analysis = $5
+      WHERE id = $6
+      RETURNING id, username, full_name, email, phone, gene_type, phenotypic_analysis;
+    `;
+    const result = await pool.query(query, [full_name, email, phone, age, JSON.stringify(phenotypic_analysis), userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET Route for Admin Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/admin/patients', async (req, res) => {

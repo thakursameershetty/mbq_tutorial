@@ -4,6 +4,7 @@ import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import PatientDashboardPage from './pages/PatientDashboardPage';
+import ReportPage from './pages/ReportPage';
 
 function Navigation() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<PatientDashboardPage />} />
+          <Route path="/report" element={<ReportPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
         </Routes>
       </div>

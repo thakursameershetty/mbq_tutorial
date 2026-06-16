@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="./support.js"></script>
+</head>
+
+<body>
+  <x-dc>
+    <helmet>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+      <style>
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          font-family: 'Poppins', system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .mbq-card ul {
+          margin: 0;
+          padding-left: 18px;
+        }
+
+        .mbq-card li {
+          margin: 0 0 6px 0;
+        }
+
+        .mbq-card {
+          width: 794px;
+          height: 1123px;
+          overflow: hidden;
+        }
+
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
+
+        @media print {
+
+          html,
+          body {
+            background: #fff;
+          }
+
+          .mbq-wrap {
+            padding: 0 !important;
+            background: #fff !important;
+            min-height: 0 !important;
+          }
+
+          .mbq-grid {
+            gap: 0 !important;
+          }
+
+          .mbq-card {
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            break-after: page;
+            page-break-after: always;
+          }
+
+          .mbq-card:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
+        }
+      </style>
+    </helmet>
+
+    <div class="mbq-wrap"
+      style="background:#e7e9ef;padding:36px;min-height:100vh;font-family:'Poppins',sans-serif;color:#1c2440;">
+      <div class="mbq-grid" style="margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:34px;">
+
+        <!-- ================= PAGE 1 ================= -->
+        <div data-screen-label="Page 01" class="mbq-card"
+          style="position:relative;overflow:hidden;background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <img src="assets/hero-runner.png" alt=""
+            style="position:absolute;top:0;right:0;width:47%;height:auto;object-fit:cover;object-position:top center;-webkit-mask-image:linear-gradient(100deg, transparent 4%, #000 30%);mask-image:linear-gradient(100deg, transparent 4%, #000 30%);pointer-events:none;" />
+          <!-- header -->
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:2;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div
+                style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;">
+                01</div>
+              <div>
+                <div
+                  style="font-weight:800;font-size:25px;letter-spacing:.5px;line-height:1;background:linear-gradient(90deg,#1f7fc4,#2433b8);-webkit-background-clip:text;background-clip:text;color:transparent;">
+                  MBQ</div>
+                <div style="font-size:10px;color:#8a93a3;font-weight:500;margin-top:3px;">Decode. Optimize. Evolve.
+                </div>
+              </div>
+            </div>
+            <div
+              style="display:flex;align-items:center;gap:7px;border:1px solid #e3e0f3;border-radius:20px;padding:7px 13px;background:#fbfaff;">
+              <img src="assets/icons/ai-insight.svg" style="width:15px;height:15px;display:block;" />
+              <span style="font-size:10.5px;font-weight:600;letter-spacing:.6px;color:#3a4252;">AI-DRIVEN GENETIC
+                INSIGHT</span>
+            </div>
+          </div>
+          <!-- body -->
+          <div style="position:relative;z-index:2;width:56%;margin-top:18px;">
+            <h1 style="font-size:38px;line-height:1.05;font-weight:700;margin:0;color:#1c2440;letter-spacing:-.5px;">
+              Your<br />Muscle Qode</h1>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+              <img src="assets/icons/qodai.svg" style="width:20px;height:20px;display:block;" />
+              <span style="font-size:14px;color:#5b6472;font-weight:500;">Powered by Qodai AI Engine</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:22px;">
+              <span style="font-size:32px;font-weight:700;"><span style="color:#3a26c9;">Power</span> <span
+                  style="color:#138a6a;">Sprinter</span></span>
+              <img src="assets/icons/lightning-blue.svg" style="width:30px;height:30px;display:block;" />
+            </div>
+            <div
+              style="display:inline-block;border:1px solid #d8d3f3;border-radius:18px;padding:7px 16px;margin-top:14px;">
+              <span style="color:#3a26c9;font-weight:600;font-size:14px;">Your Muscle Identity</span>
+            </div>
+            <p style="font-size:17px;line-height:1.5;color:#3a4252;margin:18px 0 0 0;font-weight:500;">Your body is
+              naturally wired for <span style="color:#3a6ff0;font-weight:600;">explosive power</span>, <span
+                style="color:#1f9ad0;font-weight:600;">speed</span> and <span
+                style="color:#1f9ad0;font-weight:600;">strength</span>.</p>
+          </div>
+          <!-- gene box -->
+          <div
+            style="position:relative;z-index:2;margin-top:22px;background:#f7f8fb;border:1px solid #eceef3;border-radius:14px;padding:16px 20px;display:flex;align-items:center;">
+            <div style="display:flex;align-items:center;gap:14px;flex:1;">
+              <img src="assets/icons/dna.svg" style="width:30px;height:30px;display:block;" />
+              <div>
+                <div style="font-size:12px;color:#8a93a3;font-weight:500;">Gene</div>
+                <div style="font-size:19px;font-weight:700;color:#1c2440;letter-spacing:.3px;">ACTN3</div>
+              </div>
+            </div>
+            <div style="width:1px;height:38px;background:#e2e4ea;"></div>
+            <div style="display:flex;align-items:center;gap:14px;flex:1;padding-left:22px;">
+              <img src="assets/icons/genotype.svg" style="width:30px;height:30px;display:block;" />
+              <div>
+                <div style="font-size:12px;color:#8a93a3;font-weight:500;">Genotype</div>
+                <div style="font-size:19px;font-weight:700;color:#1c2440;letter-spacing:.3px;">RR (G / G)</div>
+              </div>
+            </div>
+          </div>
+          <!-- expression box -->
+          <div
+            style="position:relative;z-index:2;margin-top:14px;background:#fdf7ee;border:1px solid #f3e6d2;border-radius:14px;padding:18px 22px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:14px;font-weight:700;color:#1c2440;">Your Genetic Expression Level</span>
+              <span style="display:flex;align-items:center;gap:5px;color:#8a93a3;font-size:13px;font-weight:500;"><img
+                  src="assets/icons/info.svg" style="width:15px;height:15px;" />What is this?</span>
+            </div>
+            <!-- 3-level expression indicator -->
+            <div style="margin-top:18px;">
+              <div style="display:flex;gap:12px;">
+                <div style="flex:1;height:40px;border-radius:11px;background:#efdcd7;"></div>
+                <div
+                  style="flex:1;height:40px;border-radius:11px;background:#f0a81e;box-shadow:0 5px 15px rgba(240,168,30,.45);">
+                </div>
+                <div style="flex:1;height:40px;border-radius:11px;background:#dbe9dd;"></div>
+              </div>
+              <div style="position:relative;height:16px;margin-top:7px;">
+                <div style="position:absolute;bottom:0;left:0;right:0;border-top:2px dashed #e6a522;"></div>
+                <div
+                  style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:11px solid #f0a81e;">
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:9px;">
+                <div style="flex:1;text-align:center;font-size:12.5px;font-weight:600;color:#b3a39e;">Light Match</div>
+                <div style="flex:1;text-align:center;font-size:15px;font-weight:700;color:#1c2440;">More Info Required
+                </div>
+                <div style="flex:1;text-align:center;font-size:12.5px;font-weight:600;color:#9db39f;">Highly Matched
+                </div>
+              </div>
+            </div>
+            <p style="font-size:13.5px;line-height:1.55;color:#5b6472;margin:12px 0 0 0;">You show a moderate match with
+              Power Sprinter genetics. With the right training and recovery, your potential can grow.</p>
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:20px;">
+            PAGE 1 OF 6</div>
+        </div>
+
+        <!-- ================= PAGE 2 ================= -->
+        <div data-screen-label="Page 02" class="mbq-card"
+          style="background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div
+              style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              02</div>
+            <h2 style="font-size:25px;font-weight:700;margin:0;color:#1c2440;">Understanding Your Muscle Type</h2>
+          </div>
+
+          <div
+            style="margin-top:18px;background:#f6f9fd;border:1px solid #e7eef6;border-radius:16px;padding:20px 22px;display:flex;gap:18px;align-items:flex-start;">
+            <img src="assets/icons/badge-means.svg" style="width:54px;height:54px;flex-shrink:0;" />
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:700;color:#138a5f;margin-bottom:8px;">What this means</div>
+              <ul style="font-size:14px;line-height:1.5;color:#3a4252;">
+                <li>You have a genetic profile for power and speed.</li>
+                <li>You can build explosive strength and performance.</li>
+                <li>Versatile across different sports and training styles.</li>
+              </ul>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+              <img src="assets/muscle.png" style="width:56px;height:auto;display:block;" />
+              <div style="font-size:14px;font-weight:600;color:#1c2440;line-height:1.35;">Fast-twitch<br />Muscle
+                Fiber<br />Dominant</div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:14px;background:#fdf6f1;border:1px solid #f6e4d9;border-radius:16px;padding:20px 22px;display:flex;gap:18px;align-items:flex-start;">
+            <img src="assets/icons/badge-notice.svg" style="width:54px;height:54px;flex-shrink:0;" />
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:700;color:#ef4f23;margin-bottom:8px;">What you may notice</div>
+              <ul style="font-size:14px;line-height:1.5;color:#3a4252;">
+                <li>Some days you feel strong and explosive.</li>
+                <li>Other days endurance feels easier.</li>
+                <li>Your performance can vary with training, recovery, sleep and nutrition.</li>
+              </ul>
+            </div>
+            <div
+              style="width:46px;height:62px;border:2.5px solid #2a3040;border-radius:6px;position:relative;flex-shrink:0;margin-right:6px;">
+              <div
+                style="position:absolute;top:-7px;left:13px;width:18px;height:5px;background:#2a3040;border-radius:2px;">
+              </div>
+              <div
+                style="position:absolute;inset:4px;color:#f5a623;display:flex;align-items:center;justify-content:center;font-size:26px;">
+                ⚡</div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:14px;background:#f7f8fd;border:1px solid #e9eaf4;border-radius:16px;padding:20px 22px;display:flex;gap:18px;align-items:center;">
+            <img src="assets/icons/badge-explains.svg"
+              style="width:54px;height:54px;flex-shrink:0;align-self:flex-start;" />
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:700;color:#4318c9;margin-bottom:8px;">What this explains</div>
+              <p style="font-size:14px;line-height:1.5;color:#3a4252;margin:0;">Your body is still developing a stronger
+                alignment with explosive training habits.</p>
+            </div>
+            <img src="assets/silhouette.png"
+              style="width:84px;height:auto;display:block;flex-shrink:0;mix-blend-mode:multiply;" />
+          </div>
+
+          <div
+            style="margin-top:18px;background:#f0f9f4;border:1px solid #d8eee2;border-radius:14px;padding:18px 22px;display:flex;gap:14px;align-items:center;">
+            <img src="assets/icons/lightbulb.svg" style="width:30px;height:30px;flex-shrink:0;" />
+            <p style="font-size:14.5px;line-height:1.5;color:#1c2440;margin:0;font-weight:600;">Your genetics gives you
+              the potential.<br />Your habits and consistency determine how fully you express it.</p>
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:20px;">
+            PAGE 2 OF 6</div>
+        </div>
+
+        <!-- ================= PAGE 3 ================= -->
+        <div data-screen-label="Page 03" class="mbq-card"
+          style="background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+            <div style="display:flex;align-items:flex-start;gap:14px;">
+              <div
+                style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                03</div>
+              <div>
+                <h2 style="font-size:23px;font-weight:700;margin:0;color:#1c2440;">Your Qode Alignment Report</h2>
+                <p style="font-size:13px;line-height:1.45;color:#5b6472;margin:6px 0 0 0;max-width:430px;">We compare
+                  your daily habits and lifestyle with your genetic potential to understand your current expression.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;align-items:center;gap:10px;background:#fdf3e3;border:1px solid #f3e2c4;border-radius:12px;padding:10px 14px;flex-shrink:0;">
+              <img src="assets/icons/shield-orange.svg" style="width:26px;height:26px;" />
+              <div style="line-height:1.15;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:.5px;color:#b98a2e;">CONFIDENCE</div>
+                <div style="font-size:15px;font-weight:700;color:#1c2440;">MEDIUM</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:18px;background:#fdf7ee;border:1px solid #f3e6d2;border-radius:16px;padding:22px;display:flex;gap:0;">
+            <div style="flex:1;padding-right:24px;">
+              <div style="font-size:15px;font-weight:700;color:#1c2440;">Your Expression Level</div>
+              <!-- 3-level expression indicator -->
+              <div style="margin-top:16px;">
+                <div style="display:flex;gap:9px;">
+                  <div style="flex:1;height:34px;border-radius:9px;background:#efdcd7;"></div>
+                  <div
+                    style="flex:1;height:34px;border-radius:9px;background:#f0a81e;box-shadow:0 5px 14px rgba(240,168,30,.4);">
+                  </div>
+                  <div style="flex:1;height:34px;border-radius:9px;background:#dbe9dd;"></div>
+                </div>
+                <div style="position:relative;height:14px;margin-top:6px;">
+                  <div style="position:absolute;bottom:0;left:0;right:0;border-top:2px dashed #e6a522;"></div>
+                  <div
+                    style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:10px solid #f0a81e;">
+                  </div>
+                </div>
+                <div style="display:flex;gap:9px;margin-top:8px;">
+                  <div style="flex:1;text-align:center;font-size:11px;font-weight:600;color:#b3a39e;">Light Match</div>
+                  <div style="flex:1;text-align:center;font-size:12.5px;font-weight:700;color:#1c2440;">More Info
+                    Required</div>
+                  <div style="flex:1;text-align:center;font-size:11px;font-weight:600;color:#9db39f;">Highly Matched
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="width:1px;background:#efe2cd;"></div>
+            <div style="flex:1;padding-left:24px;">
+              <div style="font-size:16px;font-weight:700;color:#d99316;">This means</div>
+              <p style="font-size:13.5px;line-height:1.5;color:#5b6472;margin:10px 0 0 0;">Your daily habits partially
+                align with Power Sprinter genetics.</p>
+              <p style="font-size:13.5px;line-height:1.5;color:#1c2440;margin:12px 0 0 0;font-weight:600;">You are on
+                the right path. Small, consistent changes will unlock your full potential.</p>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <div style="font-size:17px;font-weight:700;color:#1c2440;">Why your expression is growing</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:14px;">
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">You do strength training most weeks.</span>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">Your recovery is improving.</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">You include some high-intensity
+                  efforts.</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">You are open to trying new training
+                  approaches.</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">You are active and move regularly.</span>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;"><img src="assets/icons/check-orange.svg"
+                  style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" /><span
+                  style="font-size:13.5px;line-height:1.4;color:#3a4252;">Your lifestyle supports progress.</span></div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:18px;background:#f0f9f4;border:1px solid #d8eee2;border-radius:14px;padding:18px 20px;display:flex;gap:14px;align-items:flex-start;">
+            <img src="assets/icons/target.svg" style="width:30px;height:30px;flex-shrink:0;" />
+            <div>
+              <div style="font-size:16px;font-weight:700;color:#138a5f;margin-bottom:4px;">Qodai Coach Insight</div>
+              <p style="font-size:13.5px;line-height:1.5;color:#1c2440;margin:0;font-weight:600;">You have the genetics.
+                Keep building the habits.<br />Be consistent, train smart and your power will rise.</p>
+            </div>
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:20px;">
+            PAGE 3 OF 6</div>
+        </div>
+
+        <!-- ================= PAGE 4 ================= -->
+        <div data-screen-label="Page 04" class="mbq-card"
+          style="background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:flex-start;gap:14px;">
+            <div
+              style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              04</div>
+            <div>
+              <h2 style="font-size:24px;font-weight:700;margin:0;color:#1c2440;">Your Action Plan</h2>
+              <p style="font-size:13.5px;color:#5b6472;margin:4px 0 0 0;font-weight:500;">Balance. Adapt. Progress.</p>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+            <!-- Train -->
+            <div style="background:#f8faf9;border:1px solid #e7efeb;border-radius:16px;padding:18px 16px;">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px;"><img
+                  src="assets/icons/dumbbell.svg" style="width:24px;height:24px;" /><span
+                  style="font-size:16px;font-weight:700;color:#138a5f;">Train Like This</span></div>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e4ebe8;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-strength.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Strength + Power</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">2–3 days per week Focus on
+                      compound lifts and explosive movements.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e4ebe8;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-hiit.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">HIIT / Sprints</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">1–2 days per week 10–20
+                      sprints or high-intensity intervals.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e4ebe8;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-performance.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Performance Focus</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Work on speed, agility and
+                      power drills.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e4ebe8;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-overload.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Progressive Overload</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Increase weight, intensity
+                      or volume gradually.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Recover -->
+            <div style="background:#f7fafd;border:1px solid #e6eef6;border-radius:16px;padding:18px 16px;">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px;"><img src="assets/icons/bed.svg"
+                  style="width:24px;height:24px;" /><span style="font-size:16px;font-weight:700;color:#2a7de1;">Recover
+                  Like This</span></div>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e3ebf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-sleep.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">7–8 hrs Sleep</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Quality sleep is critical
+                      for power and recovery.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e3ebf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-active.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Active Recovery</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Light walks, mobility or
+                      stretching.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e3ebf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-rest.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Rest Days</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">1–2 full rest days per
+                      week.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #e3ebf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-stress.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Manage Stress</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Use breathing, meditation
+                      or journaling.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Fuel -->
+            <div style="background:#faf8fd;border:1px solid #ece6f6;border-radius:16px;padding:18px 16px;">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px;"><img
+                  src="assets/icons/droplet-violet.svg" style="width:24px;height:24px;" /><span
+                  style="font-size:16px;font-weight:700;color:#6b40d8;">Fuel Like This</span></div>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #eae3f4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-protein.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">High Protein</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">1.6–2.2 g protein per kg
+                      body weight daily.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #eae3f4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-carbs.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Carbs for Energy</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Fuel before and after
+                      training sessions.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #eae3f4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-hydration.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Hydration</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Drink 2–3 liters water
+                      every day.</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:11px;"><span
+                    style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid #eae3f4;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img
+                      src="assets/icons/i-micro.svg" style="width:19px;height:19px;" /></span>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#1c2440;">Micronutrients</div>
+                    <div style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:2px;">Eat colorful fruits,
+                      vegetables &amp; whole foods daily.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:18px;background:#f1f0fc;border:1px solid #ddd9f5;border-radius:14px;padding:18px 22px;display:flex;gap:14px;align-items:center;">
+            <img src="assets/icons/star.svg" style="width:30px;height:30px;flex-shrink:0;" />
+            <div>
+              <div style="font-size:16px;font-weight:700;color:#4318c9;">Small steps every day. Big power over time.
+              </div>
+              <div style="font-size:13.5px;color:#5b6472;margin-top:2px;">Stay consistent and your results will
+                multiply.</div>
+            </div>
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:20px;">
+            PAGE 4 OF 6</div>
+        </div>
+
+        <!-- ================= PAGE 5 ================= -->
+        <div data-screen-label="Page 05" class="mbq-card"
+          style="background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:flex-start;gap:14px;">
+            <div
+              style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              05</div>
+            <div>
+              <h2 style="font-size:24px;font-weight:700;margin:0;color:#1c2440;">Share Your Result</h2>
+              <p style="font-size:13.5px;color:#5b6472;margin:4px 0 0 0;font-weight:500;">Inspire others. Let them
+                discover their Muscle Qode.</p>
+            </div>
+          </div>
+
+          <!-- dark share card -->
+          <div
+            style="margin-top:18px;border-radius:18px;padding:26px 28px;background:radial-gradient(120% 120% at 80% 0%, #2a1c5e 0%, #161038 55%, #0d1330 100%);color:#fff;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+              <span style="font-size:28px;font-weight:700;"><span
+                  style="background:linear-gradient(90deg,#a78bff,#7aa2ff);-webkit-background-clip:text;background-clip:text;color:transparent;">Power
+                  Sprinter</span></span>
+              <img src="assets/icons/lightning-blue.svg" style="width:26px;height:26px;" />
+            </div>
+            <div style="display:flex;gap:22px;align-items:center;margin-top:18px;">
+              <div
+                style="flex:1;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:18px 20px;position:relative;background:rgba(255,255,255,.02);">
+                <span
+                  style="position:absolute;top:2px;left:12px;font-size:46px;color:#6b5bc0;font-family:Georgia,serif;line-height:1;">&ldquo;</span>
+                <span
+                  style="position:absolute;bottom:-14px;right:12px;font-size:46px;color:#6b5bc0;font-family:Georgia,serif;line-height:1;">&rdquo;</span>
+                <p style="font-size:16px;line-height:1.55;margin:8px 0 0 0;color:#eef0ff;">I have the potential for
+                  explosive power and speed.<br />I'm building my best self every day.<br />This is my Muscle Qode.</p>
+                <div style="font-size:15px;color:#a78bff;font-weight:600;margin-top:12px;">ACTN3 Genotype: RR (G / G)
+                </div>
+              </div>
+              <div style="flex-shrink:0;text-align:center;width:192px;">
+                <img src="assets/icons/shield-gold.svg" style="width:64px;height:64px;" />
+                <div style="margin-top:12px;">
+                  <div style="display:flex;gap:7px;">
+                    <div style="flex:1;height:24px;border-radius:7px;background:#4a3f52;"></div>
+                    <div
+                      style="flex:1;height:24px;border-radius:7px;background:#f0a81e;box-shadow:0 4px 12px rgba(240,168,30,.5);">
+                    </div>
+                    <div style="flex:1;height:24px;border-radius:7px;background:#3d4a40;"></div>
+                  </div>
+                  <div style="position:relative;height:12px;margin-top:5px;">
+                    <div style="position:absolute;bottom:0;left:0;right:0;border-top:2px dashed #e6a522;"></div>
+                    <div
+                      style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:9px solid #f0a81e;">
+                    </div>
+                  </div>
+                </div>
+                <div style="font-size:17px;font-weight:700;margin-top:10px;line-height:1.15;color:#fff;">More Info
+                  Required</div>
+              </div>
+            </div>
+            <div style="text-align:center;font-size:16px;font-weight:600;margin-top:22px;color:#eef0ff;">Share your
+              result with friends!</div>
+            <div style="display:flex;gap:14px;margin-top:14px;">
+              <div
+                style="flex:1;display:flex;align-items:center;justify-content:center;gap:9px;background:#1fb152;border-radius:12px;padding:13px;font-weight:600;font-size:14px;">
+                <img src="assets/icons/whatsapp.svg" style="width:22px;height:22px;" />WhatsApp
+              </div>
+              <div
+                style="flex:1;display:flex;align-items:center;justify-content:center;gap:9px;background:#241c50;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px;font-weight:600;font-size:14px;">
+                <img src="assets/icons/instagram.svg" style="width:22px;height:22px;" />Instagram Story
+              </div>
+              <div
+                style="flex:1;display:flex;align-items:center;justify-content:center;gap:9px;background:#241c50;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px;font-weight:600;font-size:14px;">
+                <img src="assets/icons/copy.svg" style="width:20px;height:20px;" />Copy Link
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:18px;background:#f4f3fc;border:1px solid #e2def4;border-radius:14px;padding:18px 22px;display:flex;align-items:center;gap:16px;">
+            <img src="assets/icons/gift.svg" style="width:42px;height:42px;flex-shrink:0;" />
+            <div style="flex:1;">
+              <div style="font-size:17px;font-weight:700;color:#4318c9;">Give the gift of self-knowledge.</div>
+              <p style="font-size:13.5px;line-height:1.5;color:#5b6472;margin:4px 0 0 0;">Invite your friends and family
+                to discover their Qode.</p>
+            </div>
+            <img src="assets/icons/qr.svg" style="width:74px;height:74px;flex-shrink:0;" />
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:20px;">
+            PAGE 5 OF 6</div>
+        </div>
+
+        <!-- ================= PAGE 6 ================= -->
+        <div data-screen-label="Page 06" class="mbq-card"
+          style="background:#fff;border-radius:22px;border:1px solid #e9eaf0;box-shadow:0 6px 26px rgba(25,25,70,.06);padding:26px 28px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:flex-start;gap:14px;">
+            <div
+              style="width:38px;height:38px;border-radius:11px;background:#3d20c4;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              06</div>
+            <div>
+              <h2 style="font-size:24px;font-weight:700;margin:0;color:#1c2440;">Scientific Details &amp; Lab Report
+              </h2>
+              <p style="font-size:13.5px;color:#5b6472;margin:4px 0 0 0;font-weight:500;">Verified by lab. Backed by
+                science.</p>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;font-size:14px;font-weight:700;color:#4318c9;">A. Genetic Summary</div>
+          <div style="margin-top:10px;border:1px solid #e7e9f0;border-radius:10px;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:1fr 1.2fr 1fr 1.2fr;background:#f3f4f8;">
+              <div
+                style="padding:11px 8px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:#3a4252;border-right:1px solid #e7e9f0;">
+                GENE</div>
+              <div
+                style="padding:11px 8px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:#3a4252;border-right:1px solid #e7e9f0;">
+                MARKER (rsID)</div>
+              <div
+                style="padding:11px 8px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:#3a4252;border-right:1px solid #e7e9f0;">
+                GENOTYPE</div>
+              <div
+                style="padding:11px 8px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:#3a4252;">
+                MUSCLE TYPE</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1.2fr 1fr 1.2fr;">
+              <div
+                style="padding:13px 8px;text-align:center;font-size:15px;font-weight:700;color:#1c2440;border-right:1px solid #eef0f4;">
+                ACTN3</div>
+              <div
+                style="padding:13px 8px;text-align:center;font-size:15px;font-weight:700;color:#1c2440;border-right:1px solid #eef0f4;">
+                rs1815739</div>
+              <div
+                style="padding:13px 8px;text-align:center;font-size:15px;font-weight:700;color:#1c2440;border-right:1px solid #eef0f4;">
+                RR (G / G)</div>
+              <div style="padding:13px 8px;text-align:center;font-size:15px;font-weight:700;color:#3a26c9;">Power
+                Sprinter</div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;font-size:14px;font-weight:700;color:#4318c9;">B. Sanger Sequencing Chromatogram
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin:5px 0 0 0;">This is the actual DNA sequence read from your
+            sample at the <b style="color:#1c2440;">ACTN3</b> gene region.</p>
+          <img src="assets/chromatogram.svg" style="width:100%;display:block;margin-top:8px;" />
+          <div style="text-align:center;font-size:15px;font-weight:700;color:#3a26c9;margin-top:2px;">Your Genotype: RR
+            (G / G)</div>
+
+          <div style="margin-top:16px;font-size:14px;font-weight:700;color:#4318c9;">C. Lab Report (Raw Output)</div>
+          <p style="font-size:12px;color:#6b7280;margin:5px 0 0 0;">Full lab Sanger sequencing file for ACTN3
+            (rs1815739) region.</p>
+          <div
+            style="margin-top:10px;background:#f6f7fb;border:1px solid #e7e9f0;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:14px;">
+            <img src="assets/icons/file.svg" style="width:30px;height:30px;flex-shrink:0;" />
+            <div style="flex:1;">
+              <div style="font-size:15px;font-weight:700;color:#1c2440;">F10-SLS-SEQ-395-46F.ab1</div>
+              <div style="font-size:12px;color:#6b7280;">Sanger Sequencing File (.ab1)</div>
+            </div>
+            <div
+              style="display:flex;align-items:center;gap:8px;background:#3d20c4;color:#fff;border-radius:10px;padding:11px 18px;font-size:13.5px;font-weight:600;flex-shrink:0;">
+              <img src="assets/icons/download.svg" style="width:17px;height:17px;" />Download File
+            </div>
+          </div>
+
+          <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+            <div style="display:flex;gap:9px;align-items:center;"><img src="assets/icons/flask.svg"
+                style="width:24px;height:24px;flex-shrink:0;" />
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1c2440;">Technology</div>
+                <div style="font-size:11px;color:#6b7280;">Sanger Sequencing</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:9px;align-items:center;"><img src="assets/icons/quality.svg"
+                style="width:24px;height:24px;flex-shrink:0;" />
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1c2440;">Quality Check</div>
+                <div style="font-size:11px;color:#6b7280;">Passed</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:9px;align-items:center;"><img src="assets/icons/waveform.svg"
+                style="width:24px;height:24px;flex-shrink:0;" />
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1c2440;">Read Quality</div>
+                <div style="font-size:11px;color:#6b7280;">High Confidence</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:9px;align-items:center;"><img src="assets/icons/building.svg"
+                style="width:24px;height:24px;flex-shrink:0;" />
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1c2440;">Lab</div>
+                <div style="font-size:11px;color:#6b7280;">Geospiza Genomic Services</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="margin-top:14px;background:#f7f8fb;border:1px solid #eceef3;border-radius:12px;padding:12px 16px;display:flex;gap:11px;align-items:center;">
+            <img src="assets/icons/shield-gray.svg" style="width:24px;height:24px;flex-shrink:0;" />
+            <p style="font-size:11.5px;line-height:1.5;color:#6b7280;margin:0;">This is a non-diagnostic report. For
+              lifestyle and wellness understanding only. It does not diagnose, treat or prevent any disease.</p>
+          </div>
+          <div
+            style="text-align:center;font-size:12px;font-weight:600;letter-spacing:1.5px;color:#9aa2b1;margin-top:auto;padding-top:14px;">
+            PAGE 6 OF 6</div>
+        </div>
+
+      </div>
+    </div>
+  </x-dc>
+  <script>
+    window.addEventListener('message', (event) => {
+      if (event.data === 'downloadPDF') {
+        setTimeout(() => {
+          try {
+            window.print();
+            window.parent.postMessage('downloadComplete', '*');
+          } catch (err) {
+            window.parent.postMessage('downloadError', '*');
+          }
+        }, 100);
+      }
+    });
+  </script>
+</body>
+
+</html>
