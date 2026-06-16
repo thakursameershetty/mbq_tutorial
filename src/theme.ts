@@ -1,5 +1,5 @@
 export const theme = {
-  background: "min-h-screen bg-[#F7F7F5] bg-[radial-gradient(#E5E5E5_1px,transparent_1px)] [background-size:20px_20px] text-[#2C2C2A] font-sans flex flex-col items-center",
+  background: "min-h-screen bg-[#F7F7F5] bg-[radial-gradient(#E5E5E5_1px,transparent_1px)] [background-size:20px_20px] text-[#2C2C2A] font-sans flex flex-col items-center overflow-x-hidden w-full",
   card: "w-full max-w-lg bg-white/70 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 shadow-[0_8px_32px_rgb(0,0,0,0.04)] border border-white/60 relative mx-auto",
   adminCard: "w-full max-w-5xl bg-white/70 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 shadow-[0_8px_32px_rgb(0,0,0,0.04)] border border-white/60 mx-auto",
   input: "w-full bg-white/50 text-[#2C2C2A] placeholder-[#A0A09D] rounded-xl px-4 py-3.5 mb-4 border border-[#E8E8E5] outline-none focus:ring-4 focus:ring-[#6057D7]/10 focus:bg-white focus:border-[#6057D7]/30 transition-all duration-300",

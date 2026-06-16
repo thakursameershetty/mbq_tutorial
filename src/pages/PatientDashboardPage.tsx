@@ -117,8 +117,8 @@ export default function PatientDashboardPage() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="w-full max-w-4xl mx-auto mt-8 sm:mt-12 px-4 pb-12"
     >
-      <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex justify-between items-start">
-        <div className="flex-1 mr-4">
+      <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
+        <div className="flex-1 w-full min-w-0">
           {isEditing ? (
             <input 
               type="text" 
@@ -127,11 +127,11 @@ export default function PatientDashboardPage() {
               className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 border-b border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] bg-transparent w-full"
             />
           ) : (
-            <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2">Hello, {user.full_name}</h1>
+            <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name}</h1>
           )}
           <p className="text-[#8B8B86] text-sm">User ID: {user.id}</p>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           {isEditing ? (
             <div className="flex gap-2">
               <button onClick={() => { setIsEditing(false); setEditForm(user); }} className="p-2 text-[#8B8B86] hover:bg-white rounded-full transition-colors" title="Cancel">

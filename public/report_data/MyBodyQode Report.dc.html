@@ -46,9 +46,7 @@
         }
 
         @media print {
-
-          html,
-          body {
+          html, body {
             background: #fff;
           }
 
@@ -735,18 +733,57 @@
     </div>
   </x-dc>
   <script>
+    // ── PDF download handler ──────────────────────────────────────────
     window.addEventListener('message', (event) => {
       if (event.data === 'downloadPDF') {
+        // Before printing, remove the zoom so the PDF renders at full A4 size
+        const prevZoom = document.body.style.zoom;
+        document.body.style.zoom = '';
         setTimeout(() => {
           try {
             window.print();
             window.parent.postMessage('downloadComplete', '*');
           } catch (err) {
             window.parent.postMessage('downloadError', '*');
+          } finally {
+            // Restore zoom after printing
+            document.body.style.zoom = prevZoom;
           }
         }, 100);
       }
     });
+
+    // ── Proportional scale-to-fit for mobile screens ─────────────────
+    // The A4 card is 794px wide. The wrapper adds 36px padding each side.
+    // On narrow screens we zoom the entire body down proportionally so
+    // everything stays pixel-perfect — no layout changes, no reflow.
+    function applyMobileScale() {
+      // Never zoom during print
+      if (window.matchMedia('print').matches) return;
+
+      const DESIGN_WIDTH = 794 + 36 * 2; // card + wrapper padding (866px)
+      const vw = window.innerWidth;
+
+      if (vw < DESIGN_WIDTH) {
+        const scale = vw / DESIGN_WIDTH;
+        document.body.style.zoom = scale;
+
+        // Tell parent iframe our rendered height so it can size correctly
+        const scaledHeight = Math.ceil(document.documentElement.scrollHeight * scale);
+        window.parent.postMessage({ type: 'iframeHeight', height: scaledHeight }, '*');
+      } else {
+        document.body.style.zoom = '';
+        // Full height — no scaling
+        const fullHeight = document.documentElement.scrollHeight;
+        window.parent.postMessage({ type: 'iframeHeight', height: fullHeight }, '*');
+      }
+    }
+
+    // Run on load and on every resize
+    window.addEventListener('load', applyMobileScale);
+    window.addEventListener('resize', applyMobileScale);
+    // Also run early in case DOMContentLoaded fires before 'load'
+    document.addEventListener('DOMContentLoaded', applyMobileScale);
   </script>
 </body>
 

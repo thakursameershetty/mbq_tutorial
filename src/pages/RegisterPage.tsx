@@ -1,8 +1,300 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, ArrowLeft, ExternalLink, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ChevronDown, ArrowLeft, ExternalLink, RefreshCw, Loader2, CheckCircle2, AlertCircle, ScrollText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { theme } from '../theme';
+
+// ── Terms & Conditions Modal ────────────────────────────────────────────────
+function TermsModal({
+  onAgree,
+  onDecline,
+}: {
+  onAgree: (platformConsent: boolean) => void;
+  onDecline: () => void;
+}) {
+  const [platformConsent, setPlatformConsent] = useState<boolean | null>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Consider "scrolled enough" when within 100px of bottom
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+      setHasScrolled(true);
+    }
+  };
+
+  const canAgree = hasScrolled && platformConsent !== null;
+
+  const sections = [
+    {
+      num: '1', title: 'Nature of Participation',
+      items: [
+        'My participation is completely voluntary.',
+        'I may withdraw from the program at any time by contacting MyBodyQode.',
+        'Participation involves providing personal information, lifestyle-related questionnaire responses, and a saliva sample for genetic testing.',
+        'My participation does not establish a doctor-patient relationship with MyBodyQode.',
+      ],
+    },
+    {
+      num: '2', title: 'Wellness and Educational Purpose',
+      items: [
+        'MyBodyQode is not a diagnostic, treatment, or disease-screening service.',
+        'Reports are intended for educational, wellness, and lifestyle awareness purposes only.',
+        'Results should not be used to diagnose, treat, cure, or prevent any medical condition.',
+        'I should consult a qualified healthcare professional regarding any medical concerns.',
+      ],
+    },
+    {
+      num: '3', title: 'DNA Sample Collection and Testing',
+      intro: 'I voluntarily consent to:',
+      items: [
+        'Providing a saliva sample.',
+        'Genetic testing by an accredited partner laboratory.',
+        'Generation of genotype results for selected lifestyle-related genetic markers.',
+        'Secure sharing of those genotype results with MyBodyQode for report generation.',
+      ],
+      note: 'The laboratory performs the genetic analysis. MyBodyQode interprets the results and generates educational wellness reports.',
+    },
+    {
+      num: '4', title: 'Phenotype Questionnaire Participation',
+      intro: 'I voluntarily consent to provide:',
+      items: [
+        'Lifestyle information.',
+        'Habit-related information.',
+        'Wellness-related questionnaire responses.',
+        'Feedback regarding my experiences and observations.',
+      ],
+      note: 'These responses may be used together with my genotype information to generate more personalized reports.',
+    },
+    {
+      num: '5', title: 'AI-Assisted Personalization',
+      items: [
+        'MyBodyQode may use automated systems and AI-assisted analysis.',
+        'My genotype data and questionnaire responses may be combined to generate personalized wellness insights.',
+        'AI-generated outputs are educational in nature and are not medical advice.',
+      ],
+    },
+    {
+      num: '6', title: 'Data Privacy and Security',
+      intro: 'MyBodyQode may collect: Name, contact details, demographic information, questionnaire responses, genetic testing results, and platform interaction data.',
+      items: [
+        'My information will be protected using reasonable security safeguards.',
+        'Access is restricted to authorized personnel and approved systems.',
+        'MyBodyQode does not sell my personal genetic information.',
+      ],
+    },
+    {
+      num: '7', title: 'Data Ownership',
+      items: [
+        'I remain the owner of my personal and genetic information.',
+        'MyBodyQode acts as a custodian of this information for the purpose of delivering services.',
+        'I may request access, correction, or deletion of my information subject to applicable legal and operational requirements.',
+      ],
+    },
+    {
+      num: '9', title: 'Sample Retention and Disposal',
+      items: [
+        'My biological sample may be retained temporarily by the partner laboratory for quality assurance purposes.',
+        'Samples may be securely destroyed according to laboratory retention policies unless additional consent is provided.',
+        'Retention periods may vary according to laboratory requirements and applicable regulations.',
+      ],
+    },
+    {
+      num: '10', title: 'Risks and Limitations',
+      items: [
+        'Genetic information provides tendencies and predispositions, not certainties.',
+        'Results may not fully explain my health, fitness, behavior, or lifestyle outcomes.',
+        'Environmental, lifestyle, and personal factors also influence outcomes.',
+      ],
+    },
+    {
+      num: '11', title: 'Withdrawal',
+      items: [
+        'Participation is voluntary.',
+        'I may request withdrawal from the program.',
+        'Certain data already used in aggregated or anonymized analyses may not be removable after processing.',
+      ],
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm px-0 sm:px-4"
+    >
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="relative w-full sm:max-w-2xl bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col"
+        style={{ maxHeight: '92vh' }}
+      >
+        {/* ── Sticky Header ── */}
+        <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-[#F0F0EE] flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6057D7] to-[#4B44B3] flex items-center justify-center flex-shrink-0">
+            <ScrollText size={20} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-[#1A1A19] leading-tight">Consent & Participation Agreement</h2>
+            <p className="text-xs text-[#8B8B86] mt-0.5">MyBodyQode Early Access Program</p>
+          </div>
+          <button
+            onClick={onDecline}
+            className="p-2 rounded-full hover:bg-[#F7F7F5] text-[#8B8B86] transition-colors flex-shrink-0"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Scroll hint pill */}
+        {!hasScrolled && (
+          <div className="flex justify-center pt-2 flex-shrink-0">
+            <span className="text-[11px] text-[#6057D7] bg-[#6057D7]/8 border border-[#6057D7]/20 rounded-full px-3 py-1 font-medium">
+              📜 Please scroll down to read the full agreement
+            </span>
+          </div>
+        )}
+
+        {/* ── Scrollable Content ── */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-6 py-4 space-y-5"
+          style={{ overscrollBehavior: 'contain' }}
+        >
+          {/* Intro */}
+          <div className="bg-gradient-to-br from-[#6057D7]/6 to-[#3FC2AC]/6 border border-[#6057D7]/15 rounded-2xl p-4">
+            <p className="text-sm text-[#3a3a38] leading-relaxed">
+              Thank you for volunteering to participate in the <strong>MyBodyQode (MBQ) Early Access Program</strong>.
+              MBQ is a wellness and lifestyle personalization platform that combines genetic information, questionnaire
+              responses, and AI-assisted analysis to provide educational insights about certain lifestyle-related traits.
+            </p>
+            <p className="text-sm text-[#3a3a38] leading-relaxed mt-2 font-medium">
+              Please carefully read and acknowledge the following information before participating.
+            </p>
+          </div>
+
+          {/* Sections */}
+          {sections.map((sec) => (
+            <div key={sec.num} className="border border-[#EBEBEA] rounded-2xl p-4">
+              <div className="flex items-center gap-2.5 mb-3">
+                <span className="w-7 h-7 rounded-lg bg-[#6057D7]/10 text-[#6057D7] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  {sec.num}
+                </span>
+                <h3 className="text-sm font-bold text-[#1A1A19]">{sec.title}</h3>
+              </div>
+              {sec.intro && (
+                <p className="text-xs text-[#6b6b68] mb-2 leading-relaxed">{sec.intro}</p>
+              )}
+              <ul className="space-y-1.5">
+                {sec.items.map((item, i) => (
+                  <li key={i} className="flex gap-2.5 text-xs text-[#3a3a38] leading-relaxed">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-[#3FC2AC] flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              {sec.note && (
+                <p className="text-xs text-[#6b6b68] mt-2 pt-2 border-t border-[#F0F0EE] leading-relaxed italic">{sec.note}</p>
+              )}
+            </div>
+          ))}
+
+          {/* Section 8 — Optional Platform Consent */}
+          <div className="border border-[#3FC2AC]/30 bg-[#3FC2AC]/5 rounded-2xl p-4">
+            <div className="flex items-center gap-2.5 mb-2">
+              <span className="w-7 h-7 rounded-lg bg-[#3FC2AC]/20 text-[#138a6a] text-xs font-bold flex items-center justify-center flex-shrink-0">8</span>
+              <h3 className="text-sm font-bold text-[#1A1A19]">Optional Platform Improvement Consent</h3>
+            </div>
+            <p className="text-xs text-[#6b6b68] leading-relaxed mb-3">
+              MyBodyQode continuously improves its reports and algorithms. You may choose whether anonymized and
+              de-identified information can be used for platform improvement, algorithm enhancement, user experience
+              optimization, and internal scientific evaluation. <strong>This consent is optional and does not affect your participation.</strong>
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div
+                  onClick={() => setPlatformConsent(true)}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === true ? 'bg-[#3FC2AC] border-[#3FC2AC]' : 'border-[#D0D0CE] group-hover:border-[#3FC2AC]'}`}
+                >
+                  {platformConsent === true && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
+                </div>
+                <span className="text-xs text-[#3a3a38] leading-relaxed">I consent to the use of anonymized data for platform improvement.</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div
+                  onClick={() => setPlatformConsent(false)}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === false ? 'bg-[#6057D7] border-[#6057D7]' : 'border-[#D0D0CE] group-hover:border-[#6057D7]'}`}
+                >
+                  {platformConsent === false && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
+                </div>
+                <span className="text-xs text-[#3a3a38] leading-relaxed">I do not consent.</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Participant Declaration */}
+          <div className="bg-[#1A1A19] rounded-2xl p-4 space-y-2">
+            <h3 className="text-sm font-bold text-white">Participant Declaration</h3>
+            <p className="text-xs text-white/70 leading-relaxed">By selecting "I Agree" below, I confirm that:</p>
+            <ul className="space-y-1.5">
+              {[
+                'I am at least 18 years of age.',
+                'I have read and understood this consent document.',
+                'I voluntarily agree to participate in the MyBodyQode Early Access Program.',
+                'I consent to genetic testing, questionnaire participation, and AI-assisted report generation as described above.',
+              ].map((item, i) => (
+                <li key={i} className="flex gap-2.5 text-xs text-white/80 leading-relaxed">
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-[#3FC2AC] flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Bottom spacer so content clears the sticky footer */}
+          <div className="h-2" />
+        </div>
+
+        {/* ── Sticky Footer ── */}
+        <div className="px-6 py-4 border-t border-[#F0F0EE] flex-shrink-0 space-y-2.5">
+          {!canAgree && (
+            <p className="text-center text-[11px] text-[#8B8B86]">
+              {!hasScrolled
+                ? 'Scroll to the bottom to enable the agreement buttons.'
+                : 'Please select your platform improvement preference above.'}
+            </p>
+          )}
+          <motion.button
+            whileHover={canAgree ? { scale: 1.01 } : {}}
+            whileTap={canAgree ? { scale: 0.99 } : {}}
+            onClick={() => canAgree && onAgree(platformConsent!)}
+            disabled={!canAgree}
+            className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
+              canAgree
+                ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white shadow-md hover:shadow-lg'
+                : 'bg-[#F0F0EE] text-[#B0B0AE] cursor-not-allowed'
+            }`}
+          >
+            ✓ I Agree and Wish to Participate
+          </motion.button>
+          <button
+            onClick={onDecline}
+            className="w-full py-3 rounded-xl text-sm font-medium text-[#8B8B86] hover:bg-[#F7F7F5] transition-colors"
+          >
+            I Do Not Agree
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 const TUTORIAL_STEPS = [
   { title: "Before You Begin", desc: ["Do not eat, drink, smoke, or chew gum for at least 30 minutes before collecting the sample.", "Wash your hands thoroughly."] },
@@ -19,6 +311,7 @@ const TUTORIAL_STEPS = [
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [backendFinished, setBackendFinished] = useState(false);
@@ -89,8 +382,15 @@ export default function RegisterPage() {
     return age.toString();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Called when the form's submit button is clicked — shows T&C first
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowTerms(true);
+  };
+
+  // Called after user agrees to T&C — this is where the actual backend call happens
+  const handleSubmit = async (_platformConsent: boolean) => {
+    setShowTerms(false);
     setLoading(true);
 
     try {
@@ -284,16 +584,16 @@ export default function RegisterPage() {
 
                   {!TUTORIAL_STEPS[tutorialStep].timer && <div className="h-12 mb-6" />}
 
-                  <div className="flex justify-between items-center mt-6 pt-6 border-t border-[#E8E8E5]">
+                  <div className="flex flex-wrap sm:flex-nowrap justify-center sm:justify-between items-center mt-6 pt-6 border-t border-[#E8E8E5] gap-4">
                     <button
                       disabled={tutorialStep === 0}
                       onClick={() => { setTutorialStep(prev => prev - 1); setTimeLeft(null); }}
-                      className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-colors ${tutorialStep === 0 ? 'text-transparent cursor-default' : 'text-[#8B8B86] hover:bg-[#F7F7F5] active:scale-95'}`}
+                      className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-colors w-full sm:w-auto text-center order-2 sm:order-1 ${tutorialStep === 0 ? 'text-transparent cursor-default' : 'text-[#8B8B86] hover:bg-[#F7F7F5] active:scale-95'}`}
                     >
                       Previous
                     </button>
 
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5 order-1 sm:order-2 w-full sm:w-auto justify-center mb-2 sm:mb-0">
                       {TUTORIAL_STEPS.map((_, i) => (
                         <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === tutorialStep ? 'bg-[#6057D7]' : 'bg-[#E8E8E5]'}`} />
                       ))}
@@ -302,14 +602,14 @@ export default function RegisterPage() {
                     {tutorialStep < TUTORIAL_STEPS.length - 1 ? (
                       <button
                         onClick={() => { setTutorialStep(prev => prev + 1); setTimeLeft(null); }}
-                        className="px-6 py-2.5 bg-[#F7F7F5] rounded-xl font-semibold text-[#1A1A19] hover:bg-[#E8E8E5] text-sm transition-colors active:scale-95"
+                        className="px-6 py-2.5 bg-[#F7F7F5] rounded-xl font-semibold text-[#1A1A19] hover:bg-[#E8E8E5] text-sm transition-colors active:scale-95 w-full sm:w-auto order-3"
                       >
                         Next
                       </button>
                     ) : (
                       <button
                         onClick={handleFinishTutorial}
-                        className="px-6 py-2.5 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white rounded-xl font-semibold text-sm hover:opacity-90 flex items-center gap-2 shadow-md active:scale-95 transition-all"
+                        className="px-6 py-2.5 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white rounded-xl font-semibold text-sm hover:opacity-90 flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all w-full sm:w-auto order-3"
                       >
                         {(!backendFinished) && <Loader2 className="animate-spin" size={16} />}
                         Complete
@@ -323,6 +623,16 @@ export default function RegisterPage() {
         )}
       </AnimatePresence>
 
+      {/* Terms & Conditions Modal — rendered at root level so it overlays everything */}
+      <AnimatePresence>
+        {showTerms && (
+          <TermsModal
+            onAgree={(platformConsent) => handleSubmit(platformConsent)}
+            onDecline={() => setShowTerms(false)}
+          />
+        )}
+      </AnimatePresence>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -333,7 +643,7 @@ export default function RegisterPage() {
           <p className={theme.subheading}>Link your phenotype data with your lab results.</p>
           <p className="text-xs text-[#8B8B86] mb-6 font-medium">* Every field is required</p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleFormSubmit}>
             <input type="text" name="username" onChange={handleChange} placeholder="Unique Username" className={theme.input} required />
             <input type="text" name="fullName" onChange={handleChange} placeholder="Full Legal Name" className={theme.input} required />
             <input type="email" name="email" onChange={handleChange} placeholder="Email Address" className={theme.input} required />
@@ -390,7 +700,7 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="Day"
                   min="1" max="31"
-                  className={`${theme.input} !mb-0 w-[80px] sm:w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  className={`${theme.input} !mb-0 !w-1/4 sm:!w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
                   required
                 />
                 <div className="relative flex-1">
@@ -420,7 +730,7 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="Year"
                   min="1900" max={new Date().getFullYear()}
-                  className={`${theme.input} !mb-0 w-[90px] sm:w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  className={`${theme.input} !mb-0 !w-1/3 sm:!w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
                   required
                 />
               </div>
@@ -454,7 +764,7 @@ export default function RegisterPage() {
               type="submit" disabled={loading}
               className={theme.buttonPrimary}
             >
-              {loading ? 'Mapping Profile...' : 'Complete Registration'}
+              {loading ? 'Mapping Profile...' : 'Review & Agree to Terms'}
             </motion.button>
           </form>
         </div>
