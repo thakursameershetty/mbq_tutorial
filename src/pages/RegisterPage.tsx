@@ -50,7 +50,7 @@ function TermsModal({
       num: '3', title: 'DNA Sample Collection and Testing',
       intro: 'I voluntarily consent to:',
       items: [
-        'Providing a saliva sample.',
+        'Providing a non-invasive buccal (cheek) swab sample for DNA analysis.',
         'Genetic testing by an accredited partner laboratory.',
         'Generation of genotype results for selected lifestyle-related genetic markers.',
         'Secure sharing of those genotype results with MyBodyQode for report generation.',
