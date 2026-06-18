@@ -4,6 +4,26 @@ import { ChevronDown, ArrowLeft, ExternalLink, RefreshCw, Loader2, CheckCircle2,
 import { motion, AnimatePresence } from 'framer-motion';
 import { theme } from '../theme';
 
+import img1 from '../assets/illustations/1.png';
+import img2 from '../assets/illustations/2.png';
+import img3 from '../assets/illustations/3.png';
+import img4 from '../assets/illustations/4.png';
+import img5 from '../assets/illustations/5.png';
+import img6 from '../assets/illustations/6.png';
+import img7 from '../assets/illustations/7.png';
+import img8 from '../assets/illustations/8.png';
+
+const TUTORIAL_IMAGES = [
+  img1,
+  img2,
+  img3,
+  img4,
+  img5,
+  img6,
+  img7,
+  img8,
+];
+
 // ── Terms & Conditions Modal ────────────────────────────────────────────────
 function TermsModal({
   onAgree,
@@ -276,11 +296,10 @@ function TermsModal({
             whileTap={canAgree ? { scale: 0.99 } : {}}
             onClick={() => canAgree && onAgree(platformConsent!)}
             disabled={!canAgree}
-            className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
-              canAgree
-                ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white shadow-md hover:shadow-lg'
-                : 'bg-[#F0F0EE] text-[#B0B0AE] cursor-not-allowed'
-            }`}
+            className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${canAgree
+              ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white shadow-md hover:shadow-lg'
+              : 'bg-[#F0F0EE] text-[#B0B0AE] cursor-not-allowed'
+              }`}
           >
             ✓ I Agree and Wish to Participate
           </motion.button>
@@ -319,6 +338,7 @@ export default function RegisterPage() {
   const [needsSurvey, setNeedsSurvey] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
   const [postTutorialAction, setPostTutorialAction] = useState<'login' | 'survey' | 'stay'>('stay');
+  const [showThankYou, setShowThankYou] = useState(false);
 
   // Countdown timer logic for tutorial steps
   useEffect(() => {
@@ -338,21 +358,31 @@ export default function RegisterPage() {
   // Navigate automatically once the user finishes the tutorial AND the backend finishes
   useEffect(() => {
     if (waitingForBackend && backendFinished) {
-      setLoading(false);
-      if (postTutorialAction === 'login') navigate('/login');
-      else if (postTutorialAction === 'survey') setNeedsSurvey(true);
-      // If 'stay', they just return to the form (handled by closing loading)
+      if (postTutorialAction === 'stay') {
+        setLoading(false);
+      } else {
+        setShowThankYou(true);
+      }
     }
-  }, [waitingForBackend, backendFinished, postTutorialAction, navigate]);
+  }, [waitingForBackend, backendFinished, postTutorialAction]);
 
   const handleFinishTutorial = () => {
     if (backendFinished) {
-      setLoading(false);
-      if (postTutorialAction === 'login') navigate('/login');
-      else if (postTutorialAction === 'survey') setNeedsSurvey(true);
+      if (postTutorialAction === 'stay') {
+        setLoading(false);
+      } else {
+        setShowThankYou(true);
+      }
     } else {
       setWaitingForBackend(true);
     }
+  };
+
+  const handleDispatchConfirmed = () => {
+    setLoading(false);
+    setShowThankYou(false);
+    if (postTutorialAction === 'login') navigate('/login');
+    else if (postTutorialAction === 'survey') setNeedsSurvey(true);
   };
 
   // State to hold the form data
@@ -536,7 +566,23 @@ export default function RegisterPage() {
                 )}
               </AnimatePresence>
 
-              {waitingForBackend ? (
+              {showThankYou ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-[#6057D7] to-[#3FC2AC] rounded-full flex items-center justify-center mb-6 shadow-lg">
+                    <CheckCircle2 size={32} className="text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-[#1A1A19] mb-3">Thank You!</h3>
+                  <p className="text-sm text-[#8B8B86] mb-8 leading-relaxed max-w-sm mx-auto">
+                    Your phenotypic profile has been successfully linked. Please confirm that you have securely packed and dispatched your DNA sample as per the instructions.
+                  </p>
+                  <button
+                    onClick={handleDispatchConfirmed}
+                    className="w-full bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white px-8 py-3.5 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 size={18} /> I have dispatched the sample
+                  </button>
+                </div>
+              ) : waitingForBackend ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="animate-spin text-[#6057D7] mb-4" size={48} />
                   <h3 className="text-xl font-bold text-[#1A1A19]">Finishing up...</h3>
@@ -551,8 +597,12 @@ export default function RegisterPage() {
                     </button>
                   </div>
 
-                  <div className="w-full bg-[#F7F7F5] h-32 md:h-48 rounded-2xl mb-6 flex items-center justify-center border border-[#E8E8E5]">
-                    <span className="text-[#8B8B86] text-sm italic font-medium">Illustration Placeholder</span>
+                  <div className="w-56 h-56 md:w-64 md:h-64 mx-auto mb-6 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={TUTORIAL_IMAGES[Math.min(tutorialStep, TUTORIAL_IMAGES.length - 1)]}
+                      alt={`Step ${tutorialStep}`}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
 
                   <div className="min-h-[140px]">
