@@ -13,8 +13,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @returns {{ matched: boolean, matched_survey_data: Object|null }}
  */
 async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
-  // gemini-2.0-flash: fast, cost-efficient, supports JSON mode
-  const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+  // gemini-2.5-flash: fast, cost-efficient, supports JSON mode
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `
     You are a data matching assistant for a healthcare application.
@@ -61,13 +61,13 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
     // Check if the error is an AI Studio Rate Limit (429)
     if (error.status === 429 || error.message.includes('429') || error.message.includes('quota')) {
       console.error("⚠️ Gemini API Rate Limit Hit!");
-      return { 
-        rate_limited: true, 
-        matched: false, 
-        matched_survey_data: null 
+      return {
+        rate_limited: true,
+        matched: false,
+        matched_survey_data: null
       };
     }
-    
+
     console.error("Gemini AI Mapping Error:", error);
     // Fail gracefully — registration will prompt the user to complete the survey
     return { matched: false, matched_survey_data: null };
@@ -80,7 +80,7 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
  * @returns {Object|null} Structured phenotypic analysis JSON, or null on failure
  */
 async function generatePhenotypicAnalysis(rawSurveyData) {
-  const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `
     You are an expert genetic and lifestyle data analyst.
