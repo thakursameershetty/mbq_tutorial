@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, List as ListIcon, Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock } from 'lucide-react';
+import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -17,7 +17,7 @@ const GENE_VARIANTS: Record<string, string[]> = {
 export default function LabDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode] = useState<'list' | 'grid'>('grid');
   const [patients, setPatients] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -138,26 +138,11 @@ export default function LabDashboard() {
               className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
             />
           </div>
-
           <div className="flex gap-2 w-full sm:w-auto">
             <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white/60 backdrop-blur-xl border border-[#E8E8E5] px-5 py-2.5 rounded-2xl text-sm font-semibold text-[#2C2C2A] hover:bg-white transition-all shadow-sm active:scale-95">
               <Filter className="w-4 h-4" />
               Filter
             </button>
-            <div className="flex bg-white/60 backdrop-blur-xl p-1 rounded-2xl border border-[#E8E8E5] shadow-sm">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-xl transition-all duration-200 ${viewMode === 'list' ? 'bg-white shadow-md text-[#1A1A19]' : 'text-[#A0A09D] hover:text-[#1A1A19]'}`}
-              >
-                <ListIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-xl transition-all duration-200 ${viewMode === 'grid' ? 'bg-white shadow-md text-[#1A1A19]' : 'text-[#A0A09D] hover:text-[#1A1A19]'}`}
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-            </div>
           </div>
         </div>
       </div>
