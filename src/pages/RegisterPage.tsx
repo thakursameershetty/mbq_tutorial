@@ -327,6 +327,12 @@ const TUTORIAL_STEPS = [
   { title: "Step 8: Pack for Return", desc: ["Place the sealed collection tube into the provided zip pouch.", "Seal the pouch.", "Return the sample according to the kit instructions."] },
 ];
 
+const GENE_OPTIONS = [
+  "Caffine Response (CYP1A2)",
+  "Muscle Power vs Endurance (ACTN3)",
+  "Hair Thickness & Root Structure (EDAR)"
+];
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -387,8 +393,10 @@ export default function RegisterPage() {
 
   // State to hold the form data
   const [formData, setFormData] = useState({
-    username: '', fullName: '', email: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: '', geneType: ''
+    username: '', fullName: '', email: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
   });
+
+  const [selectedGenes, setSelectedGenes] = useState<string[]>(['']);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -431,7 +439,7 @@ export default function RegisterPage() {
         phone: `${formData.countryCode} ${formData.phone}`,
         age: calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear),
         gender: formData.gender,
-        geneType: formData.geneType
+        geneType: selectedGenes.filter(Boolean).join(', ')
       };
 
       const response = await fetch('/api/auth/register', {
@@ -796,17 +804,64 @@ export default function RegisterPage() {
                 <ChevronDown size={16} strokeWidth={2.5} />
               </div>
             </div>
-
-            <div className="relative">
-              <select name="geneType" onChange={handleChange} className={`${theme.input} appearance-none cursor-pointer`} required defaultValue="">
-                <option value="" disabled>Select Gene Type</option>
-                <option value="Caffine Response (CYP1A2)">Caffine Response (CYP1A2)</option>
-                <option value="Muscle Power vs Endurance (ACTN3)">Muscle Power vs Endurance (ACTN3)</option>
-                <option value="Hair Thickness & Root Structure (EDAR)">Hair Thickness &amp; Root Structure (EDAR)</option>
-              </select>
-              <div className="absolute right-4 top-[18px] pointer-events-none text-[#8B8B86]">
-                <ChevronDown size={16} strokeWidth={2.5} />
-              </div>
+            
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 pl-1">Gene Selection</label>
+              {selectedGenes.map((gene, index) => (
+                <div key={index} className="flex gap-2 items-center mb-3">
+                  <div className="relative flex-1">
+                    <select
+                      value={gene}
+                      onChange={(e) => {
+                        const newGenes = [...selectedGenes];
+                        newGenes[index] = e.target.value;
+                        setSelectedGenes(newGenes);
+                      }}
+                      className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full`}
+                      required
+                    >
+                      <option value="" disabled>Select Gene Type</option>
+                      {GENE_OPTIONS.map((opt) => (
+                        <option 
+                          key={opt} 
+                          value={opt} 
+                          disabled={selectedGenes.some((val, idx) => idx !== index && val === opt)}
+                        >
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-[18px] pointer-events-none text-[#8B8B86]">
+                      <ChevronDown size={16} strokeWidth={2.5} />
+                    </div>
+                  </div>
+                  {index > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newGenes = selectedGenes.filter((_, idx) => idx !== index);
+                        setSelectedGenes(newGenes);
+                      }}
+                      className="p-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl border border-red-200 transition-colors flex items-center justify-center shrink-0"
+                      title="Remove selection"
+                      style={{ height: '54px', width: '54px' }}
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                  {index === selectedGenes.length - 1 && selectedGenes.length < GENE_OPTIONS.length && gene !== '' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGenes([...selectedGenes, ''])}
+                      className="p-3 bg-[#3FC2AC]/10 hover:bg-[#3FC2AC]/15 text-[#138a6a] rounded-xl border border-[#3FC2AC]/20 transition-all flex items-center justify-center shrink-0 font-bold"
+                      title="Add another genotype selection"
+                      style={{ height: '54px', width: '54px' }}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
 
             <motion.button

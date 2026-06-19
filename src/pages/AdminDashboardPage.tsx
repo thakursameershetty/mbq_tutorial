@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, List as ListIcon, Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock } from 'lucide-react';
+
+const formatUserId = (id: any) => {
+  const num = parseInt(id, 10);
+  if (isNaN(num)) return `MBQ${id}`;
+  return `MBQ${String(num).padStart(3, '0')}`;
+};
 
 const GENE_VARIANTS: Record<string, string[]> = {
   "Caffine Response (CYP1A2)": ["Fast Metabolizer (AA)", "Moderate Metabolizer (AC)", "Slow Metabolizer (CC)"],
@@ -13,8 +19,9 @@ export default function LabDashboard() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [patients, setPatients] = useState<any[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchPatients = () => {
     fetch('/api/admin/patients')
       .then(res => res.json())
       .then(data => {
@@ -24,7 +31,10 @@ export default function LabDashboard() {
           email: u.email,
           phone: u.phone,
           gene: u.gene_type,
-          status: 'pending',
+          sample_collected: u.sample_collected,
+          sample_received: u.sample_received,
+          report_uploaded: u.report_uploaded,
+          status: u.report_uploaded ? 'completed' : 'pending',
           surveyData: {
             diet: u.phenotypic_analysis?.lifestyle_data?.dietType || 'N/A',
             sleep: u.phenotypic_analysis?.lifestyle_data?.sleepHours || 'N/A',
@@ -35,7 +45,58 @@ export default function LabDashboard() {
         setPatients(formatted);
       })
       .catch(err => console.error("Error fetching patients:", err));
+  };
+
+  useEffect(() => {
+    fetchPatients();
   }, []);
+
+  const handleToggleSampleReceived = async (patientId: string, currentStatus: boolean) => {
+    const targetStatus = !currentStatus;
+    setActionLoading(patientId + '-received');
+    try {
+      const response = await fetch(`/api/users/${patientId}/sample-received`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleReceived: targetStatus }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchPatients();
+      } else {
+        alert(data.error || 'Failed to update sample received status');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUploadReport = async (patientId: string, file: File) => {
+    setActionLoading(patientId + '-upload');
+    const formData = new FormData();
+    formData.append('report', file);
+    try {
+      const response = await fetch(`/api/users/${patientId}/upload-report`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Genomic report uploaded and phenotypic journey generated successfully!');
+        fetchPatients();
+      } else {
+        alert(data.error || 'Failed to upload report');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedUser(expandedUser === id ? null : id);
@@ -134,7 +195,7 @@ export default function LabDashboard() {
                         </div>
                         <div className="text-xs font-mono font-medium text-[#8B8B86] mt-1 flex items-center gap-1.5">
                           <User className="w-3 h-3" />
-                          ID: {patient.id}
+                          ID: {formatUserId(patient.id)}
                         </div>
                       </div>
                     </div>
@@ -169,33 +230,71 @@ export default function LabDashboard() {
 
                     {/* Action & Toggle */}
                     <div className="flex flex-col sm:flex-row items-center justify-between xl:justify-end gap-4 w-full xl:w-auto pt-4 xl:pt-0 border-t border-[#E8E8E5] xl:border-0 shrink-0">
-                      {patient.status === 'pending' ? (
-                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                          <select
-                            className="bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full sm:w-[160px] cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
-                            onClick={(e) => e.stopPropagation()}
-                            defaultValue=""
-                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1em' }}
-                          >
-                            <option value="" disabled>Select Variant</option>
-                            {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
-                              <option key={idx} value={v} className="truncate">{v}</option>
-                            ))}
-                          </select>
-                          <motion.label
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] transition-all cursor-pointer w-full sm:w-auto text-center flex items-center justify-center gap-2 shrink-0"
-                          >
-                            <FileText className="w-4 h-4" />
-                            Upload
-                            <input type="file" className="hidden" accept=".pdf" />
-                          </motion.label>
-                        </div>
-                      ) : (
-                        <div className="text-sm font-semibold text-[#A0A09D] px-4">Done</div>
-                      )}
+                      <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                        {/* Received Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleSampleReceived(patient.id, patient.sample_received);
+                          }}
+                          disabled={actionLoading === patient.id + '-received'}
+                          className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            patient.sample_received
+                              ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
+                              : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
+                          }`}
+                        >
+                          {actionLoading === patient.id + '-received' ? (
+                            <Loader2 className="animate-spin w-3 h-3" />
+                          ) : patient.sample_received ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Received
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3.5 h-3.5 animate-pulse" /> Mark Received
+                            </>
+                          )}
+                        </button>
+
+                        {patient.status === 'pending' ? (
+                          <>
+                            <select
+                              className="bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full sm:w-[160px] cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
+                              onClick={(e) => e.stopPropagation()}
+                              defaultValue=""
+                              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1em' }}
+                            >
+                              <option value="" disabled>Select Variant</option>
+                              {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
+                                <option key={idx} value={v} className="truncate">{v}</option>
+                              ))}
+                            </select>
+                            
+                            <motion.label
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] transition-all cursor-pointer w-full sm:w-auto text-center flex items-center justify-center gap-2 shrink-0"
+                            >
+                              {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                              Upload
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept=".pdf" 
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleUploadReport(patient.id, e.target.files[0]);
+                                  }
+                                }}
+                              />
+                            </motion.label>
+                          </>
+                        ) : (
+                          <div className="text-sm font-semibold text-[#A0A09D] px-4">Uploaded</div>
+                        )}
+                      </div>
 
                       <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="p-2 bg-[#F4F4F2] rounded-full text-[#5A5A55] hidden xl:block">
                         <ChevronDown className="w-4 h-4" />
@@ -287,7 +386,7 @@ export default function LabDashboard() {
                   <div className="mb-4">
                     <h3 className="font-bold text-[#1A1A19] text-xl leading-tight mb-1">{patient.name}</h3>
                     <div className="text-xs font-mono font-medium text-[#8B8B86] flex items-center gap-1.5">
-                      <User className="w-3 h-3" /> {patient.id}
+                      <User className="w-3 h-3" /> {formatUserId(patient.id)}
                     </div>
                   </div>
 
@@ -300,35 +399,80 @@ export default function LabDashboard() {
                       <span className="text-[#8B8B86] font-medium shrink-0">Email</span>
                       <span className="font-medium text-[#2C2C2A] truncate text-right">{patient.email}</span>
                     </div>
+                    {/* Sample Statuses */}
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-[#8B8B86] font-medium">Swab Status</span>
+                      <span className={`font-semibold ${patient.sample_collected ? 'text-[#027A48]' : 'text-[#B87A00]'}`}>
+                        {patient.sample_collected ? 'Collected' : 'Pending'}
+                      </span>
+                    </div>
                   </div>
 
-                  {patient.status === 'pending' ? (
-                    <div className="flex flex-col gap-2 mt-auto">
-                      <select
-                        className="w-full bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-4 py-3 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
-                        defaultValue=""
-                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
-                      >
-                        <option value="" disabled>Select Variant</option>
-                        {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
-                          <option key={idx} value={v}>{v}</option>
-                        ))}
-                      </select>
-                      <motion.label
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="w-full bg-[#1A1A19] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 mt-auto"
-                      >
-                        <FileText className="w-4 h-4" />
-                        Upload Report
-                        <input type="file" className="hidden" accept=".pdf" />
-                      </motion.label>
-                    </div>
-                  ) : (
-                    <div className="w-full text-center py-3 text-sm font-semibold text-[#8B8B86] bg-[#F4F4F2] rounded-2xl border border-transparent mt-auto">
-                      Completed
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2 mt-auto">
+                    {/* Received button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleSampleReceived(patient.id, patient.sample_received);
+                      }}
+                      disabled={actionLoading === patient.id + '-received'}
+                      className={`w-full px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        patient.sample_received
+                          ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
+                          : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
+                      }`}
+                    >
+                      {actionLoading === patient.id + '-received' ? (
+                        <Loader2 className="animate-spin w-3 h-3" />
+                      ) : patient.sample_received ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Received
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3.5 h-3.5 animate-pulse" /> Mark Received
+                        </>
+                      )}
+                    </button>
+
+                    {patient.status === 'pending' ? (
+                      <>
+                        <select
+                          className="w-full bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-4 py-3 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
+                          defaultValue=""
+                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
+                        >
+                          <option value="" disabled>Select Variant</option>
+                          {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
+                            <option key={idx} value={v}>{v}</option>
+                          ))}
+                        </select>
+                        
+                        <motion.label
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className="w-full bg-[#1A1A19] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                          Upload Report
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            accept=".pdf" 
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleUploadReport(patient.id, e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </motion.label>
+                      </>
+                    ) : (
+                      <div className="w-full text-center py-3 text-sm font-semibold text-[#8B8B86] bg-[#F4F4F2] rounded-2xl border border-transparent">
+                        Uploaded
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               )
             })}

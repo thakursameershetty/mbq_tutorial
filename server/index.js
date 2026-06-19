@@ -4,9 +4,31 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis } = require('./aiMapping');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 5001;
+
+// Setup static file serving for uploads
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// Multer configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // Middleware - Explicitly trust the Vite frontend
 app.use(cors({
@@ -134,14 +156,19 @@ app.post('/api/auth/register', async (req, res) => {
     // 5. Save the verified user and their phenotypic analysis in a single transaction
     await pool.query('BEGIN');
 
+    const initialTimestamps = JSON.stringify({
+      registered: new Date().toISOString()
+    });
+
     const insertUserQuery = `
-      INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, status_timestamps)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id;
     `;
     const userResult = await pool.query(insertUserQuery, [
       username, fullName, email, phone, age, gender, geneType,
       analysisJSON ? JSON.stringify(analysisJSON) : null,
+      initialTimestamps
     ]);
 
     await pool.query('COMMIT');
@@ -184,7 +211,8 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const query = `
       SELECT 
-        id, username, full_name, email, phone, gene_type, phenotypic_analysis
+        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+        sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
       FROM users
       WHERE LOWER(email) = LOWER($1) AND username = $2
     `;
@@ -216,7 +244,8 @@ app.put('/api/users/:id', async (req, res) => {
       UPDATE users 
       SET full_name = $1, email = $2, phone = $3, age = $4, phenotypic_analysis = $5
       WHERE id = $6
-      RETURNING id, username, full_name, email, phone, gene_type, phenotypic_analysis;
+      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+                sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at;
     `;
     const result = await pool.query(query, [full_name, email, phone, age, JSON.stringify(phenotypic_analysis), userId]);
 
@@ -241,7 +270,8 @@ app.get('/api/admin/patients', async (req, res) => {
   try {
     const query = `
       SELECT 
-        id, username, full_name, email, phone, gene_type, phenotypic_analysis
+        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+        sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
       FROM users
       ORDER BY created_at DESC;
     `;
@@ -250,6 +280,194 @@ app.get('/api/admin/patients', async (req, res) => {
   } catch (error) {
     console.error('Error fetching patients:', error);
     res.status(500).json({ error: 'Failed to fetch patients' });
+  }
+});
+
+// Helper function to update status timestamps in PG
+async function updateStatusTimestamp(userId, statusName, isTrue) {
+  const selectQuery = `SELECT status_timestamps FROM users WHERE id = $1`;
+  const selectResult = await pool.query(selectQuery, [userId]);
+  if (selectResult.rowCount > 0) {
+    let ts = selectResult.rows[0].status_timestamps || {};
+    if (typeof ts === 'string') {
+      ts = JSON.parse(ts);
+    }
+    if (isTrue) {
+      ts[statusName] = new Date().toISOString();
+    } else {
+      delete ts[statusName];
+    }
+    const updateQuery = `UPDATE users SET status_timestamps = $1 WHERE id = $2`;
+    await pool.query(updateQuery, [JSON.stringify(ts), userId]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update Sample Collected Status Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/users/:id/sample-collected', async (req, res) => {
+  const userId = req.params.id;
+  const { sampleCollected } = req.body;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET sample_collected = $1
+      WHERE id = $2
+      RETURNING id, sample_collected, status_timestamps;
+    `;
+    const result = await pool.query(query, [sampleCollected, userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await updateStatusTimestamp(userId, 'collected', sampleCollected);
+
+    // Fetch updated user
+    const updatedUserRes = await pool.query(`
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+      FROM users WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      user: updatedUserRes.rows[0]
+    });
+  } catch (error) {
+    console.error('Update Sample Collected Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update Sample Received Status Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/users/:id/sample-received', async (req, res) => {
+  const userId = req.params.id;
+  const { sampleReceived } = req.body;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET sample_received = $1
+      WHERE id = $2
+      RETURNING id, sample_received;
+    `;
+    const result = await pool.query(query, [sampleReceived, userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await updateStatusTimestamp(userId, 'received', sampleReceived);
+
+    // Fetch updated user
+    const updatedUserRes = await pool.query(`
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+      FROM users WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      user: updatedUserRes.rows[0]
+    });
+  } catch (error) {
+    console.error('Update Sample Received Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Upload Genomic Report Endpoint (handles single PDF file)
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/users/:id/upload-report', upload.single('report'), async (req, res) => {
+  const userId = req.params.id;
+  if (!req.file) {
+    return res.status(400).json({ error: 'No report file uploaded.' });
+  }
+
+  const reportUrl = `/uploads/${req.file.filename}`;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET report_uploaded = TRUE, report_url = $1
+      WHERE id = $2
+      RETURNING id, report_uploaded, report_url;
+    `;
+    const result = await pool.query(query, [reportUrl, userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await updateStatusTimestamp(userId, 'uploaded', true);
+
+    // Mock auto-generating the phenotypic report logic immediately after uploading genomic PDF
+    await pool.query(`
+      UPDATE users
+      SET report_generated = TRUE
+      WHERE id = $1
+    `, [userId]);
+    await updateStatusTimestamp(userId, 'generated', true);
+
+    // Fetch updated user
+    const updatedUserRes = await pool.query(`
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+      FROM users WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      message: 'Report uploaded and generated successfully.',
+      user: updatedUserRes.rows[0]
+    });
+  } catch (error) {
+    console.error('Upload Report Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update Report Verified Status Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/users/:id/verify-report', async (req, res) => {
+  const userId = req.params.id;
+  const { reportVerified } = req.body;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET report_verified = $1
+      WHERE id = $2
+      RETURNING id, report_verified;
+    `;
+    const result = await pool.query(query, [reportVerified, userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await updateStatusTimestamp(userId, 'verified', reportVerified);
+
+    // Fetch updated user
+    const updatedUserRes = await pool.query(`
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+      FROM users WHERE id = $1
+    `, [userId]);
+
+    res.json({
+      success: true,
+      user: updatedUserRes.rows[0]
+    });
+  } catch (error) {
+    console.error('Update Report Verified Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

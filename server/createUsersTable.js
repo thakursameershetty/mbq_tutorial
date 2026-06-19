@@ -21,6 +21,14 @@ async function createTable() {
         age INTEGER,
         gender VARCHAR(50),
         gene_type VARCHAR(255),
+        phenotypic_analysis JSONB,
+        sample_collected BOOLEAN DEFAULT FALSE,
+        sample_received BOOLEAN DEFAULT FALSE,
+        report_uploaded BOOLEAN DEFAULT FALSE,
+        report_generated BOOLEAN DEFAULT FALSE,
+        report_verified BOOLEAN DEFAULT FALSE,
+        report_url VARCHAR(555),
+        status_timestamps JSONB DEFAULT '{}'::jsonb,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);

@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Edit2, Save, X, Loader2, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Edit2, Save, X, Loader2, FileText, Activity } from 'lucide-react';
+import { OrderTracking } from '@/components/ui/order-tracking';
+
+const formatUserId = (id: any) => {
+  const num = parseInt(id, 10);
+  if (isNaN(num)) return `MBQ${id}`;
+  return `MBQ${String(num).padStart(3, '0')}`;
+};
 
 export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showTracking, setShowTracking] = useState(false);
 
   useEffect(() => {
     const data = localStorage.getItem('userProfile');
@@ -129,7 +136,7 @@ export default function PatientDashboardPage() {
           ) : (
             <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name}</h1>
           )}
-          <p className="text-[#8B8B86] text-sm">User ID: {user.id}</p>
+          <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
         </div>
         <div className="w-full sm:w-auto">
           {isEditing ? (
@@ -142,12 +149,26 @@ export default function PatientDashboardPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <Link to="/report" className="flex items-center gap-2 px-4 py-2 bg-[#6057D7] text-white rounded-full text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm">
-                <FileText size={16} />
-                View Report
-              </Link>
-              <button onClick={() => setIsEditing(true)} className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-white rounded-full transition-colors" title="Edit Profile">
+            <div className="flex flex-wrap items-center gap-3">
+              <button 
+                onClick={() => setShowTracking(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#6057D7] text-white rounded-full text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
+              >
+                <Activity size={16} />
+                Track Updates
+              </button>
+              {user.report_verified && user.report_url && (
+                <a 
+                  href={user.report_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+                >
+                  <FileText size={16} />
+                  Download Report
+                </a>
+              )}
+              <button onClick={() => setIsEditing(true)} className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-white rounded-full transition-colors cursor-pointer" title="Edit Profile">
                 <Edit2 size={20} />
               </button>
             </div>
@@ -224,6 +245,125 @@ export default function PatientDashboardPage() {
           </>
         )}
       </div>
+
+      {/* Track Updates Modal */}
+      <AnimatePresence>
+        {showTracking && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-md w-full border border-[#E8E8E5] relative"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-[#1A1A19] flex items-center gap-2">
+                  <Activity className="text-[#6057D7] w-5 h-5" />
+                  Your Profile Journey
+                </h3>
+                <button
+                  onClick={() => setShowTracking(false)}
+                  className="p-1.5 hover:bg-[#F7F7F5] rounded-full text-[#8B8B86] hover:text-[#1A1A19] transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="bg-[#F7F7F5] rounded-2xl p-4 mb-6 text-xs text-[#5A5A55] border border-[#E8E8E5]">
+                <div className="flex justify-between items-center mb-1">
+                  <span>Participant ID:</span>
+                  <span className="font-mono font-bold text-[#1A1A19]">{formatUserId(user.id)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Email Registered:</span>
+                  <span className="font-semibold text-[#1A1A19]">{user.email}</span>
+                </div>
+              </div>
+
+              <div className="pl-2">
+                <OrderTracking
+                  steps={[
+                    {
+                      name: "User Registered",
+                      timestamp: (() => {
+                        const date = new Date(user.created_at || (user.status_timestamps?.registered));
+                        return isNaN(date.getTime()) ? 'Completed' : date.toLocaleString('en-US', {
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '');
+                      })(),
+                      isCompleted: true
+                    },
+                    {
+                      name: "Sample Collected",
+                      timestamp: user.status_timestamps?.collected
+                        ? new Date(user.status_timestamps.collected).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                        : "Pending",
+                      isCompleted: !!user.sample_collected
+                    },
+                    {
+                      name: "Sample Received",
+                      timestamp: user.status_timestamps?.received
+                        ? new Date(user.status_timestamps.received).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                        : "Pending",
+                      isCompleted: !!user.sample_received
+                    },
+                    {
+                      name: "Report Uploaded",
+                      timestamp: user.status_timestamps?.uploaded
+                        ? new Date(user.status_timestamps.uploaded).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                        : "Pending",
+                      isCompleted: !!user.report_uploaded
+                    },
+                    {
+                      name: "Report Generated",
+                      timestamp: user.status_timestamps?.generated
+                        ? new Date(user.status_timestamps.generated).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                        : "Pending",
+                      isCompleted: !!user.report_generated
+                    },
+                    {
+                      name: "Report Verified",
+                      timestamp: user.status_timestamps?.verified
+                        ? new Date(user.status_timestamps.verified).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                        : "Pending",
+                      isCompleted: !!user.report_verified
+                    }
+                  ]}
+                />
+              </div>
+
+              {user.report_verified && user.report_url && (
+                <div className="mt-6 pt-4 border-t border-[#E8E8E5]">
+                  <a
+                    href={user.report_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
+                  >
+                    <FileText size={18} />
+                    Download Mapped Report
+                  </a>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
