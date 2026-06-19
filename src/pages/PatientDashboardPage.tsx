@@ -130,11 +130,11 @@ export default function PatientDashboardPage() {
             <input 
               type="text" 
               value={editForm?.full_name || ''} 
-              onChange={(e) => handleEditChange(['full_name'], e.target.value)} 
-              className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 border-b border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] bg-transparent w-full"
+              onChange={(e) => handleEditChange(['full_name'], e.target.value.toUpperCase())} 
+              className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 border-b border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] bg-transparent w-full uppercase"
             />
           ) : (
-            <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name}</h1>
+            <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
           )}
           <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
         </div>

@@ -27,7 +27,7 @@ export default function LabDashboard() {
       .then(data => {
         const formatted = data.map((u: any) => ({
           id: String(u.id),
-          name: u.full_name,
+          name: u.full_name?.toUpperCase(),
           email: u.email,
           phone: u.phone,
           gene: u.gene_type,

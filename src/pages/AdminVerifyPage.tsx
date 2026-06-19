@@ -71,17 +71,17 @@ export default function AdminVerifyPage() {
     const emailMatch = p.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const usernameMatch = p.username?.toLowerCase().includes(searchQuery.toLowerCase());
     const phoneMatch = p.phone?.includes(searchQuery);
-    
+
     const matchesSearch = nameMatch || emailMatch || usernameMatch || phoneMatch;
-    
+
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
-    
+
     const isCollected = p.sample_collected === true;
     const matchesSample =
       selectedSampleFilter === 'all' ||
       (selectedSampleFilter === 'collected' && isCollected) ||
       (selectedSampleFilter === 'pending' && !isCollected);
-      
+
     return matchesSearch && matchesGender && matchesSample;
   });
 
@@ -177,9 +177,8 @@ export default function AdminVerifyPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.04, 0.4) }}
                   key={patient.id}
-                  className={`bg-white/70 backdrop-blur-2xl border ${
-                    isExpanded ? 'border-[#6057D7]/30 shadow-md ring-4 ring-[#6057D7]/5' : 'border-white/80 shadow-sm'
-                  } rounded-[24px] overflow-hidden transition-all duration-300 hover:shadow-md hover:bg-white/90`}
+                  className={`bg-white/70 backdrop-blur-2xl border ${isExpanded ? 'border-[#6057D7]/30 shadow-md ring-4 ring-[#6057D7]/5' : 'border-white/80 shadow-sm'
+                    } rounded-[24px] overflow-hidden transition-all duration-300 hover:shadow-md hover:bg-white/90`}
                 >
                   {/* Summary Header bar */}
                   <div
@@ -188,11 +187,11 @@ export default function AdminVerifyPage() {
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-base font-bold text-[#1A1A19] shadow-inner shrink-0">
-                        {patient.full_name?.charAt(0) || 'U'}
+                        {patient.full_name?.charAt(0).toUpperCase() || 'U'}
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-[#1A1A19] text-base truncate flex items-center gap-2">
-                          {patient.full_name}
+                          {patient.full_name?.toUpperCase()}
                         </div>
                         <div className="text-xs font-mono font-medium text-[#8B8B86] mt-0.5 flex items-center gap-1.5">
                           <User className="w-3 h-3" />
@@ -265,7 +264,7 @@ export default function AdminVerifyPage() {
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-[#E8E8E5] shadow-inner">
                             <div>
                               <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Full Legal Name</span>
-                              <span className="font-semibold text-sm text-[#1A1A19]">{patient.full_name}</span>
+                              <span className="font-semibold text-sm text-[#1A1A19]">{patient.full_name?.toUpperCase()}</span>
                             </div>
                             <div>
                               <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Email</span>
@@ -476,11 +475,10 @@ export default function AdminVerifyPage() {
                             <button
                               onClick={() => handleToggleVerifyReport(patient.id, patient.report_verified)}
                               disabled={actionLoading === patient.id}
-                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
-                                patient.report_verified
-                                  ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
-                                  : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
-                              }`}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${patient.report_verified
+                                ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
+                                : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
+                                }`}
                             >
                               {actionLoading === patient.id ? (
                                 <Loader2 className="animate-spin w-3.5 h-3.5" />

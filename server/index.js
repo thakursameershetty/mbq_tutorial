@@ -12,10 +12,19 @@ const app = express();
 const port = process.env.PORT || 5001;
 
 // Setup static file serving for uploads
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// On Vercel, the default filesystem is read-only, so we fallback to /tmp/uploads
+const uploadsDir = process.env.VERCEL || process.env.NODE_ENV === 'production'
+  ? '/tmp/uploads'
+  : path.join(__dirname, 'uploads');
+
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Unable to create uploads directory:', err.message);
 }
+
 app.use('/uploads', express.static(uploadsDir));
 
 // Multer configuration
@@ -44,6 +53,11 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   }
+});
+
+// Avoid node process crashing on unexpected PG connection error on idle clients
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle pg client', err);
 });
 
 /**

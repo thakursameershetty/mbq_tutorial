@@ -182,7 +182,7 @@ export default function VolunteerPage() {
                       {/* Card Header */}
                       <div className="flex justify-between items-start mb-4">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-sm font-bold text-[#1A1A19] shadow-inner shrink-0">
-                          {patient.full_name?.charAt(0) || 'U'}
+                          {patient.full_name?.charAt(0).toUpperCase() || 'U'}
                         </div>
                         <div>
                           {isCollected ? (
@@ -199,7 +199,7 @@ export default function VolunteerPage() {
 
                       {/* Patient Name & Username */}
                       <div className="mb-4">
-                        <h3 className="font-bold text-[#1A1A19] text-lg leading-tight mb-1">{patient.full_name}</h3>
+                        <h3 className="font-bold text-[#1A1A19] text-lg leading-tight mb-1">{patient.full_name?.toUpperCase()}</h3>
                         <p className="text-xs font-mono font-medium text-[#8B8B86] flex items-center gap-1">
                           <User size={12} /> ID: {formatUserId(patient.id)} ({patient.username})
                         </p>

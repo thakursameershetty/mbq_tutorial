@@ -399,7 +399,11 @@ export default function RegisterPage() {
   const [selectedGenes, setSelectedGenes] = useState<string[]>(['']);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    let val = e.target.value;
+    if (e.target.name === 'fullName') {
+      val = val.toUpperCase();
+    }
+    setFormData({ ...formData, [e.target.name]: val });
   };
 
   const calculateAge = (dayStr: string, monthStr: string, yearStr: string) => {
@@ -703,7 +707,7 @@ export default function RegisterPage() {
 
           <form onSubmit={handleFormSubmit}>
             <input type="text" name="username" onChange={handleChange} placeholder="Unique Username" className={theme.input} required />
-            <input type="text" name="fullName" onChange={handleChange} placeholder="Full Legal Name" className={theme.input} required />
+            <input type="text" name="fullName" onChange={handleChange} placeholder="Full Legal Name" className={`${theme.input} uppercase`} required />
             <input type="email" name="email" onChange={handleChange} placeholder="Email Address" className={theme.input} required />
 
             <div className="mb-4">
