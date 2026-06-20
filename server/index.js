@@ -350,7 +350,8 @@ app.put('/api/users/:id/sample-collected', async (req, res) => {
 
     // Send email if marked as dispatched (collected)
     if (sampleCollected) {
-      sendSampleDispatchedEmail(updatedUser);
+      // Vercel Serverless requires awaiting async tasks before returning the response
+      await sendSampleDispatchedEmail(updatedUser);
     }
 
     res.json({
