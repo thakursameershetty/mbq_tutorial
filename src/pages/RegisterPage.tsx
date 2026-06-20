@@ -10,7 +10,6 @@ import img3 from '../assets/illustations/3.png';
 import img4 from '../assets/illustations/4.png';
 import img5 from '../assets/illustations/5.png';
 import img6 from '../assets/illustations/6.png';
-import img7 from '../assets/illustations/7.png';
 import img8 from '../assets/illustations/8.png';
 
 const TUTORIAL_IMAGES = [
@@ -20,7 +19,6 @@ const TUTORIAL_IMAGES = [
   img4,
   img5,
   img6,
-  img7,
   img8,
 ];
 
@@ -322,9 +320,8 @@ const TUTORIAL_STEPS = [
   { title: "Step 3: Swab the Right Cheek", desc: ["Using the same swab, rub the inside of your right cheek.", "Continue for 15–20 seconds minimum.", "Again, avoid touching your tongue."], timer: 20 },
   { title: "Step 4: Place Swab in Collection Tube", desc: ["Open the pre-labeled collection tube containing the solution.", "Immediately place the swab tip into the tube."] },
   { title: "Step 5: Mix the Sample", desc: ["Close the tube if required.", "Gently swirl or rotate the swab in the solution for about 10 seconds."], timer: 10 },
-  { title: "Step 6: Remove and Discard Swab", desc: ["While pulling the swab out, squeeze the sides of the tube to release liquid from the swab tip.", "Dispose of the used swab in a trash bin."] },
-  { title: "Step 7: Seal the Tube", desc: ["Tightly close the collection tube cap.", "Ensure it is securely sealed."] },
-  { title: "Step 8: Pack for Return", desc: ["Place the sealed collection tube into the provided zip pouch.", "Seal the pouch.", "Return the sample according to the kit instructions."] },
+  { title: "Step 6: Seal the Tube", desc: ["Tightly close the collection tube cap.", "Ensure it is securely sealed."] },
+  { title: "Step 7: Pack for Return", desc: ["Place the sealed collection tube into the provided zip pouch.", "Seal the pouch.", "Return the sample according to the kit instructions."] },
 ];
 
 const GENE_OPTIONS = [
@@ -808,7 +805,7 @@ export default function RegisterPage() {
                 <ChevronDown size={16} strokeWidth={2.5} />
               </div>
             </div>
-            
+
             <div className="mb-4 text-left">
               <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 pl-1">Gene Selection</label>
               {selectedGenes.map((gene, index) => (
@@ -826,9 +823,9 @@ export default function RegisterPage() {
                     >
                       <option value="" disabled>Select Gene Type</option>
                       {GENE_OPTIONS.map((opt) => (
-                        <option 
-                          key={opt} 
-                          value={opt} 
+                        <option
+                          key={opt}
+                          value={opt}
                           disabled={selectedGenes.some((val, idx) => idx !== index && val === opt)}
                         >
                           {opt}
