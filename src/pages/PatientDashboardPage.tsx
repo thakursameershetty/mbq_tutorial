@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Save, X, Loader2, FileText, Activity } from 'lucide-react';
+import { X, FileText, Activity } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 
 const formatUserId = (id: any) => {
@@ -11,9 +11,6 @@ const formatUserId = (id: any) => {
 
 export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<any>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
 
   useEffect(() => {
@@ -21,73 +18,18 @@ export default function PatientDashboardPage() {
     if (data) {
       const parsed = JSON.parse(data);
       setUser(parsed);
-      setEditForm(parsed);
     }
   }, []);
 
-  const handleEditChange = (path: string[], value: string) => {
-    setEditForm((prev: any) => {
-      const next = { ...prev };
-      let current = next;
-      for (let i = 0; i < path.length - 1; i++) {
-        current[path[i]] = { ...current[path[i]] };
-        current = current[path[i]];
-      }
-      current[path[path.length - 1]] = value;
-      return next;
-    });
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const updatedForm = { ...editForm };
-      if (updatedForm.phenotypic_analysis?.personal_profile) {
-        updatedForm.email = updatedForm.phenotypic_analysis.personal_profile.email;
-        updatedForm.phone = updatedForm.phenotypic_analysis.personal_profile.mobile;
-        updatedForm.age = updatedForm.phenotypic_analysis.personal_profile.age;
-      }
-      
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedForm)
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setUser(data.user);
-        localStorage.setItem('userProfile', JSON.stringify(data.user));
-        setIsEditing(false);
-      } else {
-        alert(data.error || 'Failed to update');
-      }
-    } catch (error) {
-      console.error(error);
-      alert('An error occurred');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const renderField = (label: string, path: string[], block = false) => {
     const getVal = (obj: any, p: string[]) => p.reduce((acc, k) => (acc ? acc[k] : ''), obj);
-    const val = isEditing ? getVal(editForm, path) : getVal(user, path);
-    
+    const val = getVal(user, path);
+
     if (block) {
       return (
         <div className="text-sm">
           <span className="text-[#8B8B86] block mb-0.5">{label}</span>
-          {isEditing ? (
-            <input 
-              type="text" 
-              value={val || ''} 
-              onChange={(e) => handleEditChange(path, e.target.value)} 
-              className="font-medium text-[#1A1A19] bg-[#F7F7F5] px-2 py-1.5 rounded border border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] w-full" 
-            />
-          ) : (
-            <span className="font-medium text-[#1A1A19]">{val || 'N/A'}</span>
-          )}
+          <span className="font-medium text-[#1A1A19]">{val || 'N/A'}</span>
         </div>
       );
     }
@@ -95,16 +37,7 @@ export default function PatientDashboardPage() {
     return (
       <div className="text-sm flex flex-col sm:flex-row sm:items-center">
         <span className="text-[#8B8B86] sm:w-20 flex-shrink-0">{label}:</span>
-        {isEditing ? (
-          <input 
-            type="text" 
-            value={val || ''} 
-            onChange={(e) => handleEditChange(path, e.target.value)} 
-            className="font-medium text-[#1A1A19] bg-[#F7F7F5] px-2 py-1 rounded border border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] w-full mt-1 sm:mt-0" 
-          />
-        ) : (
-          <span className="font-medium text-[#1A1A19] mt-1 sm:mt-0">{val || 'N/A'}</span>
-        )}
+        <span className="font-medium text-[#1A1A19] mt-1 sm:mt-0">{val || 'N/A'}</span>
       </div>
     );
   };
@@ -126,53 +59,30 @@ export default function PatientDashboardPage() {
     >
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
         <div className="flex-1 w-full min-w-0">
-          {isEditing ? (
-            <input 
-              type="text" 
-              value={editForm?.full_name || ''} 
-              onChange={(e) => handleEditChange(['full_name'], e.target.value.toUpperCase())} 
-              className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 border-b border-[#E8E8E5] focus:outline-none focus:border-[#6057D7] bg-transparent w-full uppercase"
-            />
-          ) : (
-            <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
-          )}
+          <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
           <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
         </div>
         <div className="w-full sm:w-auto">
-          {isEditing ? (
-            <div className="flex gap-2">
-              <button onClick={() => { setIsEditing(false); setEditForm(user); }} className="p-2 text-[#8B8B86] hover:bg-white rounded-full transition-colors" title="Cancel">
-                <X size={20} />
-              </button>
-              <button onClick={handleSave} disabled={isSaving} className="p-2 text-[#6057D7] hover:bg-[#6057D7]/10 rounded-full transition-colors flex items-center justify-center" title="Save">
-                {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <button 
-                onClick={() => setShowTracking(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#6057D7] text-white rounded-full text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowTracking(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#6057D7] text-white rounded-full text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
+            >
+              <Activity size={16} />
+              Track Updates
+            </button>
+            {user.report_verified && user.report_url && (
+              <a
+                href={user.report_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
               >
-                <Activity size={16} />
-                Track Updates
-              </button>
-              {user.report_verified && user.report_url && (
-                <a 
-                  href={user.report_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
-                >
-                  <FileText size={16} />
-                  Download Report
-                </a>
-              )}
-              <button onClick={() => setIsEditing(true)} className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-white rounded-full transition-colors cursor-pointer" title="Edit Profile">
-                <Edit2 size={20} />
-              </button>
-            </div>
-          )}
+                <FileText size={16} />
+                Download Report
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
@@ -302,8 +212,8 @@ export default function PatientDashboardPage() {
                       name: "Sample Collected",
                       timestamp: user.status_timestamps?.collected
                         ? new Date(user.status_timestamps.collected).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '')
                         : "Pending",
                       isCompleted: !!user.sample_collected
                     },
@@ -311,8 +221,8 @@ export default function PatientDashboardPage() {
                       name: "Sample Received",
                       timestamp: user.status_timestamps?.received
                         ? new Date(user.status_timestamps.received).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '')
                         : "Pending",
                       isCompleted: !!user.sample_received
                     },
@@ -320,8 +230,8 @@ export default function PatientDashboardPage() {
                       name: "Report Uploaded",
                       timestamp: user.status_timestamps?.uploaded
                         ? new Date(user.status_timestamps.uploaded).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '')
                         : "Pending",
                       isCompleted: !!user.report_uploaded
                     },
@@ -329,8 +239,8 @@ export default function PatientDashboardPage() {
                       name: "Report Generated",
                       timestamp: user.status_timestamps?.generated
                         ? new Date(user.status_timestamps.generated).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '')
                         : "Pending",
                       isCompleted: !!user.report_generated
                     },
@@ -338,8 +248,8 @@ export default function PatientDashboardPage() {
                       name: "Report Verified",
                       timestamp: user.status_timestamps?.verified
                         ? new Date(user.status_timestamps.verified).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).replace(',', '')
                         : "Pending",
                       isCompleted: !!user.report_verified
                     }
