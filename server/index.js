@@ -4,6 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis } = require('./aiMapping');
+const { sendSampleDispatchedEmail } = require('./mailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -200,7 +201,7 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     await pool.query('ROLLBACK').catch(() => { }); // safe rollback — may not have started
     console.error('Registration Error:', error);
-    
+
     // 23505 is the PostgreSQL error code for unique violation
     if (error.code === '23505') {
       return res.status(409).json({
@@ -345,9 +346,16 @@ app.put('/api/users/:id/sample-collected', async (req, res) => {
       FROM users WHERE id = $1
     `, [userId]);
 
+    const updatedUser = updatedUserRes.rows[0];
+
+    // Send email if marked as dispatched (collected)
+    if (sampleCollected) {
+      sendSampleDispatchedEmail(updatedUser);
+    }
+
     res.json({
       success: true,
-      user: updatedUserRes.rows[0]
+      user: updatedUser
     });
   } catch (error) {
     console.error('Update Sample Collected Error:', error);

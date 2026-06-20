@@ -14,6 +14,12 @@ export default function VolunteerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'collected'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, patientId: number | null, currentStatus: boolean, patientName: string }>({
+    isOpen: false,
+    patientId: null,
+    currentStatus: false,
+    patientName: ''
+  });
 
   const fetchPatients = () => {
     setLoading(true);
@@ -245,7 +251,14 @@ export default function VolunteerPage() {
                     <motion.button
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      onClick={() => handleToggleSampleCollected(patient.id, isCollected)}
+                      onClick={() => {
+                        setConfirmDialog({
+                          isOpen: true,
+                          patientId: patient.id,
+                          currentStatus: isCollected,
+                          patientName: patient.full_name || 'Volunteer'
+                        });
+                      }}
                       disabled={isActionLoading}
                       className={`w-full py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm ${
                         isCollected
@@ -270,6 +283,64 @@ export default function VolunteerPage() {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmDialog.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-[#E8E8E5]"
+            >
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#ECFDF3] mb-4 mx-auto">
+                {confirmDialog.currentStatus ? (
+                  <Clock className="w-6 h-6 text-[#B87A00]" />
+                ) : (
+                  <Mail className="w-6 h-6 text-[#027A48]" />
+                )}
+              </div>
+              <h3 className="text-xl font-bold text-center text-[#1A1A19] mb-2">
+                {confirmDialog.currentStatus ? 'Undo Collection?' : 'Confirm Collection'}
+              </h3>
+              <p className="text-center text-sm text-[#8B8B86] mb-8">
+                {confirmDialog.currentStatus 
+                  ? `Are you sure you want to mark ${confirmDialog.patientName}'s sample as pending?` 
+                  : `Are you sure you want to mark ${confirmDialog.patientName}'s sample as collected? An email will be dispatched automatically.`}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmDialog({ isOpen: false, patientId: null, currentStatus: false, patientName: '' })}
+                  className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-[#5A5A55] bg-[#F4F4F2] hover:bg-[#E8E8E5] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirmDialog.patientId !== null) {
+                      handleToggleSampleCollected(confirmDialog.patientId, confirmDialog.currentStatus);
+                    }
+                    setConfirmDialog({ isOpen: false, patientId: null, currentStatus: false, patientName: '' });
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white transition-colors shadow-sm ${
+                    confirmDialog.currentStatus
+                      ? 'bg-[#B87A00] hover:bg-[#996600]'
+                      : 'bg-[#027A48] hover:bg-[#026c3f]'
+                  }`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
