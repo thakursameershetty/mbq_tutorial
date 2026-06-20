@@ -55,6 +55,7 @@ const sendSampleDispatchedEmail = async (user) => {
     .dark-img {
       display: block !important;
       margin: 0 auto !important;
+      filter: brightness(0) invert(1);
     }
     .header-text {
       color: #FFFFFF !important;
