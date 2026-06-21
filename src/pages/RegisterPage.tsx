@@ -601,7 +601,7 @@ export default function RegisterPage() {
   };
   const yearSuggestion = getYearSuggestion();
 
-  const isFormPerfectlyFilled = 
+  const isFormPerfectlyFilled =
     formData.username.trim().length > 0 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
     formData.fullName.trim().length > 0 &&
     formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailExists && !checkingEmail && !emailSuggestion &&
@@ -660,7 +660,7 @@ export default function RegisterPage() {
         fullName: formData.fullName,
         email: formData.email,
         phone: `${formData.countryCode} ${formData.phone}`,
-        age: calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear),
+        age: parseInt(calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear), 10) || null,
         gender: formData.gender,
         geneType: selectedGenes.filter(Boolean).join(', ')
       };
@@ -715,9 +715,9 @@ export default function RegisterPage() {
         >
           {toastMessage.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
           <span>{toastMessage.text}</span>
-          <button 
-            type="button" 
-            onClick={() => setToastMessage(null)} 
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
             className={`p-1.5 rounded-full transition-colors ml-1 ${toastMessage.type === 'error' ? 'hover:bg-red-100 text-red-600' : 'hover:bg-green-100 text-green-600'}`}
           >
             <X size={14} strokeWidth={2.5} />
@@ -734,58 +734,58 @@ export default function RegisterPage() {
         {renderToast()}
         <AnimatePresence mode="wait">
           <motion.div
-          key="survey-prompt"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -24 }}
-          transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
-        >
-          <div className={theme.card}>
-            {/* Decorative pulse ring */}
-            <div className="flex justify-center mb-6">
-              <div className="relative flex items-center justify-center w-16 h-16">
-                <span className="absolute inline-flex w-full h-full rounded-full bg-[#6057D7]/20 animate-ping" />
-                <span className="relative flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#6057D7] to-[#3FC2AC]">
-                  <ExternalLink size={20} className="text-white" strokeWidth={2} />
-                </span>
+            key="survey-prompt"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
+          >
+            <div className={theme.card}>
+              {/* Decorative pulse ring */}
+              <div className="flex justify-center mb-6">
+                <div className="relative flex items-center justify-center w-16 h-16">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-[#6057D7]/20 animate-ping" />
+                  <span className="relative flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#6057D7] to-[#3FC2AC]">
+                    <ExternalLink size={20} className="text-white" strokeWidth={2} />
+                  </span>
+                </div>
               </div>
+
+              <h2 className={theme.heading}>Survey Required</h2>
+              <p className="text-sm text-[#8B8B86] text-center mb-8">
+                We couldn't find your data in our Tally.so records. To generate your
+                Phenotypic Profile, please complete our intake survey first.
+              </p>
+
+              <a
+                href="https://tally.so/r/your-survey-link"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${theme.buttonPrimary} flex items-center justify-center gap-2 no-underline`}
+              >
+                <ExternalLink size={16} />
+                Take the Tally.so Survey
+              </a>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setNeedsSurvey(false)}
+                className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-[#8B8B86] hover:text-[#1A1A19] transition-colors duration-300 py-3"
+              >
+                <RefreshCw size={14} />
+                I've completed it — try registering again
+              </motion.button>
             </div>
 
-            <h2 className={theme.heading}>Survey Required</h2>
-            <p className="text-sm text-[#8B8B86] text-center mb-8">
-              We couldn't find your data in our Tally.so records. To generate your
-              Phenotypic Profile, please complete our intake survey first.
-            </p>
-
-            <a
-              href="https://tally.so/r/your-survey-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${theme.buttonPrimary} flex items-center justify-center gap-2 no-underline`}
-            >
-              <ExternalLink size={16} />
-              Take the Tally.so Survey
-            </a>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setNeedsSurvey(false)}
-              className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-[#8B8B86] hover:text-[#1A1A19] transition-colors duration-300 py-3"
-            >
-              <RefreshCw size={14} />
-              I've completed it — try registering again
-            </motion.button>
-          </div>
-
-          <div className="mt-8 text-center">
-            <Link to="/login" className={theme.buttonSecondary}>
-              <ArrowLeft size={16} /> Back to Login
-            </Link>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+            <div className="mt-8 text-center">
+              <Link to="/login" className={theme.buttonSecondary}>
+                <ArrowLeft size={16} /> Back to Login
+              </Link>
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </>
     );
   }
@@ -818,10 +818,10 @@ export default function RegisterPage() {
               <p className="text-sm text-[#8B8B86] text-center mb-6 leading-relaxed">
                 The sample is being collected. Please wait for the status to change to <strong className="text-[#1A1A19]">"Sample Collected"</strong>.
               </p>
-              
+
               <div className="bg-[#F7F7F5] border border-[#E8E8E5] rounded-xl p-4 mb-8 text-center shadow-inner">
                 <p className="text-sm text-[#5A5A55]">
-                  You will receive an email at <strong className="text-[#1A1A19]">{formData.email}</strong> once the status is updated. <br/><br/>
+                  You will receive an email at <strong className="text-[#1A1A19]">{formData.email}</strong> once the status is updated. <br /><br />
                   <span className="text-[#6057D7] font-semibold">Please check your spam email folder!</span>
                 </p>
               </div>
@@ -843,7 +843,7 @@ export default function RegisterPage() {
   return (
     <>
       {renderToast()}
-      
+
       {/* Full Page Interactive Loading Overlay */}
       <AnimatePresence>
         {loading && (
@@ -1101,60 +1101,60 @@ export default function RegisterPage() {
               <div className="relative">
                 <div className={`flex w-full bg-white/50 text-[#2C2C2A] rounded-xl border ${phoneExists ? 'border-orange-300 ring-4 ring-orange-500/10' : 'border-[#E8E8E5] focus-within:ring-4 focus-within:ring-[#6057D7]/10 focus-within:bg-white focus-within:border-[#6057D7]/30'} transition-all duration-300`}>
                   <div className="relative w-[110px] flex-shrink-0 border-r border-[#E8E8E5]">
-                  <select name="countryCode" onChange={handleChange} className="w-full h-full appearance-none cursor-pointer pl-4 pr-8 py-3.5 outline-none bg-transparent hover:bg-black/5 transition-colors font-medium text-sm rounded-l-xl" required defaultValue="+91">
-                    <option value="+1">🇺🇸 +1</option>
-                    <option value="+44">🇬🇧 +44</option>
-                    <option value="+91">🇮🇳 +91</option>
-                    <option value="+61">🇦🇺 +61</option>
-                    <option value="+81">🇯🇵 +81</option>
-                    <option value="+49">🇩🇪 +49</option>
-                    <option value="+33">🇫🇷 +33</option>
-                    <option value="+86">🇨🇳 +86</option>
-                    <option value="+55">🇧🇷 +55</option>
-                    <option value="+7">🇷🇺 +7</option>
-                    <option value="+971">🇦🇪 +971</option>
-                    <option value="+966">🇸🇦 +966</option>
-                    <option value="+974">🇶🇦 +974</option>
-                    <option value="+965">🇰🇼 +965</option>
-                    <option value="+20">🇪🇬 +20</option>
-                    <option value="+998">🇺🇿 +998</option>
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#8B8B86]">
-                    <ChevronDown size={14} strokeWidth={2.5} />
-                  </div>
-                </div>
-                <input
-                  type="tel"
-                  name="phone"
-                  onChange={(e) => {
-                    e.target.value = e.target.value.replace(/\D/g, '');
-                    handleChange(e);
-                  }}
-                  maxLength={formData.countryCode === '+91' ? 10 : 15}
-                  placeholder="Phone Number"
-                  className="w-full bg-transparent px-4 py-3.5 outline-none placeholder-[#A0A09D]"
-                  required
-                />
-                {checkingPhone && (
-                  <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
-                )}
-              </div>
-              <AnimatePresence>
-                {phoneExists && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -10, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
-                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This phone number is already registered.</span>
+                    <select name="countryCode" onChange={handleChange} className="w-full h-full appearance-none cursor-pointer pl-4 pr-8 py-3.5 outline-none bg-transparent hover:bg-black/5 transition-colors font-medium text-sm rounded-l-xl" required defaultValue="+91">
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+44">🇬🇧 +44</option>
+                      <option value="+91">🇮🇳 +91</option>
+                      <option value="+61">🇦🇺 +61</option>
+                      <option value="+81">🇯🇵 +81</option>
+                      <option value="+49">🇩🇪 +49</option>
+                      <option value="+33">🇫🇷 +33</option>
+                      <option value="+86">🇨🇳 +86</option>
+                      <option value="+55">🇧🇷 +55</option>
+                      <option value="+7">🇷🇺 +7</option>
+                      <option value="+971">🇦🇪 +971</option>
+                      <option value="+966">🇸🇦 +966</option>
+                      <option value="+974">🇶🇦 +974</option>
+                      <option value="+965">🇰🇼 +965</option>
+                      <option value="+20">🇪🇬 +20</option>
+                      <option value="+998">🇺🇿 +998</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#8B8B86]">
+                      <ChevronDown size={14} strokeWidth={2.5} />
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                  <input
+                    type="tel"
+                    name="phone"
+                    onChange={(e) => {
+                      e.target.value = e.target.value.replace(/\D/g, '');
+                      handleChange(e);
+                    }}
+                    maxLength={formData.countryCode === '+91' ? 10 : 15}
+                    placeholder="Phone Number"
+                    className="w-full bg-transparent px-4 py-3.5 outline-none placeholder-[#A0A09D]"
+                    required
+                  />
+                  {checkingPhone && (
+                    <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+                  )}
+                </div>
+                <AnimatePresence>
+                  {phoneExists && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: 'auto' }}
+                      exit={{ opacity: 0, y: -10, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                        <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This phone number is already registered.</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-          </div>
 
             {/* Date of Birth Input (Split) */}
             <div className="mb-4">
@@ -1316,14 +1316,13 @@ export default function RegisterPage() {
             </div>
 
             <motion.button
-              whileHover={isFormPerfectlyFilled ? { scale: 1.02 } : {}} 
+              whileHover={isFormPerfectlyFilled ? { scale: 1.02 } : {}}
               whileTap={isFormPerfectlyFilled ? { scale: 0.98 } : {}}
               type="submit" disabled={loading}
-              className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-4 transition-all duration-300 ${
-                isFormPerfectlyFilled
-                  ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
-                  : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
-              }`}
+              className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-4 transition-all duration-300 ${isFormPerfectlyFilled
+                ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
+                : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
+                }`}
             >
               {loading ? 'Mapping Profile...' : 'Review & Agree to Terms'}
             </motion.button>
