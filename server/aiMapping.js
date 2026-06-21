@@ -2,7 +2,50 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Initialize the client securely using environment variables
 // NEVER hardcode the API key here!
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Support multiple API keys for failover
+const apiKeys = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4
+].filter(Boolean); // removes undefined/null/empty strings
+
+if (apiKeys.length === 0) {
+  console.error("CRITICAL: No GEMINI_API_KEY found in environment variables.");
+}
+
+let currentKeyIndex = 0;
+
+// Helper to execute a Gemini call with failover
+async function executeWithFailover(generateContentFn) {
+  let attempts = 0;
+  const maxAttempts = apiKeys.length;
+
+  while (attempts < maxAttempts) {
+    const key = apiKeys[currentKeyIndex];
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    try {
+      return await generateContentFn(model);
+    } catch (error) {
+      // Check if it's a rate limit or quota issue
+      const isRateLimit = error.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota');
+      
+      console.warn(`⚠️ Gemini API Error on key index ${currentKeyIndex}: ${error.message}`);
+      
+      if (isRateLimit && attempts < maxAttempts - 1) {
+        // Switch to the next key
+        currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+        console.log(`🔄 Switching to next Gemini API Key (Index: ${currentKeyIndex})`);
+        attempts++;
+      } else {
+        // If it's not a rate limit or we've exhausted all keys, throw the error
+        throw error;
+      }
+    }
+  }
+}
 
 /**
  * Calls Gemini to attempt a smart match of a user against live Google Sheet records.
@@ -13,8 +56,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @returns {{ matched: boolean, matched_survey_data: Object|null }}
  */
 async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
-  // gemini-2.5-flash: fast, cost-efficient, supports JSON mode
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `
     You are a data matching assistant for a healthcare application.
@@ -42,12 +83,14 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
   `;
 
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        // Forces Gemini to output valid, parsable JSON every time
-        responseMimeType: "application/json",
-      },
+    const result = await executeWithFailover(async (model) => {
+      return await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          // Forces Gemini to output valid, parsable JSON every time
+          responseMimeType: "application/json",
+        },
+      });
     });
 
     const responseText = result.response.text();
@@ -58,9 +101,9 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
       matched_survey_data: parsedData.matched_survey_data || null,
     };
   } catch (error) {
-    // Check if the error is an AI Studio Rate Limit (429)
-    if (error.status === 429 || error.message.includes('429') || error.message.includes('quota')) {
-      console.error("⚠️ Gemini API Rate Limit Hit!");
+    // Check if the error is an AI Studio Rate Limit (429) that exhausted all keys
+    if (error.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota')) {
+      console.error("⚠️ All Gemini API keys exhausted (Rate Limit Hit)!");
       return {
         rate_limited: true,
         matched: false,
@@ -80,7 +123,6 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
  * @returns {Object|null} Structured phenotypic analysis JSON, or null on failure
  */
 async function generatePhenotypicAnalysis(rawSurveyData) {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `
     You are an expert genetic and lifestyle data analyst.
@@ -123,9 +165,11 @@ async function generatePhenotypicAnalysis(rawSurveyData) {
   `;
 
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
+    const result = await executeWithFailover(async (model) => {
+      return await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      });
     });
 
     return JSON.parse(result.response.text());
