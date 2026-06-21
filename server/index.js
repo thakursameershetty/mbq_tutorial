@@ -8,35 +8,26 @@ const { sendSampleDispatchedEmail, sendForgotCredentialsEmail } = require('./mai
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const port = process.env.PORT || 5001;
 
-// Setup static file serving for uploads
-// On Vercel, the default filesystem is read-only, so we fallback to /tmp/uploads
-const uploadsDir = process.env.VERCEL || process.env.NODE_ENV === 'production'
-  ? '/tmp/uploads'
-  : path.join(__dirname, 'uploads');
+// Cloudinary configuration
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-} catch (err) {
-  console.warn('Unable to create uploads directory:', err.message);
-}
-
-app.use('/uploads', express.static(uploadsDir));
-
-// Multer configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'mbq_reports',
+    format: async (req, file) => 'pdf',
+    public_id: (req, file) => `report-${Date.now()}-${Math.round(Math.random() * 1E9)}`,
   },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
 });
 const upload = multer({ storage: storage });
 
@@ -358,6 +349,28 @@ app.put('/api/users/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET Route for Admin Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
+// Get Specific User Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/users/:id', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    const query = `
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+      FROM users WHERE id = $1
+    `;
+    const result = await pool.query(query, [userId]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    res.status(500).json({ error: 'Failed to fetch user data.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/admin/patients', async (req, res) => {
   try {
     const query = `
@@ -489,7 +502,7 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
     return res.status(400).json({ error: 'No report file uploaded.' });
   }
 
-  const reportUrl = `/uploads/${req.file.filename}`;
+  const reportUrl = req.file.path; // Cloudinary returns the full secure URL in path
 
   try {
     const query = `
@@ -528,6 +541,38 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
     });
   } catch (error) {
     console.error('Upload Report Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete Genomic Report Endpoint
+// ─────────────────────────────────────────────────────────────────────────────
+app.delete('/api/users/:id/delete-report', async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET report_uploaded = FALSE, report_url = NULL, report_generated = FALSE
+      WHERE id = $1
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    await updateStatusTimestamp(userId, 'uploaded', false);
+    await updateStatusTimestamp(userId, 'generated', false);
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully.'
+    });
+  } catch (error) {
+    console.error('Delete Report Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

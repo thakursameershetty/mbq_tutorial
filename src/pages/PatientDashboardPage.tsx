@@ -18,6 +18,23 @@ export default function PatientDashboardPage() {
     if (data) {
       const parsed = JSON.parse(data);
       setUser(parsed);
+      
+      // Fetch latest profile to keep tracking updated
+      const fetchLatestProfile = () => {
+        fetch(`/api/users/${parsed.id}`)
+          .then(res => res.json())
+          .then(latestData => {
+             if (!latestData.error) {
+               setUser(latestData);
+               localStorage.setItem('userProfile', JSON.stringify(latestData));
+             }
+          })
+          .catch(err => console.error("Error fetching latest profile:", err));
+      };
+
+      fetchLatestProfile();
+      const interval = setInterval(fetchLatestProfile, 5000);
+      return () => clearInterval(interval);
     }
   }, []);
 

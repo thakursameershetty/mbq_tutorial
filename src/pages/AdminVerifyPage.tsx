@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -20,10 +20,12 @@ export default function AdminVerifyPage() {
   const [userToDelete, setUserToDelete] = useState<any>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [verifyAction, setVerifyAction] = useState<any>(null);
+  const [deleteReportAction, setDeleteReportAction] = useState<{ id: number, name: string } | null>(null);
 
   const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
 
   const toggleSelectUser = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -36,6 +38,29 @@ export default function AdminVerifyPage() {
       }
       return newSet;
     });
+  };
+
+  const confirmDeleteReport = async () => {
+    if (!deleteReportAction) return;
+    const { id: userId } = deleteReportAction;
+    setActionLoading(userId);
+    try {
+      const response = await fetch(`/api/users/${userId}/delete-report`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchPatients(true);
+      } else {
+        alert(data.error || 'Failed to delete report');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+      setDeleteReportAction(null);
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -93,19 +118,23 @@ export default function AdminVerifyPage() {
     }
   };
 
-  const fetchPatients = () => {
-    setLoading(true);
+  const fetchPatients = (silent = false) => {
+    if (!silent) setLoading(true);
     fetch('/api/admin/patients')
       .then((res) => res.json())
       .then((data) => {
         setPatients(data);
       })
       .catch((err) => console.error('Error fetching patients:', err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
     fetchPatients();
+    const interval = setInterval(() => fetchPatients(true), 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const toggleExpand = (id: number) => {
@@ -113,16 +142,19 @@ export default function AdminVerifyPage() {
   };
 
   const filteredPatients = patients.filter((p) => {
-    const nameMatch = p.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const emailMatch = p.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const usernameMatch = p.username?.toLowerCase().includes(searchQuery.toLowerCase());
-    const phoneMatch = p.phone?.includes(searchQuery);
+    if (!p) return false;
+    const nameMatch = (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const emailMatch = (p.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const usernameMatch = (p.username || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const phoneMatch = (p.phone || '').includes(searchQuery);
 
     const matchesSearch = nameMatch || emailMatch || usernameMatch || phoneMatch;
 
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
 
     const isCollected = p.sample_collected === true;
+    if (!isCollected) return false;
+
     const matchesSample =
       selectedSampleFilter === 'all' ||
       (selectedSampleFilter === 'collected' && isCollected) ||
@@ -163,6 +195,60 @@ export default function AdminVerifyPage() {
     }
   };
 
+  const handleDownloadCSV = () => {
+    if (patients.length === 0) return;
+
+    const headers = [
+      "ID",
+      "Username",
+      "Full Name",
+      "Email",
+      "Phone",
+      "Age",
+      "Gender",
+      "Gene Panel",
+      "Sample Collected",
+      "Sample Received",
+      "Report Uploaded",
+      "Report Generated",
+      "Report Verified",
+      "Created At"
+    ];
+
+    const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
+
+    const csvRows = patients.map(p => [
+      formatUserId(p.id),
+      p.username || '',
+      p.full_name ? escapeCSV(p.full_name) : '',
+      p.email || '',
+      p.phone ? escapeCSV(p.phone) : '',
+      p.age || '',
+      p.gender || '',
+      p.gene_type ? escapeCSV(p.gene_type) : '',
+      p.sample_collected ? 'Yes' : 'No',
+      p.sample_received ? 'Yes' : 'No',
+      p.report_uploaded ? 'Yes' : 'No',
+      p.report_generated ? 'Yes' : 'No',
+      p.report_verified ? 'Yes' : 'No',
+      p.created_at ? escapeCSV(new Date(p.created_at).toLocaleString()) : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(r => r.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `mbq_users_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -187,8 +273,8 @@ export default function AdminVerifyPage() {
         </div>
 
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-center w-full lg:w-auto">
-          <div className="relative w-full sm:w-64">
+        <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto mt-4 lg:mt-0">
+          <div className="relative w-full sm:w-80">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
             <input
               type="text"
@@ -199,7 +285,16 @@ export default function AdminVerifyPage() {
             />
           </div>
 
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 w-full sm:w-auto">
+            {/* Export CSV Button */}
+            <button
+              onClick={handleDownloadCSV}
+              className="flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] rounded-xl text-xs font-semibold text-white transition-all shadow-sm shrink-0 hover:opacity-90"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+
             {/* Select All Button */}
             <button
               onClick={toggleSelectAll}
@@ -542,15 +637,25 @@ export default function AdminVerifyPage() {
                           {/* Actions Panel */}
                           <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-[#F0F0ED]">
                             {patient.report_uploaded && patient.report_url ? (
-                              <a
-                                href={patient.report_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm no-underline"
-                              >
-                                <FileText size={14} className="text-[#6057D7]" />
-                                View Uploaded Report
-                              </a>
+                              <>
+                                <button
+                                  onClick={() => setPreviewPdfUrl(patient.report_url)}
+                                  className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                >
+                                  <FileText size={14} className="text-[#6057D7]" />
+                                  View Uploaded Report
+                                </button>
+                                {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                                  <button
+                                    onClick={() => setDeleteReportAction({ id: patient.id, name: patient.full_name || patient.username })}
+                                    disabled={actionLoading === patient.id}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                                  >
+                                    {actionLoading === patient.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    Delete Report
+                                  </button>
+                                )}
+                              </>
                             ) : (
                               <button
                                 disabled
@@ -824,6 +929,130 @@ export default function AdminVerifyPage() {
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF Preview Modal */}
+      <AnimatePresence>
+        {previewPdfUrl && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setPreviewPdfUrl(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-5xl h-[85vh] bg-white rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#6057D7]/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-[#6057D7]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1A1A19]">Document Preview</h3>
+                    <p className="text-xs text-[#8B8B86]">Uploaded Genomic Report</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-lg text-xs font-bold hover:bg-[#F4F4F2] transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </a>
+                  <button
+                    onClick={() => setPreviewPdfUrl(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-xl transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 w-full bg-[#F4F4F2] relative">
+                {/* Fallback link if iframe fails or is blocked */}
+                <div className="absolute inset-0 flex items-center justify-center -z-10 text-[#8B8B86] text-sm">
+                  Loading preview...
+                </div>
+                <iframe
+                  src={`${previewPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                  title="PDF Preview"
+                  className="w-full h-full border-none relative z-10"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Report Confirmation Modal */}
+      <AnimatePresence>
+        {deleteReportAction && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteReportAction(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <button
+                    onClick={() => setDeleteReportAction(null)}
+                    className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteReportAction.name}</span>? <br /><br />
+                  This action cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteReportAction(null)}
+                    disabled={!!actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteReport}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {actionLoading === deleteReportAction.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === deleteReportAction.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>

@@ -225,7 +225,7 @@ const sendSampleDispatchedEmail = async (user) => {
       
       <div class="highlight-banner">
         <h3>Sample Details</h3>
-        <div class="info-grid">
+        <div class="info-grid" style="margin-bottom: 20px;">
           <div class="info-cell info-cell-left">
             <div class="info-label">Volunteer ID</div>
             <div class="info-value">${volunteerId}</div>
@@ -233,6 +233,16 @@ const sendSampleDispatchedEmail = async (user) => {
           <div class="info-cell info-cell-right">
             <div class="info-label">Selected Test</div>
             <div class="info-value" style="font-size: 15px;">${selectedQode}</div>
+          </div>
+        </div>
+        <div class="info-grid">
+          <div class="info-cell info-cell-left">
+            <div class="info-label">Username</div>
+            <div class="info-value" style="font-size: 15px;">${user.username}</div>
+          </div>
+          <div class="info-cell info-cell-right">
+            <div class="info-label">Email</div>
+            <div class="info-value" style="font-size: 14px; word-break: break-all;">${user.email}</div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X } from 'lucide-react';
+import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -20,6 +20,7 @@ export default function LabDashboard() {
   const [viewMode] = useState<'list' | 'grid'>('grid');
   const [patients, setPatients] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
 
   const fetchPatients = () => {
     fetch('/api/admin/patients')
@@ -34,6 +35,8 @@ export default function LabDashboard() {
           sample_collected: u.sample_collected,
           sample_received: u.sample_received,
           report_uploaded: u.report_uploaded,
+          report_url: u.report_url,
+          status_timestamps: u.status_timestamps,
           status: u.report_uploaded ? 'completed' : 'pending',
           surveyData: {
             diet: u.phenotypic_analysis?.lifestyle_data?.dietType || 'N/A',
@@ -49,10 +52,14 @@ export default function LabDashboard() {
 
   useEffect(() => {
     fetchPatients();
+    const interval = setInterval(fetchPatients, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const [sampleAction, setSampleAction] = useState<any>(null);
-  const [uploadAction, setUploadAction] = useState<{patientId: string, file: File, patientName: string} | null>(null);
+  const [uploadAction, setUploadAction] = useState<{ patientId: string, file: File, patientName: string } | null>(null);
+  const [deleteAction, setDeleteAction] = useState<{ patientId: string, patientName: string } | null>(null);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
 
   const confirmToggleSampleReceived = async () => {
     if (!sampleAction) return;
@@ -107,13 +114,37 @@ export default function LabDashboard() {
     }
   };
 
+  const confirmDeleteReport = async () => {
+    if (!deleteAction) return;
+    const { patientId } = deleteAction;
+    setActionLoading(patientId + '-delete');
+    try {
+      const response = await fetch(`/api/users/${patientId}/delete-report`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchPatients();
+      } else {
+        alert(data.error || 'Failed to delete report');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+      setDeleteAction(null);
+    }
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedUser(expandedUser === id ? null : id);
   };
 
   const filteredPatients = patients.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.email.toLowerCase().includes(searchQuery.toLowerCase())
+    p.sample_collected === true &&
+    (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -232,11 +263,10 @@ export default function LabDashboard() {
                             setSampleAction(patient);
                           }}
                           disabled={actionLoading === patient.id + '-received'}
-                          className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                            patient.sample_received
-                              ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
-                              : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
-                          }`}
+                          className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${patient.sample_received
+                            ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
+                            : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
+                            }`}
                         >
                           {actionLoading === patient.id + '-received' ? (
                             <Loader2 className="animate-spin w-3 h-3" />
@@ -254,9 +284,11 @@ export default function LabDashboard() {
                         {patient.status === 'pending' ? (
                           <>
                             <select
-                              className="bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full sm:w-[160px] cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
+                              disabled={!patient.sample_received}
+                              className={`bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full sm:w-[160px] appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
                               onClick={(e) => e.stopPropagation()}
-                              defaultValue=""
+                              value={selectedVariants[patient.id] || ""}
+                              onChange={(e) => setSelectedVariants(prev => ({ ...prev, [patient.id]: e.target.value }))}
                               style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1em' }}
                             >
                               <option value="" disabled>Select Variant</option>
@@ -264,30 +296,61 @@ export default function LabDashboard() {
                                 <option key={idx} value={v} className="truncate">{v}</option>
                               ))}
                             </select>
-                            
+
                             <motion.label
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
+                              whileHover={patient.sample_received ? { scale: 1.02 } : {}}
+                              whileTap={patient.sample_received ? { scale: 0.98 } : {}}
                               onClick={(e) => e.stopPropagation()}
-                              className="bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] transition-all cursor-pointer w-full sm:w-auto text-center flex items-center justify-center gap-2 shrink-0"
+                              className={`bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] transition-all w-full sm:w-auto text-center flex items-center justify-center gap-2 shrink-0 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] cursor-pointer'}`}
                             >
                               {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
                               Upload
-                              <input 
-                                type="file" 
-                                className="hidden" 
-                                accept=".pdf" 
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept=".pdf"
+                                disabled={!patient.sample_received}
+                                onClick={(e) => {
+                                  if (!selectedVariants[patient.id]) {
+                                    e.preventDefault();
+                                    alert("Please select a variant before uploading the report.");
+                                  }
+                                }}
                                 onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
-                                  e.target.value = '';
-                                }
-                              }}
+                                  if (e.target.files && e.target.files[0]) {
+                                    setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
+                                    e.target.value = '';
+                                  }
+                                }}
                               />
                             </motion.label>
                           </>
                         ) : (
-                          <div className="text-sm font-semibold text-[#A0A09D] px-4">Uploaded</div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewPdfUrl(patient.report_url);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                            >
+                              <FileText size={14} className="text-[#6057D7]" />
+                              View
+                            </button>
+                            {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                                }}
+                                disabled={actionLoading === patient.id + '-delete'}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                              >
+                                {actionLoading === patient.id + '-delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -411,11 +474,10 @@ export default function LabDashboard() {
                         setSampleAction(patient);
                       }}
                       disabled={actionLoading === patient.id + '-received'}
-                      className={`w-full px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        patient.sample_received
-                          ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
-                          : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
-                      }`}
+                      className={`w-full px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${patient.sample_received
+                        ? 'bg-[#027A48]/10 text-[#027A48] border border-[#027A48]/20'
+                        : 'bg-[#FFF5E5] hover:bg-[#FFEAC2] text-[#B87A00] border border-[#FFE2A3]'
+                        }`}
                     >
                       {actionLoading === patient.id + '-received' ? (
                         <Loader2 className="animate-spin w-3 h-3" />
@@ -433,8 +495,10 @@ export default function LabDashboard() {
                     {patient.status === 'pending' ? (
                       <>
                         <select
-                          className="w-full bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-4 py-3 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer appearance-none shadow-sm transition-all hover:bg-white"
-                          defaultValue=""
+                          disabled={!patient.sample_received}
+                          className={`w-full bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-4 py-3 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
+                          value={selectedVariants[patient.id] || ""}
+                          onChange={(e) => setSelectedVariants(prev => ({ ...prev, [patient.id]: e.target.value }))}
                           style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
                         >
                           <option value="" disabled>Select Variant</option>
@@ -442,18 +506,25 @@ export default function LabDashboard() {
                             <option key={idx} value={v}>{v}</option>
                           ))}
                         </select>
-                        
+
                         <motion.label
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className="w-full bg-[#1A1A19] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                          whileHover={patient.sample_received ? { scale: 1.02 } : {}}
+                          whileTap={patient.sample_received ? { scale: 0.98 } : {}}
+                          className={`w-full bg-[#1A1A19] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-lg cursor-pointer'}`}
                         >
                           {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
                           Upload Report
-                          <input 
-                            type="file" 
-                            className="hidden" 
-                            accept=".pdf" 
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf"
+                            disabled={!patient.sample_received}
+                            onClick={(e) => {
+                              if (!selectedVariants[patient.id]) {
+                                e.preventDefault();
+                                alert("Please select a variant before uploading the report.");
+                              }
+                            }}
                             onChange={(e) => {
                               if (e.target.files && e.target.files[0]) {
                                 setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
@@ -464,8 +535,29 @@ export default function LabDashboard() {
                         </motion.label>
                       </>
                     ) : (
-                      <div className="w-full text-center py-3 text-sm font-semibold text-[#8B8B86] bg-[#F4F4F2] rounded-2xl border border-transparent">
-                        Uploaded
+                      <div className="flex gap-2 w-full mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewPdfUrl(patient.report_url);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#F4F4F2] hover:bg-[#E8E8E5] text-[#1A1A19] rounded-2xl text-sm font-bold transition-all"
+                        >
+                          <FileText size={16} className="text-[#6057D7]" />
+                          View
+                        </button>
+                        {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                            }}
+                            disabled={actionLoading === patient.id + '-delete'}
+                            className="flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                          >
+                            {actionLoading === patient.id + '-delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -505,7 +597,7 @@ export default function LabDashboard() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{sampleAction.sample_received ? 'Unmark Received' : 'Mark as Received'}</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
                   Are you sure you want to change the sample status for <span className="font-bold text-[#1A1A19]">{sampleAction.name}</span> to {sampleAction.sample_received ? 'Pending' : 'Received'}?
@@ -567,10 +659,10 @@ export default function LabDashboard() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Upload Genomic Report</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
-                  Are you sure you want to upload this report for <span className="font-bold text-[#1A1A19]">{uploadAction.patientName}</span>? <br/><br/>
+                  Are you sure you want to upload this report for <span className="font-bold text-[#1A1A19]">{uploadAction.patientName}</span>? <br /><br />
                   <span className="font-semibold text-xs bg-[#F4F4F2] px-2 py-1 rounded-md">{uploadAction.file.name}</span>
                 </p>
 
@@ -593,6 +685,139 @@ export default function LabDashboard() {
                       <FileText className="w-4 h-4" />
                     )}
                     {actionLoading === uploadAction.patientId + '-upload' ? 'Uploading...' : 'Upload'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF Preview Modal */}
+      <AnimatePresence>
+        {previewPdfUrl && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewPdfUrl(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-5xl h-[85vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-10"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-[#6057D7]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1A1A19]">Document Preview</h3>
+                    <p className="text-xs text-[#8B8B86]">Review the uploaded report</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewPdfUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E8E8E5] text-[#1A1A19] text-xs font-bold rounded-xl hover:bg-[#F4F4F2] transition-colors"
+                  >
+                    <FileText className="w-4 h-4" /> Download PDF
+                  </a>
+                  <button
+                    onClick={() => setPreviewPdfUrl(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-xl transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* PDF Viewer */}
+              <div className="flex-1 bg-[#F4F4F2] w-full h-full relative">
+                {previewPdfUrl.endsWith('.pdf') || previewPdfUrl.includes('cloudinary') ? (
+                  <iframe
+                    src={`${previewPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                    className="w-full h-full border-none"
+                    title="PDF Preview"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-[#8B8B86]">
+                    <AlertTriangle className="w-12 h-12 mb-4 text-[#A0A09D]" />
+                    <p className="font-semibold">Cannot preview this file type directly.</p>
+                    <a href={previewPdfUrl} target="_blank" rel="noopener noreferrer" className="text-[#6057D7] underline mt-2 text-sm">
+                      Open in new tab
+                    </a>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Report Confirmation Modal */}
+      <AnimatePresence>
+        {deleteAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setDeleteAction(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <button
+                    onClick={() => setDeleteAction(null)}
+                    className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteAction.patientName}</span>? <br /><br />
+                  This action cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteAction(null)}
+                    disabled={!!actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteReport}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {actionLoading === deleteAction.patientId + '-delete' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === deleteAction.patientId + '-delete' ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>

@@ -12,7 +12,7 @@ export default function VolunteerPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'collected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'collected'>('pending');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, patientId: number | null, currentStatus: boolean, patientName: string }>({
     isOpen: false,
@@ -21,32 +21,36 @@ export default function VolunteerPage() {
     patientName: ''
   });
 
-  const fetchPatients = () => {
-    setLoading(true);
+  const fetchPatients = (silent = false) => {
+    if (!silent) setLoading(true);
     fetch('/api/admin/patients')
       .then((res) => res.json())
       .then((data) => {
         setPatients(data);
       })
       .catch((err) => console.error('Error fetching patients:', err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
     fetchPatients();
+    const interval = setInterval(() => fetchPatients(true), 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleToggleSampleCollected = async (patientId: number, currentStatus: boolean) => {
     const targetStatus = !currentStatus;
     setActionLoading(String(patientId));
-    
+
     try {
       const response = await fetch(`/api/users/${patientId}/sample-collected`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sampleCollected: targetStatus }),
       });
-      
+
       const data = await response.json();
       if (data.success) {
         setPatients((prev) =>
@@ -68,13 +72,13 @@ export default function VolunteerPage() {
     const emailMatch = patient.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const usernameMatch = patient.username?.toLowerCase().includes(searchQuery.toLowerCase());
     const phoneMatch = patient.phone?.includes(searchQuery);
-    
+
     const matchesSearch = nameMatch || emailMatch || usernameMatch || phoneMatch;
-    
+
     if (statusFilter === 'all') return matchesSearch;
     if (statusFilter === 'collected') return matchesSearch && patient.sample_collected === true;
     if (statusFilter === 'pending') return matchesSearch && !patient.sample_collected;
-    
+
     return matchesSearch;
   });
 
@@ -117,29 +121,26 @@ export default function VolunteerPage() {
           <div className="flex bg-white/60 backdrop-blur-xl p-1 rounded-2xl border border-[#E8E8E5] shadow-sm w-full sm:w-auto overflow-x-auto">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${
-                statusFilter === 'all' ? 'bg-[#1A1A19] text-white shadow-sm' : 'text-[#8B8B86] hover:text-[#1A1A19]'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${statusFilter === 'all' ? 'bg-[#1A1A19] text-white shadow-sm' : 'text-[#8B8B86] hover:text-[#1A1A19]'
+                }`}
             >
               All ({patients.length})
             </button>
             <button
               onClick={() => setStatusFilter('pending')}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${
-                statusFilter === 'pending'
-                  ? 'bg-[#B87A00] text-white shadow-sm'
-                  : 'text-[#8B8B86] hover:text-[#B87A00]'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${statusFilter === 'pending'
+                ? 'bg-[#B87A00] text-white shadow-sm'
+                : 'text-[#8B8B86] hover:text-[#B87A00]'
+                }`}
             >
               Pending ({patients.filter((p) => !p.sample_collected).length})
             </button>
             <button
               onClick={() => setStatusFilter('collected')}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${
-                statusFilter === 'collected'
-                  ? 'bg-[#027A48] text-white shadow-sm'
-                  : 'text-[#8B8B86] hover:text-[#027A48]'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${statusFilter === 'collected'
+                ? 'bg-[#027A48] text-white shadow-sm'
+                : 'text-[#8B8B86] hover:text-[#027A48]'
+                }`}
             >
               Collected ({patients.filter((p) => p.sample_collected).length})
             </button>
@@ -168,7 +169,7 @@ export default function VolunteerPage() {
               {filteredPatients.map((patient, i) => {
                 const isCollected = patient.sample_collected === true;
                 const isActionLoading = actionLoading === String(patient.id);
-                
+
                 // Parse multiple genotypes if stored as comma separated string
                 const genesList = patient.gene_type ? patient.gene_type.split(', ') : [];
 
@@ -180,9 +181,8 @@ export default function VolunteerPage() {
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: Math.min(i * 0.05, 0.5) }}
                     key={patient.id}
-                    className={`bg-white/70 backdrop-blur-2xl border ${
-                      isCollected ? 'border-[#027A48]/20 bg-white/80' : 'border-white/80 shadow-[0_4px_24px_rgb(0,0,0,0.03)]'
-                    } rounded-3xl p-6 transition-all duration-300 hover:shadow-md hover:bg-white flex flex-col justify-between min-h-[320px]`}
+                    className={`bg-white/70 backdrop-blur-2xl border ${isCollected ? 'border-[#027A48]/20 bg-white/80' : 'border-white/80 shadow-[0_4px_24px_rgb(0,0,0,0.03)]'
+                      } rounded-3xl p-6 transition-all duration-300 hover:shadow-md hover:bg-white flex flex-col justify-between min-h-[320px]`}
                   >
                     <div>
                       {/* Card Header */}
@@ -260,11 +260,10 @@ export default function VolunteerPage() {
                         });
                       }}
                       disabled={isActionLoading}
-                      className={`w-full py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm ${
-                        isCollected
-                          ? 'bg-[#027A48] hover:bg-[#026c3f] text-white'
-                          : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_12px_rgba(96,87,215,0.15)]'
-                      }`}
+                      className={`w-full py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm ${isCollected
+                        ? 'bg-[#027A48] hover:bg-[#026c3f] text-white'
+                        : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_12px_rgba(96,87,215,0.15)]'
+                        }`}
                     >
                       {isActionLoading ? (
                         <Loader2 size={14} className="animate-spin" />
@@ -310,8 +309,8 @@ export default function VolunteerPage() {
                 {confirmDialog.currentStatus ? 'Undo Collection?' : 'Confirm Collection'}
               </h3>
               <p className="text-center text-sm text-[#8B8B86] mb-8">
-                {confirmDialog.currentStatus 
-                  ? `Are you sure you want to mark ${confirmDialog.patientName}'s sample as pending?` 
+                {confirmDialog.currentStatus
+                  ? `Are you sure you want to mark ${confirmDialog.patientName}'s sample as pending?`
                   : `Are you sure you want to mark ${confirmDialog.patientName}'s sample as collected? An email will be dispatched automatically.`}
               </p>
               <div className="flex gap-3">
@@ -328,11 +327,10 @@ export default function VolunteerPage() {
                     }
                     setConfirmDialog({ isOpen: false, patientId: null, currentStatus: false, patientName: '' });
                   }}
-                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white transition-colors shadow-sm ${
-                    confirmDialog.currentStatus
-                      ? 'bg-[#B87A00] hover:bg-[#996600]'
-                      : 'bg-[#027A48] hover:bg-[#026c3f]'
-                  }`}
+                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white transition-colors shadow-sm ${confirmDialog.currentStatus
+                    ? 'bg-[#B87A00] hover:bg-[#996600]'
+                    : 'bg-[#027A48] hover:bg-[#026c3f]'
+                    }`}
                 >
                   Confirm
                 </button>
