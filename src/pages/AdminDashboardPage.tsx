@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock } from 'lucide-react';
+import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X, AlertTriangle } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -51,7 +51,12 @@ export default function LabDashboard() {
     fetchPatients();
   }, []);
 
-  const handleToggleSampleReceived = async (patientId: string, currentStatus: boolean) => {
+  const [sampleAction, setSampleAction] = useState<any>(null);
+  const [uploadAction, setUploadAction] = useState<{patientId: string, file: File, patientName: string} | null>(null);
+
+  const confirmToggleSampleReceived = async () => {
+    if (!sampleAction) return;
+    const { id: patientId, sample_received: currentStatus } = sampleAction;
     const targetStatus = !currentStatus;
     setActionLoading(patientId + '-received');
     try {
@@ -71,10 +76,13 @@ export default function LabDashboard() {
       alert('Connection failed');
     } finally {
       setActionLoading(null);
+      setSampleAction(null);
     }
   };
 
-  const handleUploadReport = async (patientId: string, file: File) => {
+  const confirmUploadReport = async () => {
+    if (!uploadAction) return;
+    const { patientId, file } = uploadAction;
     setActionLoading(patientId + '-upload');
     const formData = new FormData();
     formData.append('report', file);
@@ -95,6 +103,7 @@ export default function LabDashboard() {
       alert('Connection failed');
     } finally {
       setActionLoading(null);
+      setUploadAction(null);
     }
   };
 
@@ -220,7 +229,7 @@ export default function LabDashboard() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleSampleReceived(patient.id, patient.sample_received);
+                            setSampleAction(patient);
                           }}
                           disabled={actionLoading === patient.id + '-received'}
                           className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
@@ -269,10 +278,11 @@ export default function LabDashboard() {
                                 className="hidden" 
                                 accept=".pdf" 
                                 onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) {
-                                    handleUploadReport(patient.id, e.target.files[0]);
-                                  }
-                                }}
+                                if (e.target.files && e.target.files[0]) {
+                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
+                                  e.target.value = '';
+                                }
+                              }}
                               />
                             </motion.label>
                           </>
@@ -398,7 +408,7 @@ export default function LabDashboard() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleToggleSampleReceived(patient.id, patient.sample_received);
+                        setSampleAction(patient);
                       }}
                       disabled={actionLoading === patient.id + '-received'}
                       className={`w-full px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
@@ -446,7 +456,8 @@ export default function LabDashboard() {
                             accept=".pdf" 
                             onChange={(e) => {
                               if (e.target.files && e.target.files[0]) {
-                                handleUploadReport(patient.id, e.target.files[0]);
+                                setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
+                                e.target.value = '';
                               }
                             }}
                           />
@@ -464,6 +475,131 @@ export default function LabDashboard() {
           </div>
         )}
       </div>
+
+      {/* Sample Status Confirmation Modal */}
+      <AnimatePresence>
+        {sampleAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !actionLoading && setSampleAction(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${sampleAction.sample_received ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !actionLoading && setSampleAction(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{sampleAction.sample_received ? 'Unmark Received' : 'Mark as Received'}</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to change the sample status for <span className="font-bold text-[#1A1A19]">{sampleAction.name}</span> to {sampleAction.sample_received ? 'Pending' : 'Received'}?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSampleAction(null)}
+                    disabled={!!actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmToggleSampleReceived}
+                    disabled={!!actionLoading}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${sampleAction.sample_received ? 'bg-orange-600 hover:bg-orange-700' : 'bg-[#027A48] hover:bg-[#026c3f]'}`}
+                  >
+                    {actionLoading === sampleAction.id + '-received' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === sampleAction.id + '-received' ? 'Processing...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Report Confirmation Modal */}
+      <AnimatePresence>
+        {uploadAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !actionLoading && setUploadAction(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !actionLoading && setUploadAction(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Upload Genomic Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to upload this report for <span className="font-bold text-[#1A1A19]">{uploadAction.patientName}</span>? <br/><br/>
+                  <span className="font-semibold text-xs bg-[#F4F4F2] px-2 py-1 rounded-md">{uploadAction.file.name}</span>
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setUploadAction(null)}
+                    disabled={!!actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmUploadReport}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#6057D7] hover:bg-[#5149C0] text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {actionLoading === uploadAction.patientId + '-upload' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <FileText className="w-4 h-4" />
+                    )}
+                    {actionLoading === uploadAction.patientId + '-upload' ? 'Uploading...' : 'Upload'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

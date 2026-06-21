@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -17,16 +17,61 @@ export default function AdminVerifyPage() {
   const [selectedSampleFilter, setSelectedSampleFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [verifyAction, setVerifyAction] = useState<any>(null);
+
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  const toggleSelectUser = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeletingUser(true);
+    try {
+      const response = await fetch(`/api/users/${userToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPatients((prev) => prev.filter((p) => p.id !== userToDelete.id));
+        setUserToDelete(null);
+      } else {
+        alert(data.error || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
   const handleViewGeneratedReport = (patient: any) => {
     localStorage.setItem('userProfile', JSON.stringify(patient));
     window.open('/report', '_blank');
   };
 
-  const handleToggleVerifyReport = async (patientId: number, currentStatus: boolean) => {
+  const confirmVerifyReport = async () => {
+    if (!verifyAction) return;
+    const { id, report_verified: currentStatus } = verifyAction;
     const targetStatus = !currentStatus;
-    setActionLoading(patientId);
+    setActionLoading(id);
     try {
-      const response = await fetch(`/api/users/${patientId}/verify-report`, {
+      const response = await fetch(`/api/users/${id}/verify-report`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportVerified: targetStatus }),
@@ -34,7 +79,7 @@ export default function AdminVerifyPage() {
       const data = await response.json();
       if (data.success) {
         setPatients((prev) =>
-          prev.map((p) => (p.id === patientId ? { ...p, report_verified: targetStatus, status_timestamps: data.user.status_timestamps } : p))
+          prev.map((p) => (p.id === id ? { ...p, report_verified: targetStatus, status_timestamps: data.user.status_timestamps } : p))
         );
       } else {
         alert(data.error || 'Failed to verify report');
@@ -44,6 +89,7 @@ export default function AdminVerifyPage() {
       alert('Connection failed');
     } finally {
       setActionLoading(null);
+      setVerifyAction(null);
     }
   };
 
@@ -85,6 +131,38 @@ export default function AdminVerifyPage() {
     return matchesSearch && matchesGender && matchesSample;
   });
 
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === filteredPatients.length && filteredPatients.length > 0) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(filteredPatients.map(p => p.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    try {
+      const response = await fetch('/api/users/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: Array.from(selectedUsers) }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPatients(prev => prev.filter(p => !selectedUsers.has(p.id)));
+        setSelectedUsers(new Set());
+        setShowBulkDeleteModal(false);
+      } else {
+        alert(data.error || 'Failed to delete users');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -122,6 +200,17 @@ export default function AdminVerifyPage() {
           </div>
 
           <div className="flex gap-2 w-full sm:w-auto">
+            {/* Select All Button */}
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white/60 border border-[#E8E8E5] rounded-xl text-xs font-semibold text-[#5A5A55] hover:bg-white transition-all shadow-sm shrink-0"
+            >
+              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 ? 'bg-[#6057D7] border-[#6057D7] text-white' : 'border-[#D4D4CE] bg-white'}`}>
+                {selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 && <Check className="w-3 h-3" />}
+              </div>
+              Select All
+            </button>
+
             {/* Gender Filter */}
             <select
               value={selectedGenderFilter}
@@ -186,6 +275,12 @@ export default function AdminVerifyPage() {
                     className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between cursor-pointer gap-4 relative z-10"
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <button
+                        onClick={(e) => toggleSelectUser(patient.id, e)}
+                        className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shrink-0 ${selectedUsers.has(patient.id) ? 'bg-[#6057D7] border-[#6057D7] text-white' : 'border-[#D4D4CE] bg-white hover:border-[#6057D7]'}`}
+                      >
+                        {selectedUsers.has(patient.id) && <Check className="w-3.5 h-3.5" />}
+                      </button>
                       <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-base font-bold text-[#1A1A19] shadow-inner shrink-0">
                         {patient.full_name?.charAt(0).toUpperCase() || 'U'}
                       </div>
@@ -238,6 +333,18 @@ export default function AdminVerifyPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserToDelete(patient);
+                        }}
+                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-colors border border-red-100 shrink-0"
+                        title="Delete User"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
 
                       {/* Chevron indicator */}
                       <motion.div
@@ -473,7 +580,7 @@ export default function AdminVerifyPage() {
                             )}
 
                             <button
-                              onClick={() => handleToggleVerifyReport(patient.id, patient.report_verified)}
+                              onClick={() => setVerifyAction(patient)}
                               disabled={actionLoading === patient.id}
                               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${patient.report_verified
                                 ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
@@ -499,6 +606,226 @@ export default function AdminVerifyPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !isDeletingUser && setUserToDelete(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !isDeletingUser && setUserToDelete(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete User Profile</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to completely delete the profile for <span className="font-bold text-[#1A1A19]">{userToDelete.full_name}</span>? This action is permanent and cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setUserToDelete(null)}
+                    disabled={isDeletingUser}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteUser}
+                    disabled={isDeletingUser}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {isDeletingUser ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isDeletingUser ? 'Deleting...' : 'Delete Profile'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Verify Confirmation Modal */}
+      <AnimatePresence>
+        {verifyAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !actionLoading && setVerifyAction(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyAction.report_verified ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !actionLoading && setVerifyAction(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{verifyAction.report_verified ? 'Unverify' : 'Verify'} Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to {verifyAction.report_verified ? 'unverify' : 'verify'} the report for <span className="font-bold text-[#1A1A19]">{verifyAction.full_name}</span>?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setVerifyAction(null)}
+                    disabled={actionLoading === verifyAction.id}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmVerifyReport}
+                    disabled={actionLoading === verifyAction.id}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${verifyAction.report_verified ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                  >
+                    {actionLoading === verifyAction.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === verifyAction.id ? 'Processing...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Modal */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete {selectedUsers.size} Users</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to permanently delete the {selectedUsers.size} selected user profiles? This action cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    disabled={isBulkDeleting}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isBulkDeleting}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {isBulkDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isBulkDeleting ? 'Deleting...' : 'Delete All'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Action Bar for Bulk Selection */}
+      <AnimatePresence>
+        {selectedUsers.size > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#1A1A19] text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgb(0,0,0,0.2)] border border-white/10 flex items-center gap-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center bg-[#333331] text-[#A0A09D] font-mono text-sm font-bold rounded-lg h-7 min-w-[28px] px-2">
+                {selectedUsers.size}
+              </div>
+              <span className="text-white text-sm font-medium">profiles selected</span>
+            </div>
+            <div className="w-px h-6 bg-white/15" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedUsers(new Set())}
+                className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10"
+              >
+                <X className="w-4 h-4 text-[#A0A09D]" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -494,6 +494,54 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete User Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.delete('/api/users/:id', async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    const query = `DELETE FROM users WHERE id = $1 RETURNING id;`;
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully.'
+    });
+  } catch (error) {
+    console.error('Delete User Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulk Delete Users Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.delete('/api/users/bulk', async (req, res) => {
+  const { userIds } = req.body;
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: 'No user IDs provided' });
+  }
+
+  try {
+    const query = `DELETE FROM users WHERE id = ANY($1::int[]) RETURNING id;`;
+    const result = await pool.query(query, [userIds]);
+
+    res.json({
+      success: true,
+      message: `${result.rowCount} users deleted successfully.`,
+      deletedIds: result.rows.map(r => r.id)
+    });
+  } catch (error) {
+    console.error('Bulk Delete Users Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // Start the server (only locally, not on Vercel)
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
