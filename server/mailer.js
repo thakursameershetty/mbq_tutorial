@@ -292,6 +292,213 @@ const sendSampleDispatchedEmail = async (user) => {
   }
 };
 
+const sendForgotCredentialsEmail = async (user) => {
+  if (!process.env.EMAIL_PASS) {
+    console.warn('EMAIL_PASS not configured. Skipping recovery email to', user.email);
+    return;
+  }
+
+  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
+
+  const mailOptions = {
+    from: `"MyBodyQode Team" <${process.env.EMAIL_USER || 'earlyaccess.mbq@gmail.com'}>`,
+    to: user.email,
+    subject: "Your MyBodyQode Login Credentials 🔑",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    color-scheme: light dark;
+    supported-color-schemes: light dark;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F4F4F2;
+    color: #1A1A19;
+    margin: 0;
+    padding: 0;
+  }
+  .dark-img {
+    display: none !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .light-img {
+      display: none !important;
+    }
+    .dark-img {
+      display: block !important;
+      margin: 0 auto !important;
+      filter: brightness(0) invert(1);
+    }
+    .header-text {
+      color: #FFFFFF !important;
+    }
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 30px;
+    text-align: center;
+    border-bottom: 1px solid #F0F0ED;
+  }
+  .header img {
+    height: 48px;
+    width: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  .content {
+    padding: 40px 30px;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #5A5A55;
+  }
+  .greeting {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1A1A19;
+    margin-bottom: 24px;
+    text-transform: capitalize;
+  }
+  .highlight-banner {
+    background: linear-gradient(135deg, #6057D7 0%, #3FC2AC 100%);
+    border-radius: 12px;
+    padding: 24px;
+    color: #FFFFFF;
+    margin: 30px 0;
+    box-shadow: 0 4px 12px rgba(96, 87, 215, 0.15);
+  }
+  .highlight-banner h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+  }
+  .info-grid {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .info-cell {
+    display: table-cell;
+    width: 100%;
+    vertical-align: top;
+  }
+  .info-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .info-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #FFFFFF;
+  }
+  .button-container {
+    text-align: center;
+    margin: 40px 0;
+  }
+  .button {
+    background-color: #1A1A19;
+    color: #FFFFFF !important;
+    text-decoration: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    display: inline-block;
+    transition: all 0.2s ease;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+  .tagline {
+    font-weight: 700;
+    color: #6057D7;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <!-- Light Mode Logo -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" class="light-img">
+      <!-- Dark Mode Logo -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo Dark" class="dark-img">
+      <h1 class="header-text" style="color: #1A1A19; font-size: 20px; margin-top: 10px; font-weight: 800; letter-spacing: -0.5px;">MyBodyQode</h1>
+    </div>
+    <div class="content">
+      <div class="greeting">Hi ${firstName},</div>
+      
+      <p>We received a request to recover the credentials for your <strong>MyBodyQode Early Access Program</strong> account.</p>
+      
+      <div class="highlight-banner">
+        <h3>Your Account Credentials</h3>
+        <div class="info-grid">
+          <div class="info-cell" style="margin-bottom: 20px; display: block;">
+            <div class="info-label">Username</div>
+            <div class="info-value" style="font-size: 24px;">${user.username}</div>
+          </div>
+          <div class="info-cell" style="margin-bottom: 20px; display: block;">
+            <div class="info-label">Email Address</div>
+            <div class="info-value" style="font-size: 16px; font-weight: 500;">${user.email}</div>
+          </div>
+          <div class="info-cell" style="display: block;">
+            <div class="info-label">Phone Number</div>
+            <div class="info-value" style="font-size: 16px; font-weight: 500;">${user.phone || 'N/A'}</div>
+          </div>
+        </div>
+      </div>
+      
+      <p>If you didn't request this, you can safely ignore this email.</p>
+      
+      <div class="button-container">
+        <a href="https://mbq-tutorial.vercel.app/login" class="button">Log In to My Account</a>
+      </div>
+      
+      <p style="margin-top: 40px; color: #1A1A19;">Warm Regards,<br><strong>Team MyBodyQode</strong></p>
+    </div>
+    <div class="footer">
+      <div class="tagline">Because your biology is one of a kind.</div>
+      <p>Educational and non-diagnostic wellness insights only.</p>
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Recovery email sent to ${user.email}`);
+  } catch (error) {
+    console.error('Error sending recovery email:', error);
+  }
+};
+
 module.exports = {
-  sendSampleDispatchedEmail
+  sendSampleDispatchedEmail,
+  sendForgotCredentialsEmail
 };

@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis } = require('./aiMapping');
-const { sendSampleDispatchedEmail } = require('./mailer');
+const { sendSampleDispatchedEmail, sendForgotCredentialsEmail } = require('./mailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -124,6 +124,83 @@ async function fetchGoogleSheetData() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Registration Route — Google Sheets as source of truth, Gemini as ETL layer
 // ─────────────────────────────────────────────────────────────────────────────
+
+app.get('/api/auth/check-username', async (req, res) => {
+  try {
+    const { username } = req.query;
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    const result = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+    res.json({ exists: result.rows.length > 0 });
+  } catch (error) {
+    console.error('Error checking username:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/auth/check-email', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    res.json({ exists: result.rows.length > 0 });
+  } catch (error) {
+    console.error('Error checking email:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/auth/check-phone', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone is required' });
+    }
+    const result = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
+    res.json({ exists: result.rows.length > 0 });
+  } catch (error) {
+    console.error('Error checking phone:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/recover-credentials', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: 'Identifier is required' });
+    }
+
+    // Check if the identifier is an email or phone number
+    const isEmail = identifier.includes('@');
+    let query;
+    if (isEmail) {
+      query = 'SELECT username, email, phone FROM users WHERE email = $1';
+    } else {
+      query = 'SELECT username, email, phone FROM users WHERE phone = $1';
+    }
+
+    const result = await pool.query(query, [identifier]);
+
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+
+      // Send the beautifully formatted email using nodemailer
+      await sendForgotCredentialsEmail(user);
+
+      res.json({ success: true, message: 'Credentials sent successfully.' });
+    } else {
+      res.status(404).json({ error: 'No account found with that information.' });
+    }
+  } catch (error) {
+    console.error('Error recovering credentials:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => {
   const { username, fullName, email, phone, age, gender, geneType } = req.body;
 

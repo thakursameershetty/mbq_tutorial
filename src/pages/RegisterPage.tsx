@@ -342,6 +342,21 @@ export default function RegisterPage() {
   const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
   const [postTutorialAction, setPostTutorialAction] = useState<'login' | 'survey' | 'stay'>('stay');
   const [showThankYou, setShowThankYou] = useState(false);
+  const [showPendingScreen, setShowPendingScreen] = useState(false);
+  const [usernameExists, setUsernameExists] = useState(false);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  // State to hold the form data
+  const [formData, setFormData] = useState({
+    username: '', fullName: '', email: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
+  });
+
+  const [selectedGenes, setSelectedGenes] = useState<string[]>(['']);
 
   // Countdown timer logic for tutorial steps
   useEffect(() => {
@@ -350,13 +365,91 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
-  // Auto-dismiss toast after 5 seconds
+  // Toast auto-dismiss timer
   useEffect(() => {
     if (toastMessage) {
       const timer = setTimeout(() => setToastMessage(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  // Debounced check for username existence
+  useEffect(() => {
+    const checkUsername = async () => {
+      const username = formData.username.trim();
+      const hasInvalidChars = /[^a-zA-Z0-9._]/.test(username);
+      if (!username || hasInvalidChars) {
+        setUsernameExists(false);
+        setCheckingUsername(false);
+        return;
+      }
+
+      try {
+        setCheckingUsername(true);
+        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUsernameExists(data.exists);
+        }
+      } catch (err) {
+        console.error("Error checking username:", err);
+      } finally {
+        setCheckingUsername(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(checkUsername, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [formData?.username]);
+
+  // Check Email uniqueness
+  useEffect(() => {
+    const checkEmail = async () => {
+      const email = formData.email.trim();
+      if (!email || !email.includes('@')) {
+        setEmailExists(false);
+        setCheckingEmail(false);
+        return;
+      }
+      setCheckingEmail(true);
+      try {
+        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
+        const data = await response.json();
+        setEmailExists(data.exists);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setCheckingEmail(false);
+      }
+    };
+    const timer = setTimeout(checkEmail, 500);
+    return () => clearTimeout(timer);
+  }, [formData.email]);
+
+  // Check Phone uniqueness
+  useEffect(() => {
+    const checkPhone = async () => {
+      const phone = formData.phone.trim();
+      if (!phone || phone.length < 5) {
+        setPhoneExists(false);
+        setCheckingPhone(false);
+        return;
+      }
+      setCheckingPhone(true);
+      try {
+        const fullPhone = formData.countryCode + phone;
+        const response = await fetch(`/api/auth/check-phone?phone=${encodeURIComponent(fullPhone)}`);
+        const data = await response.json();
+        setPhoneExists(data.exists);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setCheckingPhone(false);
+      }
+    };
+    const timer = setTimeout(checkPhone, 500);
+    return () => clearTimeout(timer);
+  }, [formData.phone, formData.countryCode]);
 
   // Navigate automatically once the user finishes the tutorial AND the backend finishes
   useEffect(() => {
@@ -384,21 +477,19 @@ export default function RegisterPage() {
   const handleDispatchConfirmed = () => {
     setLoading(false);
     setShowThankYou(false);
-    if (postTutorialAction === 'login') navigate('/login');
+    if (postTutorialAction === 'login') setShowPendingScreen(true);
     else if (postTutorialAction === 'survey') setNeedsSurvey(true);
   };
 
-  // State to hold the form data
-  const [formData, setFormData] = useState({
-    username: '', fullName: '', email: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
-  });
-
-  const [selectedGenes, setSelectedGenes] = useState<string[]>(['']);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let val = e.target.value;
     if (e.target.name === 'fullName') {
       val = val.toUpperCase();
+    } else if (e.target.name === 'dobDay') {
+      val = val.replace(/\D/g, '').slice(0, 2);
+    } else if (e.target.name === 'dobYear') {
+      val = val.replace(/\D/g, '').slice(0, 4);
     }
     setFormData({ ...formData, [e.target.name]: val });
   };
@@ -406,24 +497,155 @@ export default function RegisterPage() {
   const calculateAge = (dayStr: string, monthStr: string, yearStr: string) => {
     if (!dayStr || !monthStr || !yearStr) return '';
     const day = parseInt(dayStr, 10);
-    const month = parseInt(monthStr, 10); // month is already 0-indexed from the dropdown
+    const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
-
     if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
 
     const today = new Date();
-    const birthDate = new Date(year, month, day);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+    let ageYears = today.getFullYear() - year;
+    let ageMonths = today.getMonth() - month;
+
+    if (today.getDate() < day) {
+      ageMonths--;
     }
-    return age.toString();
+    if (ageMonths < 0) {
+      ageYears--;
+      ageMonths += 12;
+    }
+
+    return `${ageYears} years, ${ageMonths} month${ageMonths === 1 ? '' : 's'}`;
   };
+
+  const validateDateOfBirth = (data = formData) => {
+    const { dobDay, dobMonth, dobYear } = data;
+    const currentYear = new Date().getFullYear();
+    const maxYear = currentYear - 18;
+
+    if (!dobDay || !dobMonth || !dobYear) {
+      if (dobDay && (parseInt(dobDay, 10) < 1 || parseInt(dobDay, 10) > 31)) return "Day must be between 1 and 31.";
+      if (dobYear && dobYear.length === 4 && (parseInt(dobYear, 10) < 1926 || parseInt(dobYear, 10) > maxYear)) return `Year must be between 1926 and ${maxYear}.`;
+      return null;
+    }
+
+    const day = parseInt(dobDay, 10);
+    const month = parseInt(dobMonth, 10);
+    const year = parseInt(dobYear, 10);
+
+    if (day < 1 || day > 31) return "Day must be between 1 and 31.";
+    if (year < 1926 || year > maxYear) return `Year must be between 1926 and ${maxYear}.`;
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    if (day > daysInMonth) {
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return `${monthNames[month]} ${year} only has ${daysInMonth} days.`;
+    }
+
+    return null;
+  };
+
+  const dobError = validateDateOfBirth();
+
+  const getEmailSuggestion = () => {
+    const email = formData.email.trim();
+    if (!email.includes('@')) return null;
+    const parts = email.split('@');
+    if (parts.length !== 2) return null;
+    const [localPart, domainPart] = parts;
+    if (!domainPart) return null;
+
+    let suggestedDomain = domainPart;
+    const lowerDomain = domainPart.toLowerCase();
+
+    const replacements: Record<string, string> = {
+      'gnail.com': 'gmail.com',
+      'gamil.com': 'gmail.com',
+      'gmal.com': 'gmail.com',
+      'gmail.con': 'gmail.com',
+      'gmail.co': 'gmail.com',
+      'yahoo.con': 'yahoo.com',
+      'yaho.com': 'yahoo.com',
+      'hotmail.con': 'hotmail.com',
+      'advaitlabs.con': 'advaitlabs.com',
+      'syntags.com': 'syntags.co',
+      'reaidy.com': 'reaidy.io',
+      'reaidy.co': 'reaidy.io',
+      'elp-in.con': 'elp-in.com',
+      'spotmies.com': 'spotmies.ai',
+      'spotmies.co': 'spotmies.ai',
+    };
+
+    if (replacements[lowerDomain]) {
+      suggestedDomain = replacements[lowerDomain];
+    } else if (lowerDomain.endsWith('.con')) {
+      suggestedDomain = lowerDomain.replace(/\.con$/, '.com');
+    }
+
+    if (suggestedDomain !== domainPart) {
+      return `${localPart}@${suggestedDomain}`;
+    }
+    return null;
+  };
+
+  const emailSuggestion = getEmailSuggestion();
+  const missingAtSymbol = emailTouched && formData.email.length > 0 && !formData.email.includes('@');
+
+  const getYearSuggestion = () => {
+    const yearStr = formData.dobYear;
+    if (yearStr.length > 0 && yearStr.length <= 2) {
+      const yr = parseInt(yearStr, 10);
+      const currentYearTwoDigits = new Date().getFullYear() % 100;
+      const fullYear = yr <= currentYearTwoDigits ? 2000 + yr : 1900 + yr;
+      return fullYear.toString();
+    }
+    return null;
+  };
+  const yearSuggestion = getYearSuggestion();
+
+  const isFormPerfectlyFilled = 
+    formData.username.trim().length > 0 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
+    formData.fullName.trim().length > 0 &&
+    formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailExists && !checkingEmail && !emailSuggestion &&
+    formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
+    !dobError && !yearSuggestion &&
+    formData.gender !== '' &&
+    selectedGenes.every(g => g !== '');
 
   // Called when the form's submit button is clicked — shows T&C first
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    let updatedFormData = { ...formData };
+    if (yearSuggestion) {
+      updatedFormData.dobYear = yearSuggestion;
+      setFormData(updatedFormData);
+    }
+
+    if (/[^a-zA-Z0-9._]/.test(updatedFormData.username)) {
+      setToastMessage({ type: 'error', text: 'Username can only contain letters, numbers, dots, and underscores.' });
+      return;
+    }
+    if (usernameExists) {
+      setToastMessage({ type: 'error', text: 'This username is already taken.' });
+      return;
+    }
+    if (missingAtSymbol) {
+      setToastMessage({ type: 'error', text: "Email address must include an '@' symbol." });
+      return;
+    }
+    if (emailExists) {
+      setToastMessage({ type: 'error', text: 'This email is already registered.' });
+      return;
+    }
+    if (phoneExists) {
+      setToastMessage({ type: 'error', text: 'This phone number is already registered.' });
+      return;
+    }
+
+    const currentDobError = validateDateOfBirth(updatedFormData);
+    if (currentDobError) {
+      setToastMessage({ type: 'error', text: currentDobError });
+      return;
+    }
     setShowTerms(true);
   };
 
@@ -482,11 +704,36 @@ export default function RegisterPage() {
     }
   };
 
+  const renderToast = () => (
+    <AnimatePresence>
+      {toastMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -40, x: '-50%' }}
+          animate={{ opacity: 1, y: 0, x: '-50%' }}
+          exit={{ opacity: 0, y: -40, x: '-50%' }}
+          className={`fixed top-6 left-1/2 px-4 py-2.5 rounded-full shadow-xl text-sm font-semibold z-[9999] flex items-center gap-2 whitespace-nowrap border pr-2 ${toastMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}
+        >
+          {toastMessage.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
+          <span>{toastMessage.text}</span>
+          <button 
+            type="button" 
+            onClick={() => setToastMessage(null)} 
+            className={`p-1.5 rounded-full transition-colors ml-1 ${toastMessage.type === 'error' ? 'hover:bg-red-100 text-red-600' : 'hover:bg-green-100 text-green-600'}`}
+          >
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   // ── Survey Required screen ──────────────────────────────────────────────────
   if (needsSurvey) {
     return (
-      <AnimatePresence mode="wait">
-        <motion.div
+      <>
+        {renderToast()}
+        <AnimatePresence mode="wait">
+          <motion.div
           key="survey-prompt"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -539,12 +786,64 @@ export default function RegisterPage() {
           </div>
         </motion.div>
       </AnimatePresence>
+      </>
+    );
+  }
+
+  // ── Sample Pending screen ───────────────────────────────────────────────────
+  if (showPendingScreen) {
+    return (
+      <>
+        {renderToast()}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key="pending-prompt"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
+          >
+            <div className={theme.card}>
+              <div className="flex justify-center mb-6">
+                <div className="relative flex items-center justify-center w-16 h-16">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-[#3FC2AC]/20 animate-ping" />
+                  <span className="relative flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#6057D7] to-[#3FC2AC]">
+                    <CheckCircle2 size={20} className="text-white" strokeWidth={2} />
+                  </span>
+                </div>
+              </div>
+
+              <h2 className={theme.heading}>Sample Pending</h2>
+              <p className="text-sm text-[#8B8B86] text-center mb-6 leading-relaxed">
+                The sample is being collected. Please wait for the status to change to <strong className="text-[#1A1A19]">"Sample Collected"</strong>.
+              </p>
+              
+              <div className="bg-[#F7F7F5] border border-[#E8E8E5] rounded-xl p-4 mb-8 text-center shadow-inner">
+                <p className="text-sm text-[#5A5A55]">
+                  You will receive an email at <strong className="text-[#1A1A19]">{formData.email}</strong> once the status is updated. <br/><br/>
+                  <span className="text-[#6057D7] font-semibold">Please check your spam email folder!</span>
+                </p>
+              </div>
+
+              <button
+                onClick={() => navigate('/login')}
+                className={`${theme.buttonPrimary} flex items-center justify-center gap-2`}
+              >
+                Go to Login
+              </button>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </>
     );
   }
 
   // ── Normal registration form ────────────────────────────────────────────────
   return (
     <>
+      {renderToast()}
+      
       {/* Full Page Interactive Loading Overlay */}
       <AnimatePresence>
         {loading && (
@@ -559,21 +858,6 @@ export default function RegisterPage() {
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-lg w-full border border-[#E8E8E5] relative overflow-hidden"
             >
-              {/* Push Notification Toast */}
-              <AnimatePresence>
-                {toastMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -40 }}
-                    className={`absolute -top-14 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full shadow-lg text-sm font-semibold z-10 flex items-center gap-2 whitespace-nowrap border ${toastMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
-                      }`}
-                  >
-                    {toastMessage.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
-                    {toastMessage.text}
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {showThankYou ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center px-4">
@@ -703,14 +987,120 @@ export default function RegisterPage() {
           <p className="text-xs text-[#8B8B86] mb-6 font-medium">* Every field is required</p>
 
           <form onSubmit={handleFormSubmit}>
-            <input type="text" name="username" onChange={handleChange} placeholder="Unique Username" className={theme.input} required />
-            <input type="text" name="fullName" onChange={handleChange} placeholder="Full Legal Name" className={`${theme.input} uppercase`} required />
-            <input type="email" name="email" onChange={handleChange} placeholder="Email Address" className={theme.input} required />
+            <div className="relative mb-4">
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                placeholder="Unique Username"
+                className={`${theme.input} !mb-0 ${/[^a-zA-Z0-9._]/.test(formData.username) || usernameExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                required
+              />
+              {checkingUsername && !/[^a-zA-Z0-9._]/.test(formData.username) && (
+                <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+              )}
+              <AnimatePresence>
+                {/[^a-zA-Z0-9._]/.test(formData.username) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Only letters, numbers, dots ".", and underscores allowed "_".</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, username: formData.username.replace(/[^a-zA-Z0-9._]/g, '') })}
+                        className="text-left text-xs text-orange-800 hover:text-orange-900 bg-orange-100/50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg font-bold transition-colors w-max"
+                      >
+                        Suggestion: {formData.username.replace(/[^a-zA-Z0-9._]/g, '')}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+                {usernameExists && !/[^a-zA-Z0-9._]/.test(formData.username) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This username is already taken.</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Full Legal Name" className={`${theme.input} uppercase`} required />
+            <div className="relative mb-4">
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                onBlur={() => setEmailTouched(true)}
+                placeholder="Email Address"
+                className={`${theme.input} !mb-0 ${missingAtSymbol || emailSuggestion || emailExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                required
+              />
+              {checkingEmail && !missingAtSymbol && !emailSuggestion && (
+                <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+              )}
+              <AnimatePresence>
+                {missingAtSymbol && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Email address must include an '@' symbol.</span>
+                    </div>
+                  </motion.div>
+                )}
+                {emailSuggestion && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Double check your email.</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, email: emailSuggestion })}
+                        className="text-left text-xs text-orange-800 hover:text-orange-900 bg-orange-100/50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg font-bold transition-colors w-max"
+                      >
+                        Did you mean: {emailSuggestion}?
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+                {emailExists && !missingAtSymbol && !emailSuggestion && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This email is already registered.</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <div className="mb-4">
               {/* Unified Country Code & Phone Input */}
-              <div className="flex w-full bg-white/50 text-[#2C2C2A] rounded-xl border border-[#E8E8E5] focus-within:ring-4 focus-within:ring-[#6057D7]/10 focus-within:bg-white focus-within:border-[#6057D7]/30 transition-all duration-300">
-                <div className="relative w-[110px] flex-shrink-0 border-r border-[#E8E8E5]">
+              <div className="relative">
+                <div className={`flex w-full bg-white/50 text-[#2C2C2A] rounded-xl border ${phoneExists ? 'border-orange-300 ring-4 ring-orange-500/10' : 'border-[#E8E8E5] focus-within:ring-4 focus-within:ring-[#6057D7]/10 focus-within:bg-white focus-within:border-[#6057D7]/30'} transition-all duration-300`}>
+                  <div className="relative w-[110px] flex-shrink-0 border-r border-[#E8E8E5]">
                   <select name="countryCode" onChange={handleChange} className="w-full h-full appearance-none cursor-pointer pl-4 pr-8 py-3.5 outline-none bg-transparent hover:bg-black/5 transition-colors font-medium text-sm rounded-l-xl" required defaultValue="+91">
                     <option value="+1">🇺🇸 +1</option>
                     <option value="+44">🇬🇧 +44</option>
@@ -745,25 +1135,51 @@ export default function RegisterPage() {
                   className="w-full bg-transparent px-4 py-3.5 outline-none placeholder-[#A0A09D]"
                   required
                 />
+                {checkingPhone && (
+                  <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+                )}
               </div>
+              <AnimatePresence>
+                {phoneExists && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This phone number is already registered.</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
+          </div>
 
             {/* Date of Birth Input (Split) */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 text-left pl-1">Date of Birth</label>
+              <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 text-left pl-1">
+                Date of Birth
+                {formData.dobDay && formData.dobMonth && formData.dobYear && formData.dobYear.length === 4 && !dobError && calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear) && (
+                  <span className="text-[#6057D7] font-semibold ml-2">
+                    (Age: {calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear)})
+                  </span>
+                )}
+              </label>
               <div className="flex gap-2">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   name="dobDay"
                   value={formData.dobDay}
                   onChange={handleChange}
                   placeholder="Day"
-                  min="1" max="31"
-                  className={`${theme.input} !mb-0 !w-1/4 sm:!w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  className={`${theme.input} !mb-0 !w-1/4 sm:!w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${dobError ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
                   required
                 />
                 <div className="relative flex-1">
-                  <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full`} required defaultValue="">
+                  <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`} required defaultValue="">
                     <option value="" disabled>Month</option>
                     <option value="0">January</option>
                     <option value="1">February</option>
@@ -783,16 +1199,50 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   name="dobYear"
                   value={formData.dobYear}
                   onChange={handleChange}
                   placeholder="Year"
-                  min="1900" max={new Date().getFullYear()}
-                  className={`${theme.input} !mb-0 !w-1/3 sm:!w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left`}
+                  className={`${theme.input} !mb-0 !w-1/3 sm:!w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
                   required
                 />
               </div>
+              <AnimatePresence>
+                {dobError && !yearSuggestion && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> {dobError}</span>
+                    </div>
+                  </motion.div>
+                )}
+                {yearSuggestion && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Double check your birth year.</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, dobYear: yearSuggestion })}
+                        className="text-left text-xs text-orange-800 hover:text-orange-900 bg-orange-100/50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg font-bold transition-colors w-max"
+                      >
+                        Did you mean: {yearSuggestion}?
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="relative">
               <select name="gender" onChange={handleChange} className={`${theme.input} appearance-none cursor-pointer`} required defaultValue="">
@@ -866,9 +1316,14 @@ export default function RegisterPage() {
             </div>
 
             <motion.button
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              whileHover={isFormPerfectlyFilled ? { scale: 1.02 } : {}} 
+              whileTap={isFormPerfectlyFilled ? { scale: 0.98 } : {}}
               type="submit" disabled={loading}
-              className={theme.buttonPrimary}
+              className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-4 transition-all duration-300 ${
+                isFormPerfectlyFilled
+                  ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
+                  : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
+              }`}
             >
               {loading ? 'Mapping Profile...' : 'Review & Agree to Terms'}
             </motion.button>

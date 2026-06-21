@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { theme } from '../theme';
 
 export default function LoginPage() {
@@ -9,8 +10,86 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Dynamic Validation States
+  const [usernameExists, setUsernameExists] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [emailExists, setEmailExists] = useState<boolean | null>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  
+  // Forgot Credentials States
+  const [showForgot, setShowForgot] = useState(false);
+  const [recoverIdentifier, setRecoverIdentifier] = useState('');
+  const [recovering, setRecovering] = useState(false);
+  const [recoverSuccess, setRecoverSuccess] = useState(false);
+  const [recoverError, setRecoverError] = useState('');
+
+  // Check Username existence
+  useEffect(() => {
+    const checkUsername = async () => {
+      const uname = username.trim();
+      if (!uname || /[^a-zA-Z0-9._]/.test(uname)) {
+        setUsernameExists(null);
+        setCheckingUsername(false);
+        return;
+      }
+      setCheckingUsername(true);
+      try {
+        const response = await fetch(`/api/auth/check-username?username=${encodeURIComponent(uname)}`);
+        const data = await response.json();
+        setUsernameExists(data.exists);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setCheckingUsername(false);
+      }
+    };
+    const timer = setTimeout(checkUsername, 500);
+    return () => clearTimeout(timer);
+  }, [username]);
+
+  // Check Email existence
+  useEffect(() => {
+    const checkEmail = async () => {
+      const e = email.trim();
+      if (!e || !e.includes('@')) {
+        setEmailExists(null);
+        setCheckingEmail(false);
+        return;
+      }
+      setCheckingEmail(true);
+      try {
+        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(e)}`);
+        const data = await response.json();
+        setEmailExists(data.exists);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setCheckingEmail(false);
+      }
+    };
+    const timer = setTimeout(checkEmail, 500);
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  const isFormPerfectlyFilled = 
+    username.trim().length > 0 && !/[^a-zA-Z0-9._]/.test(username) && usernameExists === true && !checkingUsername &&
+    email.trim().length > 0 && email.includes('@') && emailExists === true && !checkingEmail;
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (/[^a-zA-Z0-9._]/.test(username)) {
+      alert('Username can only contain letters, numbers, dots ".", and underscores "_".');
+      return;
+    }
+    if (usernameExists === false) {
+      alert('This username does not exist.');
+      return;
+    }
+    if (emailExists === false) {
+      alert('This email does not exist.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -35,6 +114,116 @@ export default function LoginPage() {
     }
   };
 
+  const handleRecover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecovering(true);
+    setRecoverError('');
+    setRecoverSuccess(false);
+
+    try {
+      const response = await fetch('/api/auth/recover-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: recoverIdentifier })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setRecoverSuccess(true);
+      } else {
+        setRecoverError(data.error || 'Account not found.');
+      }
+    } catch (error) {
+      console.error('Recovery error', error);
+      setRecoverError('Could not connect to the server.');
+    } finally {
+      setRecovering(false);
+    }
+  };
+
+  if (showForgot) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
+      >
+        <div className={theme.card}>
+          <h2 className={theme.heading}>Recover Credentials</h2>
+          <p className="text-sm text-[#8B8B86] text-center mb-6">
+            Enter the email address or phone number associated with your account, and we'll send your credentials to you.
+          </p>
+          
+          {recoverSuccess ? (
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-[#6057D7] to-[#3FC2AC] rounded-full flex items-center justify-center mb-4 shadow-lg">
+                <CheckCircle2 size={32} className="text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Credentials Sent</h3>
+              <p className="text-sm text-[#8B8B86] text-center mb-6">
+                If an account exists for that identifier, we've sent your credentials. <strong className="text-[#1A1A19]">Please check your spam email folder.</strong>
+              </p>
+              <button
+                onClick={() => setShowForgot(false)}
+                className={theme.buttonSecondary}
+              >
+                <ArrowLeft size={16} /> Back to Login
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleRecover}>
+              <input
+                type="text"
+                placeholder="Email or Phone Number"
+                value={recoverIdentifier}
+                onChange={(e) => setRecoverIdentifier(e.target.value)}
+                className={theme.input}
+                required
+              />
+              <AnimatePresence>
+                {recoverError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden mb-4"
+                  >
+                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> {recoverError}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <motion.button
+                whileHover={recoverIdentifier.trim().length > 0 ? { scale: 1.02 } : {}}
+                whileTap={recoverIdentifier.trim().length > 0 ? { scale: 0.98 } : {}}
+                type="submit"
+                disabled={recovering}
+                className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${
+                  recoverIdentifier.trim().length > 0
+                    ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
+                    : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
+                }`}
+              >
+                {recovering ? 'Sending...' : 'Send Credentials'}
+              </motion.button>
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(false)}
+                  className={theme.buttonSecondary}
+                >
+                  <ArrowLeft size={16} /> Back to Login
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -45,28 +234,100 @@ export default function LoginPage() {
       <div className={theme.card}>
         <h2 className={theme.heading}>User Login</h2>
         <form onSubmit={handleLogin}>
-          <input
-            type="text"
-            placeholder="Username (e.g. MBQ-1234)"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={theme.input}
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email Address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={theme.input}
-            required
-          />
+          <div className="relative mb-4">
+            <input
+              type="text"
+              placeholder="Username (e.g. MBQ-1234)"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={`${theme.input} !mb-0 ${/[^a-zA-Z0-9._]/.test(username) || usernameExists === false ? '!border-red-300 focus:!ring-red-500/10 focus:!border-red-400' : ''}`}
+              required
+            />
+            {checkingUsername && !/[^a-zA-Z0-9._]/.test(username) && (
+              <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+            )}
+            <AnimatePresence>
+              {/[^a-zA-Z0-9._]/.test(username) ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                    <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Only letters, numbers, dots, and underscores allowed.</span>
+                    <button
+                      type="button"
+                      onClick={() => setUsername(username.replace(/[^a-zA-Z0-9._]/g, ''))}
+                      className="text-left text-xs text-orange-800 hover:text-orange-900 bg-orange-100/50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg font-bold transition-colors w-max"
+                    >
+                      Suggestion: {username.replace(/[^a-zA-Z0-9._]/g, '')}
+                    </button>
+                  </div>
+                </motion.div>
+              ) : usernameExists === false ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                    <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This username does not exist.</span>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+          
+          <div className="relative mb-4">
+            <input
+              type="email"
+              placeholder="Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={`${theme.input} !mb-0 ${emailExists === false && email.includes('@') ? '!border-red-300 focus:!ring-red-500/10 focus:!border-red-400' : ''}`}
+              required
+            />
+            {checkingEmail && (
+              <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+            )}
+            <AnimatePresence>
+              {emailExists === false && email.includes('@') && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                    <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This email does not exist.</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="flex justify-end mb-4">
+            <button
+              type="button"
+              onClick={() => setShowForgot(true)}
+              className="text-sm text-[#6057D7] font-medium hover:text-[#4B44B3] transition-colors"
+            >
+              Forgot Username or Email?
+            </button>
+          </div>
+
           <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={isFormPerfectlyFilled ? { scale: 1.02 } : {}}
+            whileTap={isFormPerfectlyFilled ? { scale: 0.98 } : {}}
             type="submit"
             disabled={loading}
-            className={theme.buttonPrimary}
+            className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${
+              isFormPerfectlyFilled
+                ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
+                : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
+            }`}
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </motion.button>
