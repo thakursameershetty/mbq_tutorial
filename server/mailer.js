@@ -1,12 +1,6 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'earlyaccess.mbq@gmail.com',
-    pass: process.env.EMAIL_PASS
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const formatUserId = (id) => {
   const num = parseInt(id, 10);
@@ -15,8 +9,8 @@ const formatUserId = (id) => {
 };
 
 const sendSampleDispatchedEmail = async (user) => {
-  if (!process.env.EMAIL_PASS) {
-    console.warn('EMAIL_PASS not configured. Skipping email to', user.email);
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured. Skipping email to', user.email);
     return;
   }
 
@@ -25,7 +19,7 @@ const sendSampleDispatchedEmail = async (user) => {
   const selectedQode = user.gene_type || 'MyBodyQode Full Panel';
 
   const mailOptions = {
-    from: `"MyBodyQode Team" <${process.env.EMAIL_USER || 'earlyaccess.mbq@gmail.com'}>`,
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
     to: user.email,
     subject: "Your Sample is Dispatched 🧬 | MyBodyQode Early Access",
     html: `<!DOCTYPE html>
@@ -295,23 +289,27 @@ const sendSampleDispatchedEmail = async (user) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Dispatched email sent to ${user.email}`);
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending dispatched email:', error);
+      return;
+    }
+    console.log(`Dispatched email sent to ${user.email}`, data);
   } catch (error) {
-    console.error('Error sending dispatched email:', error);
+    console.error('Exception while sending dispatched email:', error);
   }
 };
 
 const sendForgotCredentialsEmail = async (user) => {
-  if (!process.env.EMAIL_PASS) {
-    console.warn('EMAIL_PASS not configured. Skipping recovery email to', user.email);
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured. Skipping recovery email to', user.email);
     return;
   }
 
   const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
 
   const mailOptions = {
-    from: `"MyBodyQode Team" <${process.env.EMAIL_USER || 'earlyaccess.mbq@gmail.com'}>`,
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
     to: user.email,
     subject: "Your MyBodyQode Login Credentials 🔑",
     html: `<!DOCTYPE html>
@@ -501,10 +499,14 @@ const sendForgotCredentialsEmail = async (user) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Recovery email sent to ${user.email}`);
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending recovery email:', error);
+      return;
+    }
+    console.log(`Recovery email sent to ${user.email}`, data);
   } catch (error) {
-    console.error('Error sending recovery email:', error);
+    console.error('Exception while sending recovery email:', error);
   }
 };
 

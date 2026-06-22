@@ -179,7 +179,7 @@ app.post('/api/auth/recover-credentials', async (req, res) => {
     if (result.rows.length > 0) {
       const user = result.rows[0];
 
-      // Send the beautifully formatted email using nodemailer
+      // Send the beautifully formatted email using Resend
       await sendForgotCredentialsEmail(user);
 
       res.json({ success: true, message: 'Credentials sent successfully.' });
