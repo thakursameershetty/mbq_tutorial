@@ -49,14 +49,17 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
             animate="visible"
           >
             {steps.map((step, index) => (
-              <motion.div 
-                key={index} 
-                className="flex min-h-[64px]" 
+              <motion.div
+                key={index}
+                className="flex min-h-[64px]"
                 variants={itemVariants}
-                onAnimationStart={() => triggerHaptic('light')}
               >
                 <div className="flex flex-col items-center">
-                  <motion.div variants={iconVariants} className="relative z-10 bg-white rounded-full">
+                  <motion.div
+                    variants={iconVariants}
+                    className="relative z-10 bg-white rounded-full"
+                    onAnimationStart={() => triggerHaptic('light')}
+                  >
                     {step.isCompleted ? (
                       <CheckCircle2 className="h-6 w-6 shrink-0 text-[#3FC2AC]" />
                     ) : (
