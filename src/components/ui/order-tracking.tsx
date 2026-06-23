@@ -1,6 +1,6 @@
 import * as React from "react";
 import { CheckCircle2, Circle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, triggerHaptic } from "@/lib/utils";
 import { motion, type Variants } from "framer-motion";
 
 export interface OrderTrackingProps
@@ -49,7 +49,12 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
             animate="visible"
           >
             {steps.map((step, index) => (
-              <motion.div key={index} className="flex min-h-[64px]" variants={itemVariants}>
+              <motion.div 
+                key={index} 
+                className="flex min-h-[64px]" 
+                variants={itemVariants}
+                onAnimationStart={() => triggerHaptic('light')}
+              >
                 <div className="flex flex-col items-center">
                   <motion.div variants={iconVariants} className="relative z-10 bg-white rounded-full">
                     {step.isCompleted ? (

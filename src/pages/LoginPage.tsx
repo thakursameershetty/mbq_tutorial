@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { triggerHaptic } from '@/lib/utils';
 import { theme } from '../theme';
 
 export default function LoginPage() {
@@ -108,6 +109,7 @@ export default function LoginPage() {
     otp.trim().length === 6;
 
   const handleSendOtp = async () => {
+    triggerHaptic('medium');
     if (!email || !email.includes('@') || emailExists === false) {
       setToastMessage({ type: 'error', text: 'Please enter a valid, registered email first.' });
       return;
@@ -138,6 +140,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    triggerHaptic('medium');
     if (emailExists === false) {
       setToastMessage({ type: 'error', text: 'This email does not exist.' });
       return;

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronDown, ArrowLeft, ExternalLink, RefreshCw, Loader2, CheckCircle2, AlertCircle, ScrollText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { triggerHaptic } from '@/lib/utils';
 import { theme } from '../theme';
 
 import img1 from '../assets/illustations/1.png';
@@ -238,7 +239,7 @@ function TermsModal({
             <div className="space-y-2">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div
-                  onClick={() => setPlatformConsent(true)}
+                  onClick={() => { setPlatformConsent(true); triggerHaptic('light'); }}
                   className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === true ? 'bg-[#3FC2AC] border-[#3FC2AC]' : 'border-[#D0D0CE] group-hover:border-[#3FC2AC]'}`}
                 >
                   {platformConsent === true && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
@@ -247,7 +248,7 @@ function TermsModal({
               </label>
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div
-                  onClick={() => setPlatformConsent(false)}
+                  onClick={() => { setPlatformConsent(false); triggerHaptic('light'); }}
                   className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === false ? 'bg-[#6057D7] border-[#6057D7]' : 'border-[#D0D0CE] group-hover:border-[#6057D7]'}`}
                 >
                   {platformConsent === false && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
@@ -292,7 +293,12 @@ function TermsModal({
           <motion.button
             whileHover={canAgree ? { scale: 1.01 } : {}}
             whileTap={canAgree ? { scale: 0.99 } : {}}
-            onClick={() => canAgree && onAgree(platformConsent!)}
+            onClick={() => {
+              if (canAgree) {
+                triggerHaptic('medium');
+                onAgree(platformConsent!);
+              }
+            }}
             disabled={!canAgree}
             className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${canAgree
               ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] text-white shadow-md hover:shadow-lg'
@@ -514,6 +520,7 @@ export default function RegisterPage() {
   }, [waitingForBackend, backendFinished, postTutorialAction]);
 
   const handleFinishTutorial = () => {
+    triggerHaptic('medium');
     if (backendFinished) {
       if (postTutorialAction === 'stay') {
         setLoading(false);
@@ -663,6 +670,7 @@ export default function RegisterPage() {
     selectedGenes.every(g => g !== '');
 
   const handleSendOtp = async () => {
+    triggerHaptic('medium');
     if (!formData.email || !formData.email.includes('@') || emailExists) {
       setToastMessage({ type: 'error', text: 'Please enter a valid, unregistered email first.' });
       return;
@@ -694,6 +702,7 @@ export default function RegisterPage() {
   // Called when the form's submit button is clicked — shows T&C first
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    triggerHaptic('medium');
 
     let updatedFormData = { ...formData };
     if (yearSuggestion) {
