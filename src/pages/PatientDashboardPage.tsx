@@ -100,7 +100,7 @@ export default function PatientDashboardPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
               >
                 <FileText size={16} />
-                Download your report
+                View Report
               </a>
             )}
             <button
@@ -279,7 +279,7 @@ export default function PatientDashboardPage() {
                     className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
                   >
                     <FileText size={18} />
-                    Download your report
+                    View Report
                   </a>
                 </div>
               )}
