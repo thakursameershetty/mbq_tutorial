@@ -13,6 +13,7 @@ const formatUserId = (id: any) => {
 export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -102,10 +103,7 @@ export default function PatientDashboardPage() {
               </a>
             )}
             <button
-              onClick={() => {
-                localStorage.removeItem('userProfile');
-                navigate('/login');
-              }}
+              onClick={() => setShowLogoutConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-sm font-medium hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
             >
               <LogOut size={16} />
@@ -299,6 +297,49 @@ export default function PatientDashboardPage() {
                   </a>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Logout Confirmation Modal */}
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-sm w-full border border-[#E8E8E5] text-center"
+            >
+              <div className="mx-auto w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                <LogOut size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Confirm Logout</h3>
+              <p className="text-[#8B8B86] text-sm mb-6">Are you sure you want to log out of your account?</p>
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-2.5 px-4 bg-[#F7F7F5] hover:bg-[#E8E8E5] text-[#5A5A55] rounded-xl font-semibold text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('userProfile');
+                    navigate('/login');
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-sm"
+                >
+                  Logout
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
