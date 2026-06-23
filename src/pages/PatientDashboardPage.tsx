@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Activity, LogOut } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate } from 'react-router-dom';
+import { triggerHaptic } from '@/lib/utils';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -99,7 +100,7 @@ export default function PatientDashboardPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
               >
                 <FileText size={16} />
-                Download Report
+                Download your report
               </a>
             )}
             <button
@@ -197,6 +198,7 @@ export default function PatientDashboardPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-md w-full border border-[#E8E8E5] relative"
+              onAnimationStart={() => triggerHaptic('medium')}
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-[#1A1A19] flex items-center gap-2">
@@ -254,31 +256,15 @@ export default function PatientDashboardPage() {
                       isCompleted: !!user.sample_received
                     },
                     {
-                      name: "Report Uploaded",
-                      timestamp: user.status_timestamps?.uploaded
-                        ? new Date(user.status_timestamps.uploaded).toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '')
-                        : "Pending",
-                      isCompleted: !!user.report_uploaded
-                    },
-                    {
                       name: "Report Generated",
                       timestamp: user.status_timestamps?.generated
-                        ? new Date(user.status_timestamps.generated).toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '')
+                        ? (user.report_verified
+                          ? new Date(user.status_timestamps.generated).toLocaleString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+                          }).replace(',', '')
+                          : "(Waiting for Admin Approval)")
                         : "Pending",
                       isCompleted: !!user.report_generated
-                    },
-                    {
-                      name: "Report Verified",
-                      timestamp: user.status_timestamps?.verified
-                        ? new Date(user.status_timestamps.verified).toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '')
-                        : "Pending",
-                      isCompleted: !!user.report_verified
                     }
                   ]}
                 />
@@ -293,7 +279,7 @@ export default function PatientDashboardPage() {
                     className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
                   >
                     <FileText size={18} />
-                    Download Mapped Report
+                    Download your report
                   </a>
                 </div>
               )}

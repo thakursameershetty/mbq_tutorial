@@ -72,6 +72,7 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
                         <motion.div
                           className="absolute top-0 left-0 w-full h-full bg-[#3FC2AC] origin-top"
                           variants={lineVariants}
+                          onAnimationStart={() => triggerHaptic('light')}
                         />
                       )}
                     </div>
