@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CheckCircle2, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, type Variants } from "framer-motion";
 
 export interface OrderTrackingProps
   extends React.HTMLAttributes<HTMLDivElement> {
@@ -11,27 +12,61 @@ export interface OrderTrackingProps
   }[];
 }
 
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0 },
+};
+
+const iconVariants: Variants = {
+  hidden: { scale: 0, rotate: -180 },
+  visible: { scale: 1, rotate: 0, transition: { type: "spring", stiffness: 400, damping: 25 } },
+};
+
+const lineVariants: Variants = {
+  hidden: { scaleY: 0 },
+  visible: { scaleY: 1, transition: { duration: 0.2, ease: "easeInOut" } },
+};
+
 const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
   ({ steps = [], className, ...props }, ref) => {
     return (
       <div ref={ref} className={cn("w-full max-w-md", className)} {...props}>
         {steps.length > 0 ? (
-          <div className="flex flex-col">
+          <motion.div
+            className="flex flex-col"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             {steps.map((step, index) => (
-              <div key={index} className="flex min-h-[64px]">
+              <motion.div key={index} className="flex min-h-[64px]" variants={itemVariants}>
                 <div className="flex flex-col items-center">
-                  {step.isCompleted ? (
-                    <CheckCircle2 className="h-6 w-6 shrink-0 text-[#3FC2AC]" />
-                  ) : (
-                    <Circle className="h-6 w-6 shrink-0 text-[#A0A09D]" />
-                  )}
+                  <motion.div variants={iconVariants} className="relative z-10 bg-white rounded-full">
+                    {step.isCompleted ? (
+                      <CheckCircle2 className="h-6 w-6 shrink-0 text-[#3FC2AC]" />
+                    ) : (
+                      <Circle className="h-6 w-6 shrink-0 text-[#A0A09D]" />
+                    )}
+                  </motion.div>
                   {index < steps.length - 1 && (
-                    <div
-                      className={cn("w-[2px] grow my-1", {
-                        "bg-[#3FC2AC]": steps[index + 1].isCompleted,
-                        "bg-[#E8E8E5]": !steps[index + 1].isCompleted,
-                      })}
-                    />
+                    <div className="w-[2px] grow my-1 relative bg-[#E8E8E5] overflow-hidden origin-top">
+                      {steps[index + 1].isCompleted && (
+                        <motion.div
+                          className="absolute top-0 left-0 w-full h-full bg-[#3FC2AC] origin-top"
+                          variants={lineVariants}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="ml-4 pb-4 flex flex-col justify-start">
@@ -42,9 +77,9 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
                     {step.timestamp}
                   </p>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : (
           <p className="text-sm text-[#8B8B86]">
             This profile has no tracking information.

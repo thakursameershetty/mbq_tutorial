@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Activity } from 'lucide-react';
+import { X, FileText, Activity, LogOut } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
+import { useNavigate } from 'react-router-dom';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -12,22 +13,23 @@ const formatUserId = (id: any) => {
 export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const data = localStorage.getItem('userProfile');
     if (data) {
       const parsed = JSON.parse(data);
       setUser(parsed);
-      
+
       // Fetch latest profile to keep tracking updated
       const fetchLatestProfile = () => {
         fetch(`/api/users/${parsed.id}`)
           .then(res => res.json())
           .then(latestData => {
-             if (!latestData.error) {
-               setUser(latestData);
-               localStorage.setItem('userProfile', JSON.stringify(latestData));
-             }
+            if (!latestData.error) {
+              setUser(latestData);
+              localStorage.setItem('userProfile', JSON.stringify(latestData));
+            }
           })
           .catch(err => console.error("Error fetching latest profile:", err));
       };
@@ -99,6 +101,16 @@ export default function PatientDashboardPage() {
                 Download Report
               </a>
             )}
+            <button
+              onClick={() => {
+                localStorage.removeItem('userProfile');
+                navigate('/login');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-sm font-medium hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis } = require('./aiMapping');
-const { sendSampleDispatchedEmail, sendForgotCredentialsEmail } = require('./mailer');
+const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail } = require('./mailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -158,6 +158,58 @@ app.get('/api/auth/check-phone', async (req, res) => {
   }
 });
 
+app.post('/api/auth/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Generate a random 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  try {
+    // Upsert the OTP into the database
+    await pool.query(
+      `INSERT INTO otps (email, otp, created_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (email)
+       DO UPDATE SET otp = EXCLUDED.otp, created_at = CURRENT_TIMESTAMP;`,
+      [email, otp]
+    );
+
+    // Send the email
+    await sendOtpEmail(email, otp);
+
+    res.json({ success: true, message: 'OTP sent successfully' });
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    res.status(500).json({ error: 'Failed to send OTP' });
+  }
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP are required' });
+  }
+
+  try {
+    const otpResult = await pool.query(
+      "SELECT * FROM otps WHERE email = $1 AND otp = $2 AND created_at > NOW() - INTERVAL '10 minutes'",
+      [email, otp]
+    );
+
+    if (otpResult.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
 app.post('/api/auth/recover-credentials', async (req, res) => {
   try {
     const { identifier } = req.body;
@@ -193,9 +245,26 @@ app.post('/api/auth/recover-credentials', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { username, fullName, email, phone, age, gender, geneType } = req.body;
+  const { username, fullName, email, phone, age, gender, geneType, otp } = req.body;
+
+  if (!otp) {
+    return res.status(400).json({ error: 'OTP is required' });
+  }
 
   try {
+    // Verify OTP first
+    const otpResult = await pool.query(
+      "SELECT * FROM otps WHERE email = $1 AND otp = $2 AND created_at > NOW() - INTERVAL '10 minutes'",
+      [email, otp]
+    );
+
+    if (otpResult.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    // OTP is valid, delete it so it can't be reused
+    await pool.query('DELETE FROM otps WHERE email = $1', [email]);
+
     // 1. Fetch live Tally.so data from the connected Google Sheet
     console.log('📊 Fetching live data from Google Sheet...');
     let sheetData;
@@ -286,20 +355,33 @@ app.post('/api/auth/register', async (req, res) => {
 // Login Route
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
-  const { username, email } = req.body;
-  if (!username || !email) {
-    return res.status(400).json({ error: 'Username and Email are required' });
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP are required' });
   }
 
   try {
+    // Verify OTP first
+    const otpResult = await pool.query(
+      "SELECT * FROM otps WHERE email = $1 AND otp = $2 AND created_at > NOW() - INTERVAL '10 minutes'",
+      [email, otp]
+    );
+
+    if (otpResult.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    // OTP is valid, delete it
+    await pool.query('DELETE FROM otps WHERE email = $1', [email]);
+
     const query = `
       SELECT 
         id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
         sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
       FROM users
-      WHERE LOWER(email) = LOWER($1) AND username = $2
+      WHERE LOWER(email) = LOWER($1)
     `;
-    const result = await pool.query(query, [email.trim(), username.trim()]);
+    const result = await pool.query(query, [email.trim()]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Invalid username or email.' });
@@ -606,9 +688,16 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
       FROM users WHERE id = $1
     `, [userId]);
 
+    const updatedUser = updatedUserRes.rows[0];
+
+    // Send email if report is verified
+    if (reportVerified) {
+      await sendReportReadyEmail(updatedUser);
+    }
+
     res.json({
       success: true,
-      user: updatedUserRes.rows[0]
+      user: updatedUser
     });
   } catch (error) {
     console.error('Update Report Verified Error:', error);

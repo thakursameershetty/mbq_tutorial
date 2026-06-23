@@ -5,14 +5,25 @@ import { AlertCircle, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { theme } from '../theme';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
   const navigate = useNavigate();
 
+  // Check if already logged in
+  useEffect(() => {
+    if (localStorage.getItem('userProfile')) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   // Dynamic Validation States
-  const [usernameExists, setUsernameExists] = useState<boolean | null>(null);
-  const [checkingUsername, setCheckingUsername] = useState(false);
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   
@@ -23,29 +34,50 @@ export default function LoginPage() {
   const [recoverSuccess, setRecoverSuccess] = useState(false);
   const [recoverError, setRecoverError] = useState('');
 
-  // Check Username existence
+  // Toast auto-dismiss timer
   useEffect(() => {
-    const checkUsername = async () => {
-      const uname = username.trim();
-      if (!uname || /[^a-zA-Z0-9._]/.test(uname)) {
-        setUsernameExists(null);
-        setCheckingUsername(false);
-        return;
-      }
-      setCheckingUsername(true);
-      try {
-        const response = await fetch(`/api/auth/check-username?username=${encodeURIComponent(uname)}`);
-        const data = await response.json();
-        setUsernameExists(data.exists);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setCheckingUsername(false);
-      }
-    };
-    const timer = setTimeout(checkUsername, 500);
-    return () => clearTimeout(timer);
-  }, [username]);
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // Countdown timer logic for OTP resend
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpTimer]);
+
+  // Auto-verify OTP
+  useEffect(() => {
+    if (otp.length === 6 && !isEmailVerified && !verifyingOtp) {
+      const verifyOtp = async () => {
+        setVerifyingOtp(true);
+        try {
+          const response = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp })
+          });
+          const data = await response.json();
+          if (data.success) {
+            setIsEmailVerified(true);
+            setToastMessage({ type: 'success', text: 'Email verified successfully!' });
+          } else {
+            setToastMessage({ type: 'error', text: data.error || 'Invalid OTP' });
+          }
+        } catch (error) {
+          console.error(error);
+          setToastMessage({ type: 'error', text: 'Failed to verify OTP' });
+        } finally {
+          setVerifyingOtp(false);
+        }
+      };
+      verifyOtp();
+    }
+  }, [otp, email, isEmailVerified, verifyingOtp]);
 
   // Check Email existence
   useEffect(() => {
@@ -72,21 +104,46 @@ export default function LoginPage() {
   }, [email]);
 
   const isFormPerfectlyFilled = 
-    username.trim().length > 0 && !/[^a-zA-Z0-9._]/.test(username) && usernameExists === true && !checkingUsername &&
-    email.trim().length > 0 && email.includes('@') && emailExists === true && !checkingEmail;
+    email.trim().length > 0 && email.includes('@') && emailExists === true && !checkingEmail &&
+    otp.trim().length === 6;
+
+  const handleSendOtp = async () => {
+    if (!email || !email.includes('@') || emailExists === false) {
+      setToastMessage({ type: 'error', text: 'Please enter a valid, registered email first.' });
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const response = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setOtpSent(true);
+        setOtpTimer(30);
+        setToastMessage({ type: 'success', text: 'OTP sent! Please check your email.' });
+      } else {
+        setToastMessage({ type: 'error', text: data.error || 'Failed to send OTP' });
+      }
+    } catch (error) {
+      console.error(error);
+      setToastMessage({ type: 'error', text: 'Failed to connect to the server.' });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (/[^a-zA-Z0-9._]/.test(username)) {
-      alert('Username can only contain letters, numbers, dots ".", and underscores "_".');
-      return;
-    }
-    if (usernameExists === false) {
-      alert('This username does not exist.');
-      return;
-    }
     if (emailExists === false) {
-      alert('This email does not exist.');
+      setToastMessage({ type: 'error', text: 'This email does not exist.' });
+      return;
+    }
+    if (otp.length !== 6) {
+      setToastMessage({ type: 'error', text: 'Please enter a 6-digit OTP.' });
       return;
     }
 
@@ -96,7 +153,7 @@ export default function LoginPage() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email })
+        body: JSON.stringify({ email, otp })
       });
 
       const data = await response.json();
@@ -104,11 +161,11 @@ export default function LoginPage() {
         localStorage.setItem('userProfile', JSON.stringify(data.user));
         navigate('/dashboard');
       } else {
-        alert(data.error || 'Login failed');
+        setToastMessage({ type: 'error', text: data.error || 'Login failed' });
       }
     } catch (error) {
       console.error('Login error', error);
-      alert('Could not connect to the server');
+      setToastMessage({ type: 'error', text: 'Could not connect to the server' });
     } finally {
       setLoading(false);
     }
@@ -234,51 +291,6 @@ export default function LoginPage() {
       <div className={theme.card}>
         <h2 className={theme.heading}>User Login</h2>
         <form onSubmit={handleLogin}>
-          <div className="relative mb-4">
-            <input
-              type="text"
-              placeholder="Username (e.g. MBQ-1234)"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className={`${theme.input} !mb-0 ${/[^a-zA-Z0-9._]/.test(username) || usernameExists === false ? '!border-red-300 focus:!ring-red-500/10 focus:!border-red-400' : ''}`}
-              required
-            />
-            {checkingUsername && !/[^a-zA-Z0-9._]/.test(username) && (
-              <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
-            )}
-            <AnimatePresence>
-              {/[^a-zA-Z0-9._]/.test(username) ? (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -10, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
-                    <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Only letters, numbers, dots, and underscores allowed.</span>
-                    <button
-                      type="button"
-                      onClick={() => setUsername(username.replace(/[^a-zA-Z0-9._]/g, ''))}
-                      className="text-left text-xs text-orange-800 hover:text-orange-900 bg-orange-100/50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg font-bold transition-colors w-max"
-                    >
-                      Suggestion: {username.replace(/[^a-zA-Z0-9._]/g, '')}
-                    </button>
-                  </div>
-                </motion.div>
-              ) : usernameExists === false ? (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -10, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
-                    <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This username does not exist.</span>
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
           
           <div className="relative mb-4">
             <input
@@ -286,11 +298,15 @@ export default function LoginPage() {
               placeholder="Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`${theme.input} !mb-0 ${emailExists === false && email.includes('@') ? '!border-red-300 focus:!ring-red-500/10 focus:!border-red-400' : ''}`}
+              disabled={isEmailVerified}
+              className={`${theme.input} !mb-0 ${emailExists === false ? '!border-red-300 focus:!ring-red-500/10 focus:!border-red-400' : ''} ${isEmailVerified ? 'bg-[#F7F7F5]/50 cursor-not-allowed opacity-80' : ''}`}
               required
             />
             {checkingEmail && (
               <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+            )}
+            {isEmailVerified && (
+              <div className="absolute right-4 top-[18px]"><CheckCircle2 className="text-green-500" size={16} /></div>
             )}
             <AnimatePresence>
               {emailExists === false && email.includes('@') && (
@@ -303,6 +319,56 @@ export default function LoginPage() {
                   <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
                     <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This email does not exist.</span>
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            <AnimatePresence>
+              {!isEmailVerified && email.length > 0 && emailExists !== false && email.includes('@') && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  className="flex flex-col gap-3 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sendingOtp || otpTimer > 0}
+                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                      sendingOtp || otpTimer > 0
+                        ? 'bg-[#F0F0ED] text-[#B0B0AE] cursor-not-allowed'
+                        : 'bg-[#F7F7F5] text-[#1A1A19] hover:bg-[#E8E8E5] active:scale-95 border border-[#E8E8E5] shadow-sm'
+                    }`}
+                  >
+                    {sendingOtp ? <Loader2 className="animate-spin" size={18} /> : (otpSent ? (otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : 'Resend OTP') : 'Send OTP')}
+                  </button>
+
+                  <AnimatePresence>
+                    {otpSent && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="relative"
+                      >
+                        <input
+                          type="text"
+                          name="otp"
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value)}
+                          placeholder="Enter 6-digit OTP"
+                          maxLength={6}
+                          className={`${theme.input} !mb-0 text-center tracking-[0.2em] font-mono`}
+                          required
+                        />
+                        {verifyingOtp ? (
+                          <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+                        ) : otp.length === 6 && !isEmailVerified && (
+                          <div className="absolute right-4 top-[18px]"><CheckCircle2 className="text-[#8B8B86]" size={16} /></div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
             </AnimatePresence>

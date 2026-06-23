@@ -509,8 +509,288 @@ const sendForgotCredentialsEmail = async (user) => {
     console.error('Exception while sending recovery email:', error);
   }
 };
+const sendOtpEmail = async (email, otp) => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured. Skipping OTP email to', email);
+    return;
+  }
+
+  const mailOptions = {
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
+    to: email,
+    subject: "Your MyBodyQode Verification Code 🔒",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    color-scheme: light dark;
+    supported-color-schemes: light dark;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F4F4F2;
+    color: #1A1A19;
+    margin: 0;
+    padding: 0;
+  }
+  .dark-img {
+    display: none !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .light-img {
+      display: none !important;
+    }
+    .dark-img {
+      display: block !important;
+      margin: 0 auto !important;
+      filter: brightness(0) invert(1);
+    }
+    .header-text {
+      color: #FFFFFF !important;
+    }
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 30px;
+    text-align: center;
+    border-bottom: 1px solid #F0F0ED;
+  }
+  .header img {
+    height: 48px;
+    width: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  .content {
+    padding: 40px 30px;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #5A5A55;
+    text-align: center;
+  }
+  .otp-box {
+    background: #F7F7F5;
+    border: 2px dashed #E8E8E5;
+    border-radius: 12px;
+    padding: 24px;
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    color: #6057D7;
+    margin: 30px 0;
+    font-family: monospace;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <!-- Light Mode Logo -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" style="height: 48px; width: auto;" class="light-img">
+      <!-- Dark Mode Logo (Replace URL with dark variant) -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo Dark" style="height: 48px; width: auto; display: none;" class="dark-img">
+      <h1 class="header-text" style="color: #1A1A19; font-size: 20px; margin-top: 10px; font-weight: 800; letter-spacing: -0.5px;">MyBodyQode</h1>
+    </div>
+    <div class="content">
+      <h2 style="color: #1A1A19; font-size: 22px; margin-top: 0;">Verification Code</h2>
+      <p>Please use the following 6-digit code to complete your request. This code is valid for 10 minutes.</p>
+      
+      <div class="otp-box">${otp}</div>
+      
+      <p style="font-size: 14px;">If you didn't request this code, you can safely ignore this email.</p>
+    </div>
+    <div class="footer">
+      <p>Because your biology is one of a kind.</p>
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending OTP email:', error);
+      return;
+    }
+    console.log(`OTP email sent to ${email}`, data);
+  } catch (error) {
+    console.error('Exception while sending OTP email:', error);
+  }
+};
+
 
 module.exports = {
   sendSampleDispatchedEmail,
-  sendForgotCredentialsEmail
+  sendForgotCredentialsEmail,
+  sendOtpEmail
 };
+
+const sendReportReadyEmail = async (user) => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured. Skipping report ready email to', user.email);
+    return;
+  }
+
+  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
+
+  const mailOptions = {
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
+    to: user.email,
+    subject: "Your MyBodyQode Report is Ready! 🧬",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    color-scheme: light dark;
+    supported-color-schemes: light dark;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F4F4F2;
+    color: #1A1A19;
+    margin: 0;
+    padding: 0;
+  }
+  .dark-img {
+    display: none !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .light-img {
+      display: none !important;
+    }
+    .dark-img {
+      display: block !important;
+      margin: 0 auto !important;
+      filter: brightness(0) invert(1);
+    }
+    .header-text {
+      color: #FFFFFF !important;
+    }
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 30px;
+    text-align: center;
+    border-bottom: 1px solid #F0F0ED;
+  }
+  .header img {
+    height: 48px;
+    width: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  .content {
+    padding: 40px 30px;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #5A5A55;
+    text-align: center;
+  }
+  .greeting {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1A1A19;
+    margin-bottom: 24px;
+    text-transform: capitalize;
+  }
+  .button-container {
+    text-align: center;
+    margin: 40px 0;
+  }
+  .button {
+    background-color: #027A48;
+    color: #FFFFFF !important;
+    text-decoration: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    display: inline-block;
+    transition: all 0.2s ease;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <!-- Light Mode Logo -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" class="light-img">
+      <!-- Dark Mode Logo -->
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo Dark" class="dark-img">
+      <h1 class="header-text" style="color: #1A1A19; font-size: 20px; margin-top: 10px; font-weight: 800; letter-spacing: -0.5px;">MyBodyQode</h1>
+    </div>
+    <div class="content">
+      <div class="greeting">Hi ${firstName},</div>
+      
+      <p style="font-size: 18px; color: #1A1A19; font-weight: 600;">Great news! Your genetic report is fully verified and ready.</p>
+      
+      <p>Log in to your MyBodyQode dashboard to download and review your personalized report.</p>
+      
+      <div class="button-container">
+        <a href="https://mybodyqode.vercel.app/login" class="button">Go to Dashboard</a>
+      </div>
+      
+      <p style="font-size: 14px;">If you have any questions, feel free to reply to this email.</p>
+    </div>
+    <div class="footer">
+      <p>Because your biology is one of a kind.</p>
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending report ready email:', error);
+      return;
+    }
+    console.log(`Report ready email sent to ${user.email}`, data);
+  } catch (error) {
+    console.error('Exception while sending report ready email:', error);
+  }
+};
+
+module.exports.sendReportReadyEmail = sendReportReadyEmail;

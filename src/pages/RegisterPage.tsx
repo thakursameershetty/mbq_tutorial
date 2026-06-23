@@ -332,6 +332,14 @@ const GENE_OPTIONS = [
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+
+  // Check if already logged in
+  useEffect(() => {
+    if (localStorage.getItem('userProfile')) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   const [loading, setLoading] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -353,8 +361,14 @@ export default function RegisterPage() {
 
   // State to hold the form data
   const [formData, setFormData] = useState({
-    username: '', fullName: '', email: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
+    username: '', fullName: '', email: '', otp: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
   });
+
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const [selectedGenes, setSelectedGenes] = useState<string[]>(['']);
 
@@ -364,6 +378,43 @@ export default function RegisterPage() {
     const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
+
+  // Countdown timer logic for OTP resend
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpTimer]);
+
+  // Auto-verify OTP
+  useEffect(() => {
+    if (formData.otp.length === 6 && !isEmailVerified && !verifyingOtp) {
+      const verifyOtp = async () => {
+        setVerifyingOtp(true);
+        try {
+          const response = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email, otp: formData.otp })
+          });
+          const data = await response.json();
+          if (data.success) {
+            setIsEmailVerified(true);
+            setToastMessage({ type: 'success', text: 'Email verified successfully!' });
+          } else {
+            setToastMessage({ type: 'error', text: data.error || 'Invalid OTP' });
+          }
+        } catch (error) {
+          console.error(error);
+          setToastMessage({ type: 'error', text: 'Failed to verify OTP' });
+        } finally {
+          setVerifyingOtp(false);
+        }
+      };
+      verifyOtp();
+    }
+  }, [formData.otp, formData.email, isEmailVerified, verifyingOtp]);
 
   // Toast auto-dismiss timer
   useEffect(() => {
@@ -608,7 +659,37 @@ export default function RegisterPage() {
     formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
     !dobError && !yearSuggestion &&
     formData.gender !== '' &&
+    formData.otp.trim().length === 6 &&
     selectedGenes.every(g => g !== '');
+
+  const handleSendOtp = async () => {
+    if (!formData.email || !formData.email.includes('@') || emailExists) {
+      setToastMessage({ type: 'error', text: 'Please enter a valid, unregistered email first.' });
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const response = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setOtpSent(true);
+        setOtpTimer(30);
+        setToastMessage({ type: 'success', text: 'OTP sent! Please check your email.' });
+      } else {
+        setToastMessage({ type: 'error', text: data.error || 'Failed to send OTP' });
+      }
+    } catch (error) {
+      console.error(error);
+      setToastMessage({ type: 'error', text: 'Failed to connect to the server.' });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   // Called when the form's submit button is clicked — shows T&C first
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -662,7 +743,8 @@ export default function RegisterPage() {
         phone: `${formData.countryCode} ${formData.phone}`,
         age: parseInt(calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear), 10) || null,
         gender: formData.gender,
-        geneType: selectedGenes.filter(Boolean).join(', ')
+        geneType: selectedGenes.filter(Boolean).join(', '),
+        otp: formData.otp
       };
 
       const response = await fetch('/api/auth/register', {
@@ -1043,11 +1125,15 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="Email Address"
-                className={`${theme.input} !mb-0 ${missingAtSymbol || emailSuggestion || emailExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                disabled={isEmailVerified}
+                className={`${theme.input} !mb-0 ${missingAtSymbol || emailSuggestion || emailExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''} ${isEmailVerified ? 'bg-[#F7F7F5]/50 cursor-not-allowed opacity-80' : ''}`}
                 required
               />
               {checkingEmail && !missingAtSymbol && !emailSuggestion && (
                 <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+              )}
+              {isEmailVerified && (
+                <div className="absolute right-4 top-[18px]"><CheckCircle2 className="text-green-500" size={16} /></div>
               )}
               <AnimatePresence>
                 {missingAtSymbol && (
@@ -1091,6 +1177,55 @@ export default function RegisterPage() {
                     <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
                       <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This email is already registered.</span>
                     </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {!isEmailVerified && formData.email.length > 0 && !emailExists && !missingAtSymbol && !emailSuggestion && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    className="flex flex-col gap-3 overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp || otpTimer > 0}
+                      className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${sendingOtp || otpTimer > 0
+                        ? 'bg-[#F0F0ED] text-[#B0B0AE] cursor-not-allowed'
+                        : 'bg-[#F7F7F5] text-[#1A1A19] hover:bg-[#E8E8E5] active:scale-95 border border-[#E8E8E5] shadow-sm'
+                        }`}
+                    >
+                      {sendingOtp ? <Loader2 className="animate-spin" size={18} /> : (otpSent ? (otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : 'Resend OTP') : 'Send OTP')}
+                    </button>
+
+                    <AnimatePresence>
+                      {otpSent && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="relative"
+                        >
+                          <input
+                            type="text"
+                            name="otp"
+                            value={formData.otp}
+                            onChange={handleChange}
+                            placeholder="Enter 6-digit OTP"
+                            maxLength={6}
+                            className={`${theme.input} !mb-0 text-center tracking-[0.2em] font-mono`}
+                            required
+                          />
+                          {verifyingOtp ? (
+                            <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
+                          ) : formData.otp.length === 6 && !isEmailVerified && (
+                            <div className="absolute right-4 top-[18px]"><CheckCircle2 className="text-[#8B8B86]" size={16} /></div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 )}
               </AnimatePresence>
