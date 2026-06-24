@@ -101,9 +101,35 @@ async function fetchGoogleSheetData(force = false) {
 
     // Row 0 = headers, rows 1..n = data — convert to array of objects
     const headers = rows[0];
+    const uniqueHeaders = [];
+    const headerCounts = {};
+    let lastMainQuestion = "General";
+
+    headers.forEach(header => {
+      let trimmed = (header || `Column`).trim();
+      
+      // If the column is generic, attach the context of the last main question to it
+      if (/^(Any specific remarks|Please Mention here)$/i.test(trimmed) || trimmed === "") {
+        trimmed = `${lastMainQuestion} - ${trimmed || 'Remarks'}`;
+      } else {
+        lastMainQuestion = trimmed;
+      }
+
+      // Deduplicate column names so JSON keys aren't overwritten
+      if (headerCounts[trimmed] !== undefined) {
+        headerCounts[trimmed]++;
+        uniqueHeaders.push(`${trimmed} (${headerCounts[trimmed]})`);
+      } else {
+        headerCounts[trimmed] = 0;
+        uniqueHeaders.push(trimmed);
+      }
+    });
+
     const data = rows.slice(1).map(row => {
       const obj = {};
-      headers.forEach((header, index) => { obj[header] = row[index] ?? ''; });
+      uniqueHeaders.forEach((header, index) => { 
+        obj[header] = row[index] ?? ''; 
+      });
       return obj;
     });
 
@@ -318,7 +344,7 @@ app.post('/api/auth/register', async (req, res) => {
     console.log('✅ Match found! Running phenotypic analysis...');
 
     // 4. Transform the matched sheet row into a structured phenotypic profile
-    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data);
+    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data, email, phone);
 
     // 5. Save the verified user and their phenotypic analysis in a single transaction
     await pool.query('BEGIN');
@@ -781,7 +807,7 @@ app.post('/api/users/:id/fetch-phenotypic-data', async (req, res) => {
 
     // 4. Generate phenotypic analysis from matched data
     console.log(`🧬 [FetchData] Generating phenotypic analysis for user #${userId}...`);
-    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data);
+    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data, user.email, user.phone);
 
     if (!analysisJSON) {
       return res.status(500).json({

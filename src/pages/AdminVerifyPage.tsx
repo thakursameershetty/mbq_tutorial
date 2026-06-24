@@ -187,7 +187,6 @@ export default function AdminVerifyPage() {
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
 
     const isCollected = p.sample_collected === true;
-    if (!isCollected) return false;
 
     const matchesSample =
       selectedSampleFilter === 'all' ||

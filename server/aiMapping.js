@@ -121,8 +121,8 @@ function trimRowsForMatching(rows) {
 
   const keysToSend = relevantKeys.length >= 2 ? relevantKeys : allKeys.slice(0, 8);
 
-  return rows.map(row => {
-    const slim = {};
+  return rows.map((row, index) => {
+    const slim = { row_index: index };
     keysToSend.forEach(k => { slim[k] = row[k]; });
     return slim;
   });
@@ -149,13 +149,13 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
 
     Rules:
     - Accept partial/reversed name matches, email domain mismatches, phone formatting differences.
-    - Return the ORIGINAL INDEX (0-based) of the best match as "matched_index", or -1 if no confident match.
+    - Return the exact "row_index" of the best match as "matched_index", or -1 if no confident match.
     - Confidence must be >= 70% to count as matched.
 
     You MUST return ONLY valid JSON matching this schema — no extra text:
     {
       "matched": true | false,
-      "matched_index": <number> | -1,
+      "matched_index": <number from row_index> | -1,
       "confidence": <0-100>
     }
   `;
@@ -185,7 +185,7 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
 // Public: Phenotypic analysis
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function generatePhenotypicAnalysis(rawSurveyData) {
+async function generatePhenotypicAnalysis(rawSurveyData, userEmail, userPhone) {
   const prompt = `
     You are an expert genetic and lifestyle data analyst.
     Analyze the following raw survey data:
@@ -193,6 +193,8 @@ async function generatePhenotypicAnalysis(rawSurveyData) {
 
     Convert answers into a highly structured JSON profile.
     Extract the exact meaning from the user's answers.
+    CRITICAL: The survey contains generic columns like "Any specific remarks" or "Please Mention here". These are now prepended with the question they belong to.
+    If the user provided meaningful custom text in these remark columns for a topic, ALWAYS incorporate their custom text as the final answer instead of just returning the standard multiple-choice option. Do NOT output "No specific remarks provided" unless the field is genuinely empty.
 
     You MUST return ONLY a valid JSON object with this exact schema:
     {
@@ -231,6 +233,13 @@ async function generatePhenotypicAnalysis(rawSurveyData) {
 
   try {
     const parsed = await executeAzureOpenAI(prompt, true);
+
+    // Forcefully override the email and mobile with the user's actual registered data
+    if (parsed && parsed.personal_profile) {
+      if (userEmail) parsed.personal_profile.email = userEmail;
+      if (userPhone) parsed.personal_profile.mobile = userPhone;
+    }
+
     return parsed;
   } catch (error) {
     console.error("Azure Phenotypic Analysis Error:", error?.message || error);
