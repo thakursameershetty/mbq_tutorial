@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Activity, LogOut } from 'lucide-react';
+import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
@@ -15,6 +15,8 @@ export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [fetchDataLoading, setFetchDataLoading] = useState(false);
+  const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,6 +43,30 @@ export default function PatientDashboardPage() {
       return () => clearInterval(interval);
     }
   }, []);
+
+  const handleFetchData = async () => {
+    if (!user?.id) return;
+    setFetchDataLoading(true);
+    setFetchDataStatus(null);
+    try {
+      const res = await fetch(`/api/users/${user.id}/fetch-phenotypic-data`, { method: 'POST' });
+      const data = await res.json();
+      if (res.status === 429) {
+        setFetchDataStatus({ type: 'warning', message: data.message || 'Gemini API rate-limited. Try again in a minute.' });
+      } else if (data.success && data.user) {
+        setUser(data.user);
+        localStorage.setItem('userProfile', JSON.stringify(data.user));
+        setFetchDataStatus({ type: 'success', message: 'Phenotypic data fetched successfully!' });
+        setTimeout(() => setFetchDataStatus(null), 4000);
+      } else {
+        setFetchDataStatus({ type: 'error', message: data.message || 'Could not fetch data. Please try again.' });
+      }
+    } catch (err) {
+      setFetchDataStatus({ type: 'error', message: 'Network error. Please try again.' });
+    } finally {
+      setFetchDataLoading(false);
+    }
+  };
 
   const renderField = (label: string, path: string[], block = false) => {
     const getVal = (obj: any, p: string[]) => p.reduce((acc, k) => (acc ? acc[k] : ''), obj);
@@ -92,6 +118,17 @@ export default function PatientDashboardPage() {
               <Activity size={16} />
               Track Updates
             </button>
+            {/* Fetch Data button — shown only when phenotypic_analysis is missing */}
+            {!user.phenotypic_analysis && (
+              <button
+                onClick={handleFetchData}
+                disabled={fetchDataLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-sm font-medium transition-colors shadow-sm cursor-pointer"
+              >
+                <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
+                {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
+              </button>
+            )}
             {user.report_verified && user.report_url && (
               <a
                 href={user.report_url}
@@ -113,6 +150,54 @@ export default function PatientDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Fetch Data status toast */}
+      <AnimatePresence>
+        {fetchDataStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium border ${
+              fetchDataStatus.type === 'success'
+                ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
+                : fetchDataStatus.type === 'warning'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-red-50 text-red-600 border-red-100'
+            }`}
+          >
+            <AlertCircle size={16} className="shrink-0" />
+            {fetchDataStatus.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Null phenotypic data banner */}
+      {!user.phenotypic_analysis && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Phenotypic data is missing</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Your profile data couldn't be fetched during registration (likely due to AI API limits). Click "Fetch Data" to retry now.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleFetchData}
+            disabled={fetchDataLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
+          >
+            <RefreshCw size={13} className={fetchDataLoading ? 'animate-spin' : ''} />
+            {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
+          </button>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Gene Profile (Existing - Read Only) */}

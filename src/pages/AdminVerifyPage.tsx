@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -26,6 +26,8 @@ export default function AdminVerifyPage() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [fetchDataLoading, setFetchDataLoading] = useState<number | null>(null);
+  const [fetchDataStatus, setFetchDataStatus] = useState<{ id: number; type: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
   const toggleSelectUser = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -115,6 +117,28 @@ export default function AdminVerifyPage() {
     } finally {
       setActionLoading(null);
       setVerifyAction(null);
+    }
+  };
+
+  const handleFetchPhenotypicData = async (patientId: number) => {
+    setFetchDataLoading(patientId);
+    setFetchDataStatus(null);
+    try {
+      const res = await fetch(`/api/users/${patientId}/fetch-phenotypic-data`, { method: 'POST' });
+      const data = await res.json();
+      if (res.status === 429) {
+        setFetchDataStatus({ id: patientId, type: 'warning', message: data.message || 'Gemini API rate-limited. Try again in a minute.' });
+      } else if (data.success && data.user) {
+        setPatients(prev => prev.map(p => p.id === patientId ? { ...p, phenotypic_analysis: data.user.phenotypic_analysis } : p));
+        setFetchDataStatus({ id: patientId, type: 'success', message: 'Phenotypic data fetched successfully!' });
+        setTimeout(() => setFetchDataStatus(null), 4000);
+      } else {
+        setFetchDataStatus({ id: patientId, type: 'error', message: data.message || 'Could not fetch data. Please try again.' });
+      }
+    } catch (err) {
+      setFetchDataStatus({ id: patientId, type: 'error', message: 'Network error. Please try again.' });
+    } finally {
+      setFetchDataLoading(null);
     }
   };
 
@@ -629,8 +653,39 @@ export default function AdminVerifyPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="py-4 text-center text-xs text-[#8B8B86] bg-white border border-[#E8E8E5] rounded-2xl">
-                              No phenotypic analysis data generated for this user.
+                            <div className="py-5 bg-white border border-amber-200 rounded-2xl">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-1">
+                                <div className="flex items-start gap-3">
+                                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-xs font-semibold text-amber-800">No phenotypic data</p>
+                                    <p className="text-[11px] text-amber-600 mt-0.5">
+                                      Gemini may have been rate-limited during registration. Click "Fetch Data" to retry.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleFetchPhenotypicData(patient.id)}
+                                  disabled={fetchDataLoading === patient.id}
+                                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
+                                >
+                                  <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                                  {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
+                                </button>
+                              </div>
+                              {/* Inline status for this card */}
+                              {fetchDataStatus?.id === patient.id && (
+                                <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${
+                                  fetchDataStatus.type === 'success'
+                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
+                                    : fetchDataStatus.type === 'warning'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-red-50 text-red-600 border-red-100'
+                                }`}>
+                                  <AlertCircle size={13} className="shrink-0" />
+                                  {fetchDataStatus.message}
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -695,11 +750,23 @@ export default function AdminVerifyPage() {
                               {actionLoading === patient.id ? (
                                 <Loader2 className="animate-spin w-3.5 h-3.5" />
                               ) : patient.report_verified ? (
-                                '✓ Report Verified'
+                                '\u2713 Report Verified'
                               ) : (
                                 'Verify Report'
                               )}
                             </button>
+
+                            {/* Fetch Data button — always visible if phenotypic_analysis is null */}
+                            {!patient.phenotypic_analysis && (
+                              <button
+                                onClick={() => handleFetchPhenotypicData(patient.id)}
+                                disabled={fetchDataLoading === patient.id}
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                              >
+                                <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                                {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </motion.div>

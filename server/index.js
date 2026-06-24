@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
-const { attemptSmartMapWithAI, generatePhenotypicAnalysis } = require('./aiMapping');
+const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail } = require('./mailer');
 const multer = require('multer');
 const path = require('path');
@@ -111,6 +111,13 @@ async function fetchGoogleSheetData() {
     throw sheetError;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gemini Key Pool Health Check
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/gemini-status', (_req, res) => {
+  res.json({ keys: getKeyPoolStatus(), timestamp: new Date().toISOString() });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registration Route — Google Sheets as source of truth, Gemini as ETL layer
@@ -701,6 +708,97 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
     });
   } catch (error) {
     console.error('Update Report Verified Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch / Retry Phenotypic Data Route
+// Re-runs Google Sheet lookup + Gemini analysis for a user whose
+// phenotypic_analysis is null (e.g. due to Gemini free-tier rate limits).
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/users/:id/fetch-phenotypic-data', async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    // 1. Load the user from DB
+    const userRes = await pool.query(
+      `SELECT id, full_name, email, phone FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    const user = userRes.rows[0];
+
+    // 2. Re-fetch Google Sheet data
+    console.log(`📊 [FetchData] Re-fetching Google Sheet for user #${userId}...`);
+    let sheetData;
+    try {
+      sheetData = await fetchGoogleSheetData();
+    } catch (sheetError) {
+      return res.status(500).json({
+        error: 'Failed to communicate with Google Sheets.',
+        details: sheetError.message,
+      });
+    }
+
+    if (!sheetData || sheetData.length === 0) {
+      return res.status(404).json({ error: 'Google Sheet returned no data.' });
+    }
+
+    // 3. Run Gemini smart match
+    console.log(`🤖 [FetchData] Running Gemini smart match for ${user.full_name}...`);
+    const matchResult = await attemptSmartMapWithAI(
+      user.full_name,
+      user.email,
+      user.phone,
+      sheetData
+    );
+
+    if (matchResult.rate_limited) {
+      return res.status(429).json({
+        success: false,
+        message: 'Gemini API is currently rate-limited. Please wait a minute and try again.',
+      });
+    }
+
+    if (!matchResult.matched || !matchResult.matched_survey_data) {
+      return res.status(200).json({
+        success: false,
+        message: 'Could not find a matching survey record for this user in Google Sheets.',
+      });
+    }
+
+    // 4. Generate phenotypic analysis from matched data
+    console.log(`🧬 [FetchData] Generating phenotypic analysis for user #${userId}...`);
+    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data);
+
+    if (!analysisJSON) {
+      return res.status(500).json({
+        success: false,
+        message: 'Gemini returned no analysis. API may be temporarily unavailable.',
+      });
+    }
+
+    // 5. Persist to DB
+    await pool.query(
+      `UPDATE users SET phenotypic_analysis = $1 WHERE id = $2`,
+      [JSON.stringify(analysisJSON), userId]
+    );
+
+    // 6. Return updated user
+    const updatedRes = await pool.query(
+      `SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis,
+              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    console.log(`✅ [FetchData] Phenotypic analysis saved for user #${userId}.`);
+    res.json({ success: true, user: updatedRes.rows[0] });
+  } catch (error) {
+    console.error('FetchPhenotypicData Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
