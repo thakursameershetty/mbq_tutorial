@@ -46,6 +46,9 @@ export default function LabDashboard() {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
   const [selectedGenderFilter, setSelectedGenderFilter] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [selectedPatients, setSelectedPatients] = useState<Set<string>>(new Set());
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const fetchPatients = () => {
     fetch('/api/admin/patients')
@@ -180,6 +183,41 @@ export default function LabDashboard() {
     setExpandedUser(expandedUser === id ? null : id);
   };
 
+  const handleBulkMarkReceived = async () => {
+    const patientsToMark = patients.filter(p => selectedPatients.has(p.id) && !p.sample_received);
+    if (patientsToMark.length === 0) {
+      setSelectedPatients(new Set());
+      return;
+    }
+
+    setIsBulkLoading(true);
+    try {
+      await Promise.all(patientsToMark.map(p =>
+        fetch(`/api/users/${p.id}/sample-received`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sampleReceived: true }),
+        })
+      ));
+      fetchPatients();
+      setSelectedPatients(new Set());
+    } catch (err) {
+      console.error(err);
+      alert('Failed to mark some samples as received');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const togglePatientSelection = (patientId: string) => {
+    setSelectedPatients(prev => {
+      const next = new Set(prev);
+      if (next.has(patientId)) next.delete(patientId);
+      else next.add(patientId);
+      return next;
+    });
+  };
+
   const filteredPatients = patients.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -189,8 +227,24 @@ export default function LabDashboard() {
 
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
 
-    return p.sample_collected === true && matchesSearch && matchesGene && matchesGender;
+    const matchesStatus = selectedStatusFilter === 'all' ||
+      (selectedStatusFilter === 'marked' ? p.sample_received : !p.sample_received);
+
+    return p.sample_collected === true && matchesSearch && matchesGene && matchesGender && matchesStatus;
   });
+
+  const toggleAllSelection = () => {
+    if (selectedPatients.size === filteredPatients.length && filteredPatients.length > 0) {
+      setSelectedPatients(new Set());
+    } else {
+      setSelectedPatients(new Set(filteredPatients.map(p => p.id)));
+    }
+  };
+
+  const totalPatients = patients.filter(p => p.sample_collected).length;
+  const markedPatients = patients.filter(p => p.sample_collected && p.sample_received).length;
+  const unmarkedPatients = totalPatients - markedPatients;
+  const markedPercentage = totalPatients === 0 ? 0 : Math.round((markedPatients / totalPatients) * 100);
 
   return (
     <motion.div
@@ -199,7 +253,7 @@ export default function LabDashboard() {
       className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 mx-auto"
     >
       {/* Header Section */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
+      <div className="mb-10 flex flex-col md:flex-row md:items-start justify-between gap-6 relative z-10">
         <div className="space-y-2">
           <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#6057D7] tracking-widest uppercase mb-2 shadow-sm backdrop-blur-md">
             <Activity className="w-3.5 h-3.5" />
@@ -211,8 +265,36 @@ export default function LabDashboard() {
           </p>
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
+        {/* Stats Widget */}
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-5 bg-white/80 backdrop-blur-2xl border border-[#E8E8E5] p-4 rounded-3xl shadow-sm">
+          <div className="relative w-14 h-14 transform -rotate-90 shrink-0">
+            <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm">
+              <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#F4F4F2" strokeWidth="5" />
+              <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#027A48" strokeWidth="5" strokeDasharray={`${(markedPercentage * (2 * Math.PI * 15.5)) / 100} ${2 * Math.PI * 15.5}`} strokeDashoffset="0" className="transition-all duration-1000 ease-out" strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center transform rotate-90">
+              <span className="text-[11px] font-black text-[#1A1A19]">{markedPercentage}%</span>
+            </div>
+          </div>
+          <div className="flex flex-col justify-center pr-2">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#A0A09D] mb-2">Swab Status</h3>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#027A48] shadow-[0_0_8px_rgb(2,122,72,0.4)]" />
+                <span className="text-sm font-extrabold text-[#1A1A19]">{markedPatients} <span className="font-semibold text-[#8B8B86]">Marked</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#E8E8E5]" />
+                <span className="text-sm font-extrabold text-[#1A1A19]">{unmarkedPatients} <span className="font-semibold text-[#8B8B86]">Unmarked</span></span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Controls & Bulk Action */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4 relative z-10 bg-white/60 backdrop-blur-xl p-3 sm:p-4 rounded-3xl border border-[#E8E8E5] shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
             <input
@@ -220,16 +302,16 @@ export default function LabDashboard() {
               placeholder="Search patients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+              className="w-full bg-white border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
             />
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <select
               value={selectedGeneFilter}
               onChange={(e) => setSelectedGeneFilter(e.target.value)}
-              className="flex-1 min-w-[140px] bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-white transition-all shadow-sm h-[44px]"
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
             >
-              <option value="all">All Gene Panels</option>
+              <option value="all">All Genes</option>
               <option value="actn3">ACTN3 (Muscle)</option>
               <option value="edar">EDAR (Hair)</option>
               <option value="cyp1a2">CYP1A2 (Caffeine)</option>
@@ -238,15 +320,51 @@ export default function LabDashboard() {
             <select
               value={selectedGenderFilter}
               onChange={(e) => setSelectedGenderFilter(e.target.value)}
-              className="flex-1 min-w-[120px] bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-white transition-all shadow-sm h-[44px]"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
             >
               <option value="all">All Genders</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
               <option value="Other">Other</option>
             </select>
+            
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
+            >
+              <option value="all">All Statuses</option>
+              <option value="marked">Marked (Received)</option>
+              <option value="unmarked">Unmarked (Pending)</option>
+            </select>
           </div>
         </div>
+        
+        {filteredPatients.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto pt-4 xl:pt-0 border-t xl:border-t-0 border-[#E8E8E5]">
+            <label className="flex items-center gap-3 cursor-pointer w-full sm:w-auto px-2">
+              <input
+                type="checkbox"
+                checked={selectedPatients.size === filteredPatients.length && filteredPatients.length > 0}
+                onChange={toggleAllSelection}
+                className="w-5 h-5 rounded-md border-[#D4D4CE] text-[#6057D7] focus:ring-[#6057D7]/30 cursor-pointer transition-all"
+              />
+              <span className="text-sm font-semibold text-[#1A1A19] whitespace-nowrap">
+                Select All ({selectedPatients.size}/{filteredPatients.length})
+              </span>
+            </label>
+            {selectedPatients.size > 0 && (
+              <button
+                onClick={handleBulkMarkReceived}
+                disabled={isBulkLoading}
+                className="w-full sm:w-auto px-5 py-2.5 bg-[#027A48] hover:bg-[#026c3f] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isBulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Mark {selectedPatients.size} as Received
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Content Area */}
@@ -273,6 +391,14 @@ export default function LabDashboard() {
                   >
                     {/* Patient Info */}
                     <div className="flex items-center gap-4 flex-1 min-w-[250px]">
+                      <div onClick={e => e.stopPropagation()} className="shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedPatients.has(patient.id)}
+                          onChange={() => togglePatientSelection(patient.id)}
+                          className="w-5 h-5 rounded-md border-[#D4D4CE] text-[#6057D7] focus:ring-[#6057D7]/30 cursor-pointer transition-all"
+                        />
+                      </div>
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-lg font-bold text-[#1A1A19] shadow-inner shrink-0">
                         {patient.name.charAt(0)}
                       </div>
@@ -290,7 +416,7 @@ export default function LabDashboard() {
                     {/* Metadata Specs */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 w-full xl:w-auto shrink-0 flex-wrap">
                       <div className="flex flex-col min-w-[200px]">
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Gene Panel</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Gene</span>
                         <div className="flex flex-row flex-wrap items-center gap-1.5">
                           {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
                             <span
@@ -510,8 +636,18 @@ export default function LabDashboard() {
                   className={`bg-white/70 backdrop-blur-2xl border ${isExpanded ? 'border-[#6057D7]/30 shadow-lg ring-4 ring-[#6057D7]/5' : 'border-white/80 shadow-[0_4px_24px_rgb(0,0,0,0.03)]'} rounded-3xl p-6 transition-all duration-300 hover:bg-white flex flex-col`}
                 >
                   <div className="flex justify-between items-start mb-5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-lg font-bold text-[#1A1A19] shadow-inner shrink-0">
-                      {patient.name.charAt(0)}
+                    <div className="flex items-center gap-3">
+                      <div onClick={e => e.stopPropagation()} className="shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedPatients.has(patient.id)}
+                          onChange={() => togglePatientSelection(patient.id)}
+                          className="w-5 h-5 rounded-md border-[#D4D4CE] text-[#6057D7] focus:ring-[#6057D7]/30 cursor-pointer transition-all"
+                        />
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-lg font-bold text-[#1A1A19] shadow-inner shrink-0">
+                        {patient.name.charAt(0)}
+                      </div>
                     </div>
                     {patient.status === 'pending' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFF5E5] text-[#B87A00] text-[10px] font-bold uppercase tracking-wider">
@@ -534,7 +670,7 @@ export default function LabDashboard() {
 
                   <div className="bg-[#F9F9F8] rounded-2xl p-4 mb-4 space-y-3 border border-[#E8E8E5]/50 flex-1">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-[#8B8B86] font-medium">Gene Panel</span>
+                      <span className="text-[#8B8B86] font-medium">Gene</span>
                       <div className="flex flex-wrap gap-1.5 justify-end">
                         {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
                           <span
