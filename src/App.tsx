@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { theme } from './theme';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
@@ -7,6 +7,7 @@ import PatientDashboardPage from './pages/PatientDashboardPage';
 import ReportPage from './pages/ReportPage';
 import VolunteerPage from './pages/VolunteerPage';
 import AdminVerifyPage from './pages/AdminVerifyPage';
+import { GeminiStatusWidget } from './components/ui/gemini-status-widget';
 
 function Navigation() {
   return (
@@ -18,6 +19,14 @@ function Navigation() {
       </div>
     </div>
   );
+}
+
+// Renders the Gemini status widget only on admin pages
+const ADMIN_ROUTES = ['/admin', '/admin-verify'];
+function AdminGeminiStatus() {
+  const { pathname } = useLocation();
+  if (!ADMIN_ROUTES.includes(pathname)) return null;
+  return <GeminiStatusWidget />;
 }
 
 export default function App() {
@@ -34,6 +43,7 @@ export default function App() {
           <Route path="/volunteer" element={<VolunteerPage />} />
           <Route path="/admin-verify" element={<AdminVerifyPage />} />
         </Routes>
+        <AdminGeminiStatus />
       </div>
     </BrowserRouter>
   );

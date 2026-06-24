@@ -44,12 +44,12 @@ export default function PatientDashboardPage() {
     }
   }, []);
 
-  const handleFetchData = async () => {
+  const handleFetchData = async (force = false) => {
     if (!user?.id) return;
     setFetchDataLoading(true);
     setFetchDataStatus(null);
     try {
-      const res = await fetch(`/api/users/${user.id}/fetch-phenotypic-data`, { method: 'POST' });
+      const res = await fetch(`/api/users/${user.id}/fetch-phenotypic-data?force=${force}`, { method: 'POST' });
       const data = await res.json();
       if (res.status === 429) {
         setFetchDataStatus({ type: 'warning', message: data.message || 'Gemini API rate-limited. Try again in a minute.' });
@@ -70,7 +70,11 @@ export default function PatientDashboardPage() {
 
   const renderField = (label: string, path: string[], block = false) => {
     const getVal = (obj: any, p: string[]) => p.reduce((acc, k) => (acc ? acc[k] : ''), obj);
-    const val = getVal(user, path);
+    let val = getVal(user, path);
+
+    if (typeof val === 'object' && val !== null) {
+      val = Object.values(val).filter(Boolean).join(' - ');
+    }
 
     if (block) {
       return (
@@ -118,10 +122,18 @@ export default function PatientDashboardPage() {
               <Activity size={16} />
               Track Updates
             </button>
+            <button
+              onClick={() => handleFetchData(true)}
+              disabled={fetchDataLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-full text-sm font-medium transition-colors shadow-sm cursor-pointer"
+            >
+              <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
+              Resync
+            </button>
             {/* Fetch Data button — shown only when phenotypic_analysis is missing */}
             {!user.phenotypic_analysis && (
               <button
-                onClick={handleFetchData}
+                onClick={() => handleFetchData(false)}
                 disabled={fetchDataLoading}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-sm font-medium transition-colors shadow-sm cursor-pointer"
               >
@@ -158,13 +170,12 @@ export default function PatientDashboardPage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium border ${
-              fetchDataStatus.type === 'success'
-                ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
-                : fetchDataStatus.type === 'warning'
+            className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium border ${fetchDataStatus.type === 'success'
+              ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
+              : fetchDataStatus.type === 'warning'
                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                 : 'bg-red-50 text-red-600 border-red-100'
-            }`}
+              }`}
           >
             <AlertCircle size={16} className="shrink-0" />
             {fetchDataStatus.message}
@@ -189,7 +200,7 @@ export default function PatientDashboardPage() {
             </div>
           </div>
           <button
-            onClick={handleFetchData}
+            onClick={() => handleFetchData(false)}
             disabled={fetchDataLoading}
             className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
           >

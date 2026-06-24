@@ -8,6 +8,14 @@ const formatUserId = (id: any) => {
   return `MBQ${String(num).padStart(3, '0')}`;
 };
 
+const safeRender = (val: any) => {
+  if (val === null || val === undefined || val === '') return 'N/A';
+  if (typeof val === 'object') {
+    return Object.values(val).filter(Boolean).join(' - ');
+  }
+  return String(val);
+};
+
 export default function AdminVerifyPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +23,7 @@ export default function AdminVerifyPage() {
   const [expandedPatientId, setExpandedPatientId] = useState<number | null>(null);
   const [selectedGenderFilter, setSelectedGenderFilter] = useState<string>('all');
   const [selectedSampleFilter, setSelectedSampleFilter] = useState<string>('all');
+  const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   const [userToDelete, setUserToDelete] = useState<any>(null);
@@ -24,6 +33,7 @@ export default function AdminVerifyPage() {
 
   const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkFetching, setIsBulkFetching] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState<number | null>(null);
@@ -120,11 +130,11 @@ export default function AdminVerifyPage() {
     }
   };
 
-  const handleFetchPhenotypicData = async (patientId: number) => {
+  const handleFetchPhenotypicData = async (patientId: number, force = false) => {
     setFetchDataLoading(patientId);
     setFetchDataStatus(null);
     try {
-      const res = await fetch(`/api/users/${patientId}/fetch-phenotypic-data`, { method: 'POST' });
+      const res = await fetch(`/api/users/${patientId}/fetch-phenotypic-data?force=${force}`, { method: 'POST' });
       const data = await res.json();
       if (res.status === 429) {
         setFetchDataStatus({ id: patientId, type: 'warning', message: data.message || 'Gemini API rate-limited. Try again in a minute.' });
@@ -184,7 +194,12 @@ export default function AdminVerifyPage() {
       (selectedSampleFilter === 'collected' && isCollected) ||
       (selectedSampleFilter === 'pending' && !isCollected);
 
-    return matchesSearch && matchesGender && matchesSample;
+    const matchesData =
+      selectedDataFilter === 'all' ||
+      (selectedDataFilter === 'null_data' && !p.phenotypic_analysis) ||
+      (selectedDataFilter === 'has_data' && !!p.phenotypic_analysis);
+
+    return matchesSearch && matchesGender && matchesSample && matchesData;
   });
 
   const toggleSelectAll = () => {
@@ -217,6 +232,24 @@ export default function AdminVerifyPage() {
     } finally {
       setIsBulkDeleting(false);
     }
+  };
+
+  const handleBulkFetch = async (force: boolean) => {
+    setIsBulkFetching(true);
+    const userIds = Array.from(selectedUsers);
+
+    for (const id of userIds) {
+      setFetchDataLoading(id);
+      try {
+        await fetch(`/api/users/${id}/fetch-phenotypic-data?force=${force}`, { method: 'POST' });
+      } catch (err) {
+        console.error(`Failed to fetch for user ${id}`, err);
+      }
+    }
+
+    setIsBulkFetching(false);
+    setFetchDataLoading(null);
+    fetchPatients(true);
   };
 
   const handleDownloadCSV = () => {
@@ -351,6 +384,17 @@ export default function AdminVerifyPage() {
               <option value="all">All Samples</option>
               <option value="collected">Collected</option>
               <option value="pending">Pending</option>
+            </select>
+
+            {/* Phenotypic Data Filter */}
+            <select
+              value={selectedDataFilter}
+              onChange={(e) => setSelectedDataFilter(e.target.value)}
+              className="flex-1 sm:flex-none bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer shadow-sm hover:bg-white"
+            >
+              <option value="all">All AI Data</option>
+              <option value="has_data">Has Data</option>
+              <option value="null_data">Missing Data</option>
             </select>
           </div>
         </div>
@@ -528,13 +572,13 @@ export default function AdminVerifyPage() {
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Daily Activity:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.personal_profile.dailyActivity || 'N/A'}
+                                        {safeRender(analysis.personal_profile.dailyActivity)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-[#8B8B86]">Sleep Timing:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.personal_profile.sleepTiming || 'N/A'}
+                                        {safeRender(analysis.personal_profile.sleepTiming)}
                                       </span>
                                     </div>
                                   </div>
@@ -551,25 +595,25 @@ export default function AdminVerifyPage() {
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Sleep Impact:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.caffeine_response.sleepImpact || 'N/A'}
+                                        {safeRender(analysis.caffeine_response.sleepImpact)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Duration of Effect:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.caffeine_response.durationOfEffect || 'N/A'}
+                                        {safeRender(analysis.caffeine_response.durationOfEffect)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Sensitivity:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.caffeine_response.sensitivity || 'N/A'}
+                                        {safeRender(analysis.caffeine_response.sensitivity)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-[#8B8B86]">Tolerance:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.caffeine_response.tolerance || 'N/A'}
+                                        {safeRender(analysis.caffeine_response.tolerance)}
                                       </span>
                                     </div>
                                   </div>
@@ -586,31 +630,31 @@ export default function AdminVerifyPage() {
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Thickness:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.hair_scalp_characteristics.thickness || 'N/A'}
+                                        {safeRender(analysis.hair_scalp_characteristics.thickness)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Texture:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.hair_scalp_characteristics.texture || 'N/A'}
+                                        {safeRender(analysis.hair_scalp_characteristics.texture)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Scalp Type:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.hair_scalp_characteristics.scalpType || 'N/A'}
+                                        {safeRender(analysis.hair_scalp_characteristics.scalpType)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Sweating:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.hair_scalp_characteristics.sweating || 'N/A'}
+                                        {safeRender(analysis.hair_scalp_characteristics.sweating)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-[#8B8B86]">Stability:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.hair_scalp_characteristics.stability || 'N/A'}
+                                        {safeRender(analysis.hair_scalp_characteristics.stability)}
                                       </span>
                                     </div>
                                   </div>
@@ -625,27 +669,33 @@ export default function AdminVerifyPage() {
                                   </h5>
                                   <div className="space-y-2.5 text-xs">
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                      <span className="text-[#8B8B86]">Power:</span>
+                                      <span className="text-[#8B8B86]">Power/Explosiveness:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.physical_performance.power || 'N/A'}
+                                        {safeRender(analysis.physical_performance.power)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Endurance:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.physical_performance.endurance || 'N/A'}
+                                        {safeRender(analysis.physical_performance.endurance)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Muscle Adaptation:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.muscleAdaptation)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
                                       <span className="text-[#8B8B86]">Recovery:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.physical_performance.recovery || 'N/A'}
+                                        {safeRender(analysis.physical_performance.recovery)}
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-[#8B8B86]">Training Preference:</span>
                                       <span className="font-semibold text-[#1A1A19]">
-                                        {analysis.physical_performance.trainingPreference || 'N/A'}
+                                        {safeRender(analysis.physical_performance.trainingPreference)}
                                       </span>
                                     </div>
                                   </div>
@@ -665,7 +715,7 @@ export default function AdminVerifyPage() {
                                   </div>
                                 </div>
                                 <button
-                                  onClick={() => handleFetchPhenotypicData(patient.id)}
+                                  onClick={() => handleFetchPhenotypicData(patient.id, false)}
                                   disabled={fetchDataLoading === patient.id}
                                   className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
                                 >
@@ -675,13 +725,12 @@ export default function AdminVerifyPage() {
                               </div>
                               {/* Inline status for this card */}
                               {fetchDataStatus?.id === patient.id && (
-                                <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${
-                                  fetchDataStatus.type === 'success'
+                                <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${fetchDataStatus.type === 'success'
                                     ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
                                     : fetchDataStatus.type === 'warning'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                    : 'bg-red-50 text-red-600 border-red-100'
-                                }`}>
+                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                      : 'bg-red-50 text-red-600 border-red-100'
+                                  }`}>
                                   <AlertCircle size={13} className="shrink-0" />
                                   {fetchDataStatus.message}
                                 </div>
@@ -756,10 +805,20 @@ export default function AdminVerifyPage() {
                               )}
                             </button>
 
+                            {/* Resync Data button — always visible to pull latest from sheets */}
+                            <button
+                              onClick={() => handleFetchPhenotypicData(patient.id, true)}
+                              disabled={fetchDataLoading === patient.id}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                            >
+                              <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                              {fetchDataLoading === patient.id ? 'Syncing...' : 'Resync'}
+                            </button>
+
                             {/* Fetch Data button — always visible if phenotypic_analysis is null */}
                             {!patient.phenotypic_analysis && (
                               <button
-                                onClick={() => handleFetchPhenotypicData(patient.id)}
+                                onClick={() => handleFetchPhenotypicData(patient.id, false)}
                                 disabled={fetchDataLoading === patient.id}
                                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                               >
@@ -982,15 +1041,34 @@ export default function AdminVerifyPage() {
             <div className="w-px h-6 bg-white/15" />
             <div className="flex items-center gap-2">
               <button
+                onClick={() => handleBulkFetch(false)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Fetch Missing
+              </button>
+              <button
+                onClick={() => handleBulkFetch(true)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Resync Selected
+              </button>
+              <div className="w-px h-6 bg-white/15 mx-1" />
+              <button
                 onClick={() => setShowBulkDeleteModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors"
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Selected
               </button>
               <button
                 onClick={() => setSelectedUsers(new Set())}
-                className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10"
+                disabled={isBulkFetching}
+                className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10 disabled:opacity-60"
               >
                 <X className="w-4 h-4 text-[#A0A09D]" />
               </button>
@@ -1089,7 +1167,7 @@ export default function AdminVerifyPage() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
                   Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteReportAction.name}</span>? <br /><br />

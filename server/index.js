@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
-const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus } = require('./aiMapping');
+const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail } = require('./mailer');
 const multer = require('multer');
 const path = require('path');
@@ -53,19 +53,22 @@ pool.on('error', (err) => {
 });
 
 /**
- * Fetches all rows from the configured Google Sheet and returns them as
- * an array of objects keyed by the first-row headers.
- * Requires: server/credentials.json (Service Account key) and GOOGLE_SHEET_ID in .env
+ * Fetches all rows from the configured Google Sheet.
+ * Results are cached for SHEET_CACHE_TTL_MS (2 min) to reduce Sheets API load.
+ * @param {boolean} force - If true, bypasses and clears the cache.
  */
-async function fetchGoogleSheetData() {
+async function fetchGoogleSheetData(force = false) {
+  if (force) invalidateSheetCache();
+
+  // Return cached data if still fresh
+  const cached = getCachedSheetData();
+  if (cached) return cached;
+
   let auth;
 
   if (process.env.GOOGLE_CREDENTIALS) {
     try {
-      // Vercel Production Environment
-      // Vercel Production Environment
       const formattedCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-
       auth = new google.auth.GoogleAuth({
         credentials: formattedCredentials,
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
@@ -75,7 +78,6 @@ async function fetchGoogleSheetData() {
       throw new Error('Failed to parse GOOGLE_CREDENTIALS');
     }
   } else {
-    // Local Development Environment (looks for credentials.json in your server folder)
     auth = new google.auth.GoogleAuth({
       keyFile: 'credentials.json',
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
@@ -93,21 +95,23 @@ async function fetchGoogleSheetData() {
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
-      console.warn('⚠️ Google Sheet returned no data rows.');
+      console.warn('\u26a0\ufe0f Google Sheet returned no data rows.');
       return [];
     }
 
     // Row 0 = headers, rows 1..n = data — convert to array of objects
     const headers = rows[0];
-    return rows.slice(1).map(row => {
+    const data = rows.slice(1).map(row => {
       const obj = {};
-      headers.forEach((header, index) => {
-        obj[header] = row[index] ?? '';
-      });
+      headers.forEach((header, index) => { obj[header] = row[index] ?? ''; });
       return obj;
     });
+
+    // Store in cache before returning
+    setCachedSheetData(data);
+    return data;
   } catch (sheetError) {
-    console.error('❌ Google Sheets API Error:', sheetError.message);
+    console.error('\u274c Google Sheets API Error:', sheetError.message);
     throw sheetError;
   }
 }
@@ -116,7 +120,11 @@ async function fetchGoogleSheetData() {
 // Gemini Key Pool Health Check
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/gemini-status', (_req, res) => {
-  res.json({ keys: getKeyPoolStatus(), timestamp: new Date().toISOString() });
+  res.json({
+    keys: getKeyPoolStatus(),
+    sheetCache: getSheetCacheStatus(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -732,10 +740,11 @@ app.post('/api/users/:id/fetch-phenotypic-data', async (req, res) => {
     const user = userRes.rows[0];
 
     // 2. Re-fetch Google Sheet data
-    console.log(`📊 [FetchData] Re-fetching Google Sheet for user #${userId}...`);
+    const force = req.query.force === 'true';
+    console.log(`📊 [FetchData] Re-fetching Google Sheet for user #${userId}... (force=${force})`);
     let sheetData;
     try {
-      sheetData = await fetchGoogleSheetData();
+      sheetData = await fetchGoogleSheetData(force);
     } catch (sheetError) {
       return res.status(500).json({
         error: 'Failed to communicate with Google Sheets.',
