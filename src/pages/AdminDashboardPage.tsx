@@ -327,7 +327,7 @@ export default function LabDashboard() {
               <option value="Female">Female</option>
               <option value="Other">Other</option>
             </select>
-            
+
             <select
               value={selectedStatusFilter}
               onChange={(e) => setSelectedStatusFilter(e.target.value)}
@@ -339,7 +339,7 @@ export default function LabDashboard() {
             </select>
           </div>
         </div>
-        
+
         {filteredPatients.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto pt-4 xl:pt-0 border-t xl:border-t-0 border-[#E8E8E5]">
             <label className="flex items-center gap-3 cursor-pointer w-full sm:w-auto px-2">
