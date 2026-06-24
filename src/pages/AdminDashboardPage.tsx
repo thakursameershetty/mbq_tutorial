@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
