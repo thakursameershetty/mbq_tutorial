@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, User, FileText, Database, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -26,6 +26,15 @@ const getRequiredGenes = (patientGeneString: string) => {
     }
   });
   return requiredGenes;
+};
+
+const getGeneColor = (geneName: string) => {
+  const name = geneName.toLowerCase();
+  if (name.includes('actn3')) return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (name.includes('edar')) return 'bg-purple-50 text-purple-700 border-purple-200';
+  if (name.includes('cyp1a2') || name.includes('caffeine') || name.includes('caffine')) return 'bg-amber-50 text-amber-700 border-amber-200';
+
+  return 'bg-[#F4F4F2] text-[#5A5A55] border-[#D4D4CE]';
 };
 
 export default function LabDashboard() {
@@ -282,9 +291,15 @@ export default function LabDashboard() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 w-full xl:w-auto shrink-0 flex-wrap">
                       <div className="flex flex-col min-w-[200px]">
                         <span className="text-[10px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Gene Panel</span>
-                        <div className="text-sm font-semibold text-[#2C2C2A] flex items-center gap-1.5">
-                          <Database className="w-3.5 h-3.5 text-[#6057D7] shrink-0" />
-                          <span className="truncate">{patient.gene}</span>
+                        <div className="flex flex-row flex-wrap items-center gap-1.5">
+                          {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className={`px-2 py-1 rounded-md text-[9.5px] font-bold border leading-none ${getGeneColor(g)}`}
+                            >
+                              {g}
+                            </span>
+                          ))}
                         </div>
                       </div>
 
@@ -520,7 +535,16 @@ export default function LabDashboard() {
                   <div className="bg-[#F9F9F8] rounded-2xl p-4 mb-4 space-y-3 border border-[#E8E8E5]/50 flex-1">
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-[#8B8B86] font-medium">Gene Panel</span>
-                      <span className="font-bold text-[#2C2C2A]">{patient.gene}</span>
+                      <div className="flex flex-wrap gap-1.5 justify-end">
+                        {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
+                          <span
+                            key={idx}
+                            className={`px-2 py-1 rounded-md text-[9.5px] font-bold border leading-none ${getGeneColor(g)}`}
+                          >
+                            {g}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex justify-between items-center text-sm gap-4">
                       <span className="text-[#8B8B86] font-medium shrink-0">Email</span>
