@@ -16,6 +16,15 @@ const safeRender = (val: any) => {
   return String(val);
 };
 
+const getGeneColor = (geneName: string) => {
+  const name = geneName.toLowerCase();
+  if (name.includes('actn3')) return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (name.includes('edar')) return 'bg-purple-50 text-purple-700 border-purple-200';
+  if (name.includes('cyp1a2') || name.includes('caffeine') || name.includes('caffine')) return 'bg-amber-50 text-amber-700 border-amber-200';
+
+  return 'bg-[#F4F4F2] text-[#5A5A55] border-[#D4D4CE]';
+};
+
 export default function AdminVerifyPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +33,8 @@ export default function AdminVerifyPage() {
   const [selectedGenderFilter, setSelectedGenderFilter] = useState<string>('all');
   const [selectedSampleFilter, setSelectedSampleFilter] = useState<string>('all');
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
+  const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
+  const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   const [userToDelete, setUserToDelete] = useState<any>(null);
@@ -187,6 +198,22 @@ export default function AdminVerifyPage() {
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
 
     const isCollected = p.sample_collected === true;
+    const isReceived = p.sample_received === true;
+    const isUploaded = p.report_uploaded === true;
+    const isGenerated = p.report_generated === true;
+    const isVerified = p.report_verified === true;
+
+    let currentStatus = 'registered';
+    if (isVerified) currentStatus = 'verified';
+    else if (isGenerated) currentStatus = 'generated';
+    else if (isUploaded) currentStatus = 'uploaded';
+    else if (isReceived) currentStatus = 'received';
+    else if (isCollected) currentStatus = 'collected';
+
+    const matchesWorkflow = selectedWorkflowFilter === 'all' || currentStatus === selectedWorkflowFilter;
+
+    const matchesGene = selectedGeneFilter === 'all' ||
+      (p.gene_type && p.gene_type.toLowerCase().includes(selectedGeneFilter));
 
     const matchesSample =
       selectedSampleFilter === 'all' ||
@@ -198,7 +225,7 @@ export default function AdminVerifyPage() {
       (selectedDataFilter === 'null_data' && !p.phenotypic_analysis) ||
       (selectedDataFilter === 'has_data' && !!p.phenotypic_analysis);
 
-    return matchesSearch && matchesGender && matchesSample && matchesData;
+    return matchesSearch && matchesGender && matchesSample && matchesData && matchesWorkflow && matchesGene;
   });
 
   const toggleSelectAll = () => {
@@ -312,61 +339,90 @@ export default function AdminVerifyPage() {
       className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 mx-auto"
     >
       {/* Header Section */}
-      <div className="mb-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6 relative z-10">
-        <div className="space-y-2">
-          <motion.div
-            initial={{ y: -10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#6057D7] tracking-widest uppercase mb-2 shadow-sm backdrop-blur-md"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Admin Portal
-          </motion.div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A19]">Profile Verification</h2>
-          <p className="text-[#8B8B86] text-base font-medium max-w-xl leading-relaxed">
-            Verify comprehensive user registrations, survey records, sample collection statuses, and AI-generated phenotypic data.
-          </p>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto mt-4 lg:mt-0">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
-            <input
-              type="text"
-              placeholder="Search patients..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
-            />
+      <div className="mb-6 flex flex-col gap-6 relative z-10">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <motion.div
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#6057D7] tracking-widest uppercase mb-2 shadow-sm backdrop-blur-md"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Admin Portal
+            </motion.div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A19]">Profile Verification</h2>
+            <p className="text-[#8B8B86] text-base font-medium max-w-xl leading-relaxed">
+              Verify comprehensive user registrations, survey records, sample collection statuses, and AI-generated phenotypic data.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 w-full sm:w-auto">
-            {/* Export CSV Button */}
+          {/* Core Actions (Search + Global Buttons) */}
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-72">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
+              <input
+                type="text"
+                placeholder="Search patients..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-xl pl-10 pr-4 py-2 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+              />
+            </div>
+
             <button
               onClick={handleDownloadCSV}
-              className="flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] rounded-xl text-xs font-semibold text-white transition-all shadow-sm shrink-0 hover:opacity-90"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] rounded-xl text-sm font-semibold text-white transition-all shadow-sm shrink-0 hover:opacity-90 h-[42px]"
             >
               <Download className="w-4 h-4" />
-              Export CSV
+              <span className="hidden sm:inline">Export</span>
             </button>
+          </div>
+        </div>
 
-            {/* Select All Button */}
-            <button
-              onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2.5 bg-white/60 border border-[#E8E8E5] rounded-xl text-xs font-semibold text-[#5A5A55] hover:bg-white transition-all shadow-sm shrink-0"
+        {/* Secondary Actions & Filters Bar */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 bg-white/40 backdrop-blur-md border border-[#E8E8E5] p-2 rounded-2xl shadow-sm">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center justify-center gap-2 px-4 py-2 w-full sm:w-auto bg-white border border-[#E8E8E5] rounded-xl text-xs font-bold text-[#5A5A55] hover:bg-[#F8F8F7] transition-all shadow-sm shrink-0 h-[42px]"
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 ? 'bg-[#6057D7] border-[#6057D7] text-white' : 'border-[#D4D4CE] bg-white'}`}>
+              {selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 && <Check className="w-3 h-3" />}
+            </div>
+            Select All
+          </button>
+
+          <div className="h-6 w-[1px] bg-[#E8E8E5] hidden sm:block mx-1"></div>
+
+          <div className="flex overflow-x-auto gap-2 w-full pb-1 sm:pb-0 scrollbar-hide">
+            <select
+              value={selectedWorkflowFilter}
+              onChange={(e) => setSelectedWorkflowFilter(e.target.value)}
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
             >
-              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 ? 'bg-[#6057D7] border-[#6057D7] text-white' : 'border-[#D4D4CE] bg-white'}`}>
-                {selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 && <Check className="w-3 h-3" />}
-              </div>
-              Select All
-            </button>
+              <option value="all">All Stages</option>
+              <option value="registered">Registered</option>
+              <option value="collected">Sample Collected</option>
+              <option value="received">Sample Received</option>
+              <option value="uploaded">Report Uploaded</option>
+              <option value="generated">Report Generated</option>
+              <option value="verified">Report Verified</option>
+            </select>
 
-            {/* Gender Filter */}
+            <select
+              value={selectedGeneFilter}
+              onChange={(e) => setSelectedGeneFilter(e.target.value)}
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+            >
+              <option value="all">All Gene Panels</option>
+              <option value="actn3">ACTN3 (Muscle)</option>
+              <option value="edar">EDAR (Hair)</option>
+              <option value="cyp1a2">CYP1A2 (Caffeine)</option>
+            </select>
+
             <select
               value={selectedGenderFilter}
               onChange={(e) => setSelectedGenderFilter(e.target.value)}
-              className="flex-1 sm:flex-none bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer shadow-sm hover:bg-white"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
             >
               <option value="all">All Genders</option>
               <option value="Male">Male</option>
@@ -374,22 +430,20 @@ export default function AdminVerifyPage() {
               <option value="Other">Other</option>
             </select>
 
-            {/* Sample Status Filter */}
             <select
               value={selectedSampleFilter}
               onChange={(e) => setSelectedSampleFilter(e.target.value)}
-              className="flex-1 sm:flex-none bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer shadow-sm hover:bg-white"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
             >
               <option value="all">All Samples</option>
               <option value="collected">Collected</option>
               <option value="pending">Pending</option>
             </select>
 
-            {/* Phenotypic Data Filter */}
             <select
               value={selectedDataFilter}
               onChange={(e) => setSelectedDataFilter(e.target.value)}
-              className="flex-1 sm:flex-none bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer shadow-sm hover:bg-white"
+              className="flex-1 min-w-[130px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
             >
               <option value="all">All AI Data</option>
               <option value="has_data">Has Data</option>
@@ -429,12 +483,12 @@ export default function AdminVerifyPage() {
                   transition={{ delay: Math.min(i * 0.04, 0.4) }}
                   key={patient.id}
                   className={`bg-white/70 backdrop-blur-2xl border ${isExpanded ? 'border-[#6057D7]/30 shadow-md ring-4 ring-[#6057D7]/5' : 'border-white/80 shadow-sm'
-                    } rounded-[24px] overflow-hidden transition-all duration-300 hover:shadow-md hover:bg-white/90`}
+                    } rounded-[20px] overflow-hidden transition-all duration-300 hover:shadow-md hover:bg-white/90`}
                 >
                   {/* Summary Header bar */}
                   <div
                     onClick={() => toggleExpand(patient.id)}
-                    className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between cursor-pointer gap-4 relative z-10"
+                    className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between cursor-pointer gap-4 relative z-10"
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <button
@@ -458,15 +512,15 @@ export default function AdminVerifyPage() {
                     </div>
 
                     {/* Meta Info Indicators */}
-                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 lg:justify-end">
+                    <div className="flex flex-wrap lg:flex-nowrap items-center gap-4 lg:gap-6 mt-3 lg:mt-0">
                       {/* Genotypes badges */}
-                      <div className="flex flex-col">
-                        <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Gene Panel</span>
-                        <div className="flex flex-wrap gap-1 max-w-[280px]">
+                      <div className="flex flex-col w-[260px] xl:w-[320px] shrink-0">
+                        <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1 block">Gene Panel</span>
+                        <div className="flex flex-row flex-wrap items-center gap-1.5">
                           {genesList.map((g: string, idx: number) => (
                             <span
                               key={idx}
-                              className="px-2 py-0.5 bg-[#6057D7]/6 text-[#6057D7] rounded-md text-[9px] font-bold border border-[#6057D7]/10"
+                              className={`px-2 py-1 rounded-md text-[9.5px] font-bold border leading-none ${getGeneColor(g)}`}
                             >
                               {g}
                             </span>
@@ -475,13 +529,13 @@ export default function AdminVerifyPage() {
                       </div>
 
                       {/* Contact metadata */}
-                      <div className="flex flex-col text-xs text-[#5A5A55]">
+                      <div className="flex flex-col text-xs text-[#5A5A55] w-[180px] xl:w-[200px] shrink-0">
                         <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Contact</span>
                         <span className="font-semibold">{patient.email}</span>
                       </div>
 
                       {/* Sample Collected status badge */}
-                      <div className="flex flex-col">
+                      <div className="flex flex-col w-[90px] shrink-0">
                         <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Sample Status</span>
                         <div>
                           {isCollected ? (
@@ -742,10 +796,10 @@ export default function AdminVerifyPage() {
                               {/* Inline status for this card */}
                               {fetchDataStatus?.id === patient.id && (
                                 <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${fetchDataStatus.type === 'success'
-                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
-                                    : fetchDataStatus.type === 'warning'
-                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                      : 'bg-red-50 text-red-600 border-red-100'
+                                  ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
+                                  : fetchDataStatus.type === 'warning'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-red-50 text-red-600 border-red-100'
                                   }`}>
                                   <AlertCircle size={13} className="shrink-0" />
                                   {fetchDataStatus.message}

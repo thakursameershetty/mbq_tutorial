@@ -8,10 +8,24 @@ const formatUserId = (id: any) => {
   return `MBQ${String(num).padStart(3, '0')}`;
 };
 
-const GENE_VARIANTS: Record<string, string[]> = {
-  "Caffine Response (CYP1A2)": ["Fast Metabolizer (AA)", "Moderate Metabolizer (AC)", "Slow Metabolizer (CC)"],
-  "Muscle Power vs Endurance (ACTN3)": ["Power/Sprinter (RR)", "Mixed (RX)", "Endurance (XX)"],
-  "Hair Thickness & Root Structure (EDAR)": ["Typical (T/T)", "Intermediate (T/C)", "Thick (C/C)"]
+const getRequiredGenes = (patientGeneString: string) => {
+  if (!patientGeneString) return [];
+  const panels = patientGeneString.split(',').map(s => s.trim().toLowerCase());
+  const requiredGenes: { panel: string, name: string, variants: string[] }[] = [];
+
+  panels.forEach(panel => {
+    if (panel.includes('caffine') || panel.includes('caffeine')) {
+      requiredGenes.push({ panel: "Caffeine Sensitivity", name: "CYP1A2", variants: ["AA", "AC", "CC"] });
+      requiredGenes.push({ panel: "Caffeine Sensitivity", name: "ADORA2A", variants: ["TT", "TC", "CC"] });
+    } else if (panel.includes('muscle') || panel.includes('actn3')) {
+      requiredGenes.push({ panel: "Muscle Performance", name: "ACTN3", variants: ["RR", "RX", "XX"] });
+      requiredGenes.push({ panel: "Muscle Performance", name: "ACE", variants: ["II", "ID", "DD"] });
+    } else if (panel.includes('hair') || panel.includes('edar')) {
+      requiredGenes.push({ panel: "Hair", name: "EDAR", variants: ["GG", "AG", "AA"] });
+      requiredGenes.push({ panel: "Hair", name: "FGFR2", variants: ["TT", "GT", "GG"] });
+    }
+  });
+  return requiredGenes;
 };
 
 export default function LabDashboard() {
@@ -21,6 +35,8 @@ export default function LabDashboard() {
   const [patients, setPatients] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
+  const [selectedGenderFilter, setSelectedGenderFilter] = useState<string>('all');
 
   const fetchPatients = () => {
     fetch('/api/admin/patients')
@@ -32,6 +48,7 @@ export default function LabDashboard() {
           email: u.email,
           phone: u.phone,
           gene: u.gene_type,
+          gender: u.gender,
           sample_collected: u.sample_collected,
           sample_received: u.sample_received,
           report_uploaded: u.report_uploaded,
@@ -59,7 +76,17 @@ export default function LabDashboard() {
   const [sampleAction, setSampleAction] = useState<any>(null);
   const [uploadAction, setUploadAction] = useState<{ patientId: string, file: File, patientName: string } | null>(null);
   const [deleteAction, setDeleteAction] = useState<{ patientId: string, patientName: string } | null>(null);
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, Record<string, string>>>({});
+
+  const handleVariantChange = (patientId: string, geneName: string, variant: string) => {
+    setSelectedVariants(prev => ({
+      ...prev,
+      [patientId]: {
+        ...(prev[patientId] || {}),
+        [geneName]: variant
+      }
+    }));
+  };
 
   const confirmToggleSampleReceived = async () => {
     if (!sampleAction) return;
@@ -93,6 +120,9 @@ export default function LabDashboard() {
     setActionLoading(patientId + '-upload');
     const formData = new FormData();
     formData.append('report', file);
+    const genotypes = selectedVariants[patientId] || {};
+    formData.append('genotypes', JSON.stringify(genotypes));
+
     try {
       const response = await fetch(`/api/users/${patientId}/upload-report`, {
         method: 'POST',
@@ -141,11 +171,17 @@ export default function LabDashboard() {
     setExpandedUser(expandedUser === id ? null : id);
   };
 
-  const filteredPatients = patients.filter(p =>
-    p.sample_collected === true &&
-    (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredPatients = patients.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesGene = selectedGeneFilter === 'all' ||
+      (p.gene && p.gene.toLowerCase().includes(selectedGeneFilter));
+
+    const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
+
+    return p.sample_collected === true && matchesSearch && matchesGene && matchesGender;
+  });
 
   return (
     <motion.div
@@ -179,10 +215,27 @@ export default function LabDashboard() {
             />
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white/60 backdrop-blur-xl border border-[#E8E8E5] px-5 py-2.5 rounded-2xl text-sm font-semibold text-[#2C2C2A] hover:bg-white transition-all shadow-sm active:scale-95">
-              <Filter className="w-4 h-4" />
-              Filter
-            </button>
+            <select
+              value={selectedGeneFilter}
+              onChange={(e) => setSelectedGeneFilter(e.target.value)}
+              className="flex-1 min-w-[140px] bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-white transition-all shadow-sm h-[44px]"
+            >
+              <option value="all">All Gene Panels</option>
+              <option value="actn3">ACTN3 (Muscle)</option>
+              <option value="edar">EDAR (Hair)</option>
+              <option value="cyp1a2">CYP1A2 (Caffeine)</option>
+            </select>
+
+            <select
+              value={selectedGenderFilter}
+              onChange={(e) => setSelectedGenderFilter(e.target.value)}
+              className="flex-1 min-w-[120px] bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-white transition-all shadow-sm h-[44px]"
+            >
+              <option value="all">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
         </div>
       </div>
@@ -282,26 +335,39 @@ export default function LabDashboard() {
                         </button>
 
                         {patient.status === 'pending' ? (
-                          <>
-                            <select
-                              disabled={!patient.sample_received}
-                              className={`bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full sm:w-[160px] appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
-                              onClick={(e) => e.stopPropagation()}
-                              value={selectedVariants[patient.id] || ""}
-                              onChange={(e) => setSelectedVariants(prev => ({ ...prev, [patient.id]: e.target.value }))}
-                              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1em' }}
-                            >
-                              <option value="" disabled>Select Variant</option>
-                              {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
-                                <option key={idx} value={v} className="truncate">{v}</option>
-                              ))}
-                            </select>
+                          <div className="flex gap-2 items-end">
+                            {(() => {
+                              const requiredGenes = getRequiredGenes(patient.gene);
+                              if (requiredGenes.length === 0) return null;
+                              return (
+                                <div className="flex gap-2">
+                                  {requiredGenes.map((rg, idx) => (
+                                    <div key={idx} className="flex flex-col gap-1 w-[110px]">
+                                      <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
+                                      <select
+                                        disabled={!patient.sample_received}
+                                        className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl px-2 py-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                        onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
+                                      >
+                                        <option value="" disabled>Sel {rg.name}</option>
+                                        {rg.variants.map((v, i) => (
+                                          <option key={i} value={v} className="truncate">{v}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
 
                             <motion.label
                               whileHover={patient.sample_received ? { scale: 1.02 } : {}}
                               whileTap={patient.sample_received ? { scale: 0.98 } : {}}
                               onClick={(e) => e.stopPropagation()}
-                              className={`bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] transition-all w-full sm:w-auto text-center flex items-center justify-center gap-2 shrink-0 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] cursor-pointer'}`}
+                              className={`bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] transition-all sm:w-auto text-center flex items-center justify-center gap-2 shrink-0 h-[34px] mb-[2px] ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] cursor-pointer'}`}
                             >
                               {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
                               Upload
@@ -311,9 +377,12 @@ export default function LabDashboard() {
                                 accept=".pdf"
                                 disabled={!patient.sample_received}
                                 onClick={(e) => {
-                                  if (!selectedVariants[patient.id]) {
+                                  const requiredGenes = getRequiredGenes(patient.gene);
+                                  const patientVariants = selectedVariants[patient.id] || {};
+                                  const allSelected = requiredGenes.every(rg => patientVariants[rg.name]);
+                                  if (!allSelected) {
                                     e.preventDefault();
-                                    alert("Please select a variant before uploading the report.");
+                                    alert("Please select all required genotypes before uploading the report.");
                                   }
                                 }}
                                 onChange={(e) => {
@@ -324,7 +393,7 @@ export default function LabDashboard() {
                                 }}
                               />
                             </motion.label>
-                          </>
+                          </div>
                         ) : (
                           <div className="flex gap-2">
                             <button
@@ -493,19 +562,30 @@ export default function LabDashboard() {
                     </button>
 
                     {patient.status === 'pending' ? (
-                      <>
-                        <select
-                          disabled={!patient.sample_received}
-                          className={`w-full bg-white/80 border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-4 py-3 pr-8 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
-                          value={selectedVariants[patient.id] || ""}
-                          onChange={(e) => setSelectedVariants(prev => ({ ...prev, [patient.id]: e.target.value }))}
-                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
-                        >
-                          <option value="" disabled>Select Variant</option>
-                          {(GENE_VARIANTS[patient.gene] || ["Variant 1", "Variant 2", "Variant 3"]).map((v, idx) => (
-                            <option key={idx} value={v}>{v}</option>
-                          ))}
-                        </select>
+                      <div className="space-y-3">
+                        {(() => {
+                          const requiredGenes = getRequiredGenes(patient.gene);
+                          if (requiredGenes.length === 0) return null;
+                          return (
+                            <div className="grid grid-cols-2 gap-2">
+                              {requiredGenes.map((rg, idx) => (
+                                <div key={idx} className="flex flex-col gap-1">
+                                  <span className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider">{rg.name}</span>
+                                  <select
+                                    disabled={!patient.sample_received}
+                                    className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl px-2 py-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
+                                    value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                    onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
+                                  >
+                                    <option value="" disabled>Select {rg.name}</option>
+                                    {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
 
                         <motion.label
                           whileHover={patient.sample_received ? { scale: 1.02 } : {}}
@@ -520,9 +600,12 @@ export default function LabDashboard() {
                             accept=".pdf"
                             disabled={!patient.sample_received}
                             onClick={(e) => {
-                              if (!selectedVariants[patient.id]) {
+                              const requiredGenes = getRequiredGenes(patient.gene);
+                              const patientVariants = selectedVariants[patient.id] || {};
+                              const allSelected = requiredGenes.every(rg => patientVariants[rg.name]);
+                              if (!allSelected) {
                                 e.preventDefault();
-                                alert("Please select a variant before uploading the report.");
+                                alert("Please select all required genotypes before uploading the report.");
                               }
                             }}
                             onChange={(e) => {
@@ -533,7 +616,7 @@ export default function LabDashboard() {
                             }}
                           />
                         </motion.label>
-                      </>
+                      </div>
                     ) : (
                       <div className="flex gap-2 w-full mt-2">
                         <button
@@ -792,7 +875,7 @@ export default function LabDashboard() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
                   Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteAction.patientName}</span>? <br /><br />

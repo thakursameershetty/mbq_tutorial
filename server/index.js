@@ -107,7 +107,7 @@ async function fetchGoogleSheetData(force = false) {
 
     headers.forEach(header => {
       let trimmed = (header || `Column`).trim();
-      
+
       // If the column is generic, attach the context of the last main question to it
       if (/^(Any specific remarks|Please Mention here)$/i.test(trimmed) || trimmed === "") {
         trimmed = `${lastMainQuestion} - ${trimmed || 'Remarks'}`;
@@ -127,8 +127,8 @@ async function fetchGoogleSheetData(force = false) {
 
     const data = rows.slice(1).map(row => {
       const obj = {};
-      uniqueHeaders.forEach((header, index) => { 
-        obj[header] = row[index] ?? ''; 
+      uniqueHeaders.forEach((header, index) => {
+        obj[header] = row[index] ?? '';
       });
       return obj;
     });
@@ -626,15 +626,16 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
   }
 
   const reportUrl = req.file.path; // Cloudinary returns the full secure URL in path
+  const genotypes = req.body.genotypes ? JSON.parse(req.body.genotypes) : null;
 
   try {
     const query = `
       UPDATE users 
-      SET report_uploaded = TRUE, report_url = $1
-      WHERE id = $2
+      SET report_uploaded = TRUE, report_url = $1, genotypes = $2
+      WHERE id = $3
       RETURNING id, report_uploaded, report_url;
     `;
-    const result = await pool.query(query, [reportUrl, userId]);
+    const result = await pool.query(query, [reportUrl, genotypes, userId]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found.' });

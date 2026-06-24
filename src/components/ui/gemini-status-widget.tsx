@@ -55,26 +55,26 @@ export function GeminiStatusWidget() {
 
   // Compute summary badge colour
   const coolingCount = status.keys.filter(k => k.status === 'cooling').length;
-  const allCooling   = coolingCount === status.keys.length;
-  const someCooling  = coolingCount > 0 && !allCooling;
+  const allCooling = coolingCount === status.keys.length;
+  const someCooling = coolingCount > 0 && !allCooling;
 
   const badgeColor = allCooling
     ? 'bg-red-500'
     : someCooling
-    ? 'bg-amber-400'
-    : 'bg-emerald-500';
+      ? 'bg-amber-400'
+      : 'bg-emerald-500';
 
   const badgeLabel = allCooling
     ? 'All Cooling'
     : someCooling
-    ? `${coolingCount} Cooling`
-    : 'All OK';
+      ? `${coolingCount} Cooling`
+      : 'All OK';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed bottom-5 right-5 z-50 select-none"
+      className="fixed bottom-5 right-5 z-50 select-none flex flex-col items-end"
     >
       {/* Expanded detail panel */}
       <AnimatePresence>
@@ -171,11 +171,10 @@ export function GeminiStatusWidget() {
             <span
               key={key.label}
               title={`${key.label}: ${key.status}${key.status === 'cooling' ? ` (${key.cooldownSeconds}s)` : ''}`}
-              className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
-                key.status === 'cooling'
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-emerald-500'
-              }`}
+              className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${key.status === 'cooling'
+                ? 'bg-amber-400 animate-pulse'
+                : 'bg-emerald-500'
+                }`}
             />
           ))}
         </div>
