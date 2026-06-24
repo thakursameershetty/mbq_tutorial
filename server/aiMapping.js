@@ -47,7 +47,7 @@ function invalidateSheetCache() {
  */
 async function executeAzureOpenAI(prompt, requireJson = true) {
   const url = `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_OPENAI_API_VERSION}`;
-  
+
   const payload = {
     messages: [
       { role: "system", content: "You are a helpful assistant." },
@@ -79,18 +79,18 @@ async function executeAzureOpenAI(prompt, requireJson = true) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const isRateLimit = response.status === 429;
-      
+
       if (isRateLimit) {
-         console.error(`⚠️ Azure OpenAI Rate Limited (429)`);
-         throw { isRateLimit: true, message: "Rate limit exceeded" };
+        console.error(`⚠️ Azure OpenAI Rate Limited (429)`);
+        throw { isRateLimit: true, message: "Rate limit exceeded" };
       }
-      
+
       throw new Error(`Azure OpenAI API Error: ${response.status} - ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
     const messageContent = data.choices[0]?.message?.content;
-    
+
     if (!messageContent) {
       throw new Error("No content returned from Azure OpenAI");
     }
@@ -206,7 +206,10 @@ async function generatePhenotypicAnalysis(rawSurveyData) {
       "caffeine_response": {
         "sleepImpact": "Extract how caffeine impacts sleep",
         "durationOfEffect": "Extract duration of stimulant effect",
-        "sensitivity": "Extract physical sensitivity and small-dose sensitivity",
+        "sensitivity": {
+          "physicalSensitivity": "Extract physical sensitivity",
+          "smallDoseSensitivity": "Extract small-dose sensitivity"
+        },
         "tolerance": "Extract time-of-day tolerance"
       },
       "hair_scalp_characteristics": {

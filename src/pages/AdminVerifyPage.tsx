@@ -604,12 +604,29 @@ export default function AdminVerifyPage() {
                                         {safeRender(analysis.caffeine_response.durationOfEffect)}
                                       </span>
                                     </div>
-                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                      <span className="text-[#8B8B86]">Sensitivity:</span>
-                                      <span className="font-semibold text-[#1A1A19]">
-                                        {safeRender(analysis.caffeine_response.sensitivity)}
-                                      </span>
-                                    </div>
+                                    {typeof analysis.caffeine_response.sensitivity === 'object' && analysis.caffeine_response.sensitivity !== null ? (
+                                      <>
+                                        <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                          <span className="text-[#8B8B86]">Physical Sensitivity:</span>
+                                          <span className="font-semibold text-[#1A1A19]">
+                                            {safeRender(analysis.caffeine_response.sensitivity.physicalSensitivity || analysis.caffeine_response.sensitivity.physical)}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                          <span className="text-[#8B8B86]">Small Dose Sensitivity:</span>
+                                          <span className="font-semibold text-[#1A1A19]">
+                                            {safeRender(analysis.caffeine_response.sensitivity.smallDoseSensitivity || analysis.caffeine_response.sensitivity.smallDose)}
+                                          </span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                        <span className="text-[#8B8B86]">Sensitivity:</span>
+                                        <span className="font-semibold text-[#1A1A19]">
+                                          {safeRender(analysis.caffeine_response.sensitivity)}
+                                        </span>
+                                      </div>
+                                    )}
                                     <div className="flex justify-between">
                                       <span className="text-[#8B8B86]">Tolerance:</span>
                                       <span className="font-semibold text-[#1A1A19]">
