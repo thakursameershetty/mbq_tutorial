@@ -559,869 +559,869 @@ export default function AdminVerifyPage() {
                       {/* Contact metadata */}
                       <div className="flex flex-col text-xs text-[#5A5A55] w-[180px] xl:w-[200px] shrink-0">
                         <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Contact</span>
-                      <span className="font-semibold">{patient.email}</span>
-                    </div>
-
-                    {/* Sample Collected status badge */}
-                    <div className="flex flex-col w-[90px] shrink-0">
-                      <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Sample Status</span>
-                      <div>
-                        {isCollected ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ECFDF3] text-[#027A48] text-[9px] font-bold uppercase tracking-wider">
-                            <CheckCircle2 className="w-3 h-3" /> Collected
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF5E5] text-[#B87A00] text-[9px] font-bold uppercase tracking-wider">
-                            <Clock className="w-3 h-3 animate-pulse" /> Pending
-                          </span>
-                        )}
+                        <span className="font-semibold">{patient.email}</span>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {/* Edit button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingGenePatient(patient);
-                          setEditedGeneType(patient.gene_type || '');
-                        }}
-                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 rounded-full transition-colors border border-indigo-100"
-                        title="Edit User"
+                      {/* Sample Collected status badge */}
+                      <div className="flex flex-col w-[90px] shrink-0">
+                        <span className="text-[9px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Sample Status</span>
+                        <div>
+                          {isCollected ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ECFDF3] text-[#027A48] text-[9px] font-bold uppercase tracking-wider">
+                              <CheckCircle2 className="w-3 h-3" /> Collected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF5E5] text-[#B87A00] text-[9px] font-bold uppercase tracking-wider">
+                              <Clock className="w-3 h-3 animate-pulse" /> Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Edit button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingGenePatient(patient);
+                            setEditedGeneType(patient.gene_type || '');
+                          }}
+                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 rounded-full transition-colors border border-indigo-100"
+                          title="Edit User"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUserToDelete(patient);
+                          }}
+                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-colors border border-red-100"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Chevron indicator */}
+                      <motion.div
+                        animate={{ rotate: isExpanded ? 180 : 0 }}
+                        className="p-1.5 bg-[#F4F4F2] rounded-full text-[#5A5A55]"
                       >
-                        <Edit className="w-4 h-4" />
-                      </button>
-
-                      {/* Delete button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setUserToDelete(patient);
-                        }}
-                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-colors border border-red-100"
-                        title="Delete User"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <ChevronDown className="w-4 h-4" />
+                      </motion.div>
                     </div>
+                  </div>
 
-                    {/* Chevron indicator */}
-                    <motion.div
-                      animate={{ rotate: isExpanded ? 180 : 0 }}
-                      className="p-1.5 bg-[#F4F4F2] rounded-full text-[#5A5A55]"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </motion.div>
+                  {/* Expandable Details Pane */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="overflow-hidden border-t border-[#E8E8E5] bg-gradient-to-b from-[#F9F9F8] to-white"
+                      >
+                        <div className="p-6 space-y-6">
+                          {/* Top Row: User Summary Metadata */}
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-[#E8E8E5] shadow-inner">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Full Legal Name</span>
+                              <span className="font-semibold text-sm text-[#1A1A19]">{patient.full_name?.toUpperCase()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Email</span>
+                              <span className="font-semibold text-sm text-[#1A1A19]">{patient.email}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Phone</span>
+                              <span className="font-semibold text-sm text-[#1A1A19]">{patient.phone || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Age & Gender</span>
+                              <span className="font-semibold text-sm text-[#1A1A19]">
+                                {patient.age ? `${patient.age} yrs` : 'N/A'} • {patient.gender || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Phenotypic Data Header */}
+                          <div className="flex items-center gap-2 border-b border-[#F0F0ED] pb-2">
+                            <Sparkles className="w-4 h-4 text-[#6057D7]" />
+                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A19]">
+                              AI Phenotypic Profile Insights
+                            </h4>
+                          </div>
+
+                          {analysis ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* Personal Profile Section */}
+                              {analysis.personal_profile && (
+                                <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
+                                  <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
+                                    Personal Profile
+                                  </h5>
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Daily Activity:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.personal_profile.dailyActivity)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-[#8B8B86]">Sleep Timing:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.personal_profile.sleepTiming)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Caffeine Response Section */}
+                              {analysis.caffeine_response && (
+                                <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
+                                  <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
+                                    Caffeine & Stimulant Response
+                                  </h5>
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Sleep Impact:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.caffeine_response.sleepImpact)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Duration of Effect:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.caffeine_response.durationOfEffect)}
+                                      </span>
+                                    </div>
+                                    {typeof analysis.caffeine_response.sensitivity === 'object' && analysis.caffeine_response.sensitivity !== null ? (
+                                      <>
+                                        <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                          <span className="text-[#8B8B86]">Physical Sensitivity:</span>
+                                          <span className="font-semibold text-[#1A1A19]">
+                                            {safeRender(analysis.caffeine_response.sensitivity.physicalSensitivity || analysis.caffeine_response.sensitivity.physical)}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                          <span className="text-[#8B8B86]">Small Dose Sensitivity:</span>
+                                          <span className="font-semibold text-[#1A1A19]">
+                                            {safeRender(analysis.caffeine_response.sensitivity.smallDoseSensitivity || analysis.caffeine_response.sensitivity.smallDose)}
+                                          </span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                        <span className="text-[#8B8B86]">Sensitivity:</span>
+                                        <span className="font-semibold text-[#1A1A19]">
+                                          {safeRender(analysis.caffeine_response.sensitivity)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between">
+                                      <span className="text-[#8B8B86]">Tolerance:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.caffeine_response.tolerance)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Hair & Scalp Section */}
+                              {analysis.hair_scalp_characteristics && (
+                                <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
+                                  <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
+                                    Hair & Scalp Characteristics
+                                  </h5>
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Thickness:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.hair_scalp_characteristics.thickness)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Texture:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.hair_scalp_characteristics.texture)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Scalp Type:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.hair_scalp_characteristics.scalpType)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Sweating:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.hair_scalp_characteristics.sweating)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-[#8B8B86]">Stability:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.hair_scalp_characteristics.stability)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Physical Performance Section */}
+                              {analysis.physical_performance && (
+                                <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
+                                  <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
+                                    Physical Performance & Recovery
+                                  </h5>
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Power/Explosiveness:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.power)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Endurance:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.endurance)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Muscle Adaptation:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.muscleAdaptation)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
+                                      <span className="text-[#8B8B86]">Recovery:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.recovery)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-[#8B8B86]">Training Preference:</span>
+                                      <span className="font-semibold text-[#1A1A19]">
+                                        {safeRender(analysis.physical_performance.trainingPreference)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="py-5 bg-white border border-amber-200 rounded-2xl">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-1">
+                                <div className="flex items-start gap-3">
+                                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-xs font-semibold text-amber-800">No phenotypic data</p>
+                                    <p className="text-[11px] text-amber-600 mt-0.5">
+                                      Gemini may have been rate-limited during registration. Click "Fetch Data" to retry.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleFetchPhenotypicData(patient.id, false)}
+                                  disabled={fetchDataLoading === patient.id}
+                                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
+                                >
+                                  <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                                  {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
+                                </button>
+                              </div>
+                              {/* Inline status for this card */}
+                              {fetchDataStatus?.id === patient.id && (
+                                <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${fetchDataStatus.type === 'success'
+                                  ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
+                                  : fetchDataStatus.type === 'warning'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-red-50 text-red-600 border-red-100'
+                                  }`}>
+                                  <AlertCircle size={13} className="shrink-0" />
+                                  {fetchDataStatus.message}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Actions Panel */}
+                          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-[#F0F0ED]">
+                            {patient.report_uploaded && patient.report_url ? (
+                              <>
+                                <button
+                                  onClick={() => setPreviewPdfUrl(patient.report_url)}
+                                  className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                >
+                                  <FileText size={14} className="text-[#6057D7]" />
+                                  View Uploaded Report
+                                </button>
+                                {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                                  <button
+                                    onClick={() => setDeleteReportAction({ id: patient.id, name: patient.full_name || patient.username })}
+                                    disabled={actionLoading === patient.id}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                                  >
+                                    {actionLoading === patient.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    Delete Report
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                disabled
+                                className="flex items-center gap-2 px-4 py-2 bg-[#F7F7F5] border border-[#E8E8E5] text-[#8B8B86] rounded-xl text-xs font-bold cursor-not-allowed"
+                              >
+                                <FileText size={14} />
+                                No Uploaded Report
+                              </button>
+                            )}
+
+                            {patient.report_generated ? (
+                              <button
+                                onClick={() => handleViewGeneratedReport(patient)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#6057D7]/10 hover:bg-[#6057D7]/15 border border-[#6057D7]/20 text-[#6057D7] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                              >
+                                <Sparkles size={14} />
+                                View Generated Report
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                className="flex items-center gap-2 px-4 py-2 bg-[#F7F7F5] border border-[#E8E8E5] text-[#8B8B86] rounded-xl text-xs font-bold cursor-not-allowed"
+                              >
+                                <Sparkles size={14} />
+                                No Generated Report
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => setVerifyAction(patient)}
+                              disabled={actionLoading === patient.id}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${patient.report_verified
+                                ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
+                                : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
+                                }`}
+                            >
+                              {actionLoading === patient.id ? (
+                                <Loader2 className="animate-spin w-3.5 h-3.5" />
+                              ) : patient.report_verified ? (
+                                '\u2713 Report Verified'
+                              ) : (
+                                'Verify Report'
+                              )}
+                            </button>
+
+                            {/* Resync Data button — always visible to pull latest from sheets */}
+                            <button
+                              onClick={() => handleFetchPhenotypicData(patient.id, true)}
+                              disabled={fetchDataLoading === patient.id}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                            >
+                              <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                              {fetchDataLoading === patient.id ? 'Syncing...' : 'Resync'}
+                            </button>
+
+                            {/* Fetch Data button — always visible if phenotypic_analysis is null */}
+                            {!patient.phenotypic_analysis && (
+                              <button
+                                onClick={() => handleFetchPhenotypicData(patient.id, false)}
+                                disabled={fetchDataLoading === patient.id}
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                              >
+                                <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
+                                {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !isDeletingUser && setUserToDelete(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !isDeletingUser && setUserToDelete(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete User Profile</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to completely delete the profile for <span className="font-bold text-[#1A1A19]">{userToDelete.full_name}</span>? This action is permanent and cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setUserToDelete(null)}
+                    disabled={isDeletingUser}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteUser}
+                    disabled={isDeletingUser}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {isDeletingUser ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isDeletingUser ? 'Deleting...' : 'Delete Profile'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Verify Confirmation Modal */}
+      <AnimatePresence>
+        {verifyAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !actionLoading && setVerifyAction(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyAction.report_verified ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !actionLoading && setVerifyAction(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{verifyAction.report_verified ? 'Unverify' : 'Verify'} Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to {verifyAction.report_verified ? 'unverify' : 'verify'} the report for <span className="font-bold text-[#1A1A19]">{verifyAction.full_name}</span>?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setVerifyAction(null)}
+                    disabled={actionLoading === verifyAction.id}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmVerifyReport}
+                    disabled={actionLoading === verifyAction.id}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${verifyAction.report_verified ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                  >
+                    {actionLoading === verifyAction.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === verifyAction.id ? 'Processing...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Modal */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <button
+                    onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete {selectedUsers.size} Users</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to permanently delete the {selectedUsers.size} selected user profiles? This action cannot be undone.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    disabled={isBulkDeleting}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isBulkDeleting}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {isBulkDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isBulkDeleting ? 'Deleting...' : 'Delete All'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Action Bar for Bulk Selection */}
+      <AnimatePresence>
+        {selectedUsers.size > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#1A1A19] text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgb(0,0,0,0.2)] border border-white/10 flex items-center gap-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center bg-[#333331] text-[#A0A09D] font-mono text-sm font-bold rounded-lg h-7 min-w-[28px] px-2">
+                {selectedUsers.size}
+              </div>
+              <span className="text-white text-sm font-medium">profiles selected</span>
+            </div>
+            <div className="w-px h-6 bg-white/15" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleBulkFetch(false)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Fetch Missing
+              </button>
+              <button
+                onClick={() => handleBulkFetch(true)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Resync Selected
+              </button>
+              <div className="w-px h-6 bg-white/15 mx-1" />
+              <button
+                onClick={() => setShowBulkDeleteModal(true)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedUsers(new Set())}
+                disabled={isBulkFetching}
+                className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10 disabled:opacity-60"
+              >
+                <X className="w-4 h-4 text-[#A0A09D]" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF Preview Modal */}
+      <AnimatePresence>
+        {previewPdfUrl && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setPreviewPdfUrl(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-5xl h-[85vh] bg-white rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#6057D7]/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-[#6057D7]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1A1A19]">Document Preview</h3>
+                    <p className="text-xs text-[#8B8B86]">Uploaded Genomic Report</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-lg text-xs font-bold hover:bg-[#F4F4F2] transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </a>
+                  <button
+                    onClick={() => setPreviewPdfUrl(null)}
+                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-xl transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 w-full bg-[#F4F4F2] relative">
+                {/* Fallback link if iframe fails or is blocked */}
+                <div className="absolute inset-0 flex items-center justify-center -z-10 text-[#8B8B86] text-sm">
+                  Loading preview...
+                </div>
+                <iframe
+                  src={`${previewPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                  title="PDF Preview"
+                  className="w-full h-full border-none relative z-10"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Patient Modal */}
+      <AnimatePresence>
+        {editingGenePatient && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingGenePatient(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                      {editingGenePatient.full_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-[#1A1A19]">{editingGenePatient.full_name}</h3>
+                      <div className="text-xs text-[#8B8B86]">{formatUserId(editingGenePatient.id)}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setEditingGenePatient(null)}
+                    className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-[#F4F4F2] p-3 rounded-xl mb-6">
+                  <div className="text-xs text-[#5A5A55]">
+                    <span className="font-semibold text-[#1A1A19]">Email:</span> {editingGenePatient.email || 'N/A'}
+                  </div>
+                  <div className="text-xs text-[#5A5A55] mt-1">
+                    <span className="font-semibold text-[#1A1A19]">Phone:</span> {editingGenePatient.phone || 'N/A'}
                   </div>
                 </div>
 
-                  {/* Expandable Details Pane */ }
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="overflow-hidden border-t border-[#E8E8E5] bg-gradient-to-b from-[#F9F9F8] to-white"
-                  >
-                    <div className="p-6 space-y-6">
-                      {/* Top Row: User Summary Metadata */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-[#E8E8E5] shadow-inner">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Full Legal Name</span>
-                          <span className="font-semibold text-sm text-[#1A1A19]">{patient.full_name?.toUpperCase()}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Email</span>
-                          <span className="font-semibold text-sm text-[#1A1A19]">{patient.email}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Phone</span>
-                          <span className="font-semibold text-sm text-[#1A1A19]">{patient.phone || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-[#8B8B86] block">Age & Gender</span>
-                          <span className="font-semibold text-sm text-[#1A1A19]">
-                            {patient.age ? `${patient.age} yrs` : 'N/A'} • {patient.gender || 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Phenotypic Data Header */}
-                      <div className="flex items-center gap-2 border-b border-[#F0F0ED] pb-2">
-                        <Sparkles className="w-4 h-4 text-[#6057D7]" />
-                        <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A19]">
-                          AI Phenotypic Profile Insights
-                        </h4>
-                      </div>
-
-                      {analysis ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Personal Profile Section */}
-                          {analysis.personal_profile && (
-                            <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
-                              <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
-                                Personal Profile
-                              </h5>
-                              <div className="space-y-2.5 text-xs">
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Daily Activity:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.personal_profile.dailyActivity)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-[#8B8B86]">Sleep Timing:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.personal_profile.sleepTiming)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Caffeine Response Section */}
-                          {analysis.caffeine_response && (
-                            <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
-                              <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
-                                Caffeine & Stimulant Response
-                              </h5>
-                              <div className="space-y-2.5 text-xs">
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Sleep Impact:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.caffeine_response.sleepImpact)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Duration of Effect:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.caffeine_response.durationOfEffect)}
-                                  </span>
-                                </div>
-                                {typeof analysis.caffeine_response.sensitivity === 'object' && analysis.caffeine_response.sensitivity !== null ? (
-                                  <>
-                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                      <span className="text-[#8B8B86]">Physical Sensitivity:</span>
-                                      <span className="font-semibold text-[#1A1A19]">
-                                        {safeRender(analysis.caffeine_response.sensitivity.physicalSensitivity || analysis.caffeine_response.sensitivity.physical)}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                      <span className="text-[#8B8B86]">Small Dose Sensitivity:</span>
-                                      <span className="font-semibold text-[#1A1A19]">
-                                        {safeRender(analysis.caffeine_response.sensitivity.smallDoseSensitivity || analysis.caffeine_response.sensitivity.smallDose)}
-                                      </span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                    <span className="text-[#8B8B86]">Sensitivity:</span>
-                                    <span className="font-semibold text-[#1A1A19]">
-                                      {safeRender(analysis.caffeine_response.sensitivity)}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex justify-between">
-                                  <span className="text-[#8B8B86]">Tolerance:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.caffeine_response.tolerance)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Hair & Scalp Section */}
-                          {analysis.hair_scalp_characteristics && (
-                            <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
-                              <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
-                                Hair & Scalp Characteristics
-                              </h5>
-                              <div className="space-y-2.5 text-xs">
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Thickness:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.hair_scalp_characteristics.thickness)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Texture:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.hair_scalp_characteristics.texture)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Scalp Type:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.hair_scalp_characteristics.scalpType)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Sweating:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.hair_scalp_characteristics.sweating)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-[#8B8B86]">Stability:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.hair_scalp_characteristics.stability)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Physical Performance Section */}
-                          {analysis.physical_performance && (
-                            <div className="bg-white p-5 rounded-2xl border border-[#E8E8E5] shadow-sm">
-                              <h5 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider mb-3">
-                                Physical Performance & Recovery
-                              </h5>
-                              <div className="space-y-2.5 text-xs">
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Power/Explosiveness:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.physical_performance.power)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Endurance:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.physical_performance.endurance)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Muscle Adaptation:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.physical_performance.muscleAdaptation)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between border-b border-[#F0F0ED] pb-1.5">
-                                  <span className="text-[#8B8B86]">Recovery:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.physical_performance.recovery)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-[#8B8B86]">Training Preference:</span>
-                                  <span className="font-semibold text-[#1A1A19]">
-                                    {safeRender(analysis.physical_performance.trainingPreference)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="py-5 bg-white border border-amber-200 rounded-2xl">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-1">
-                            <div className="flex items-start gap-3">
-                              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-xs font-semibold text-amber-800">No phenotypic data</p>
-                                <p className="text-[11px] text-amber-600 mt-0.5">
-                                  Gemini may have been rate-limited during registration. Click "Fetch Data" to retry.
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => handleFetchPhenotypicData(patient.id, false)}
-                              disabled={fetchDataLoading === patient.id}
-                              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 cursor-pointer"
-                            >
-                              <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
-                              {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
-                            </button>
-                          </div>
-                          {/* Inline status for this card */}
-                          {fetchDataStatus?.id === patient.id && (
-                            <div className={`mx-5 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${fetchDataStatus.type === 'success'
-                              ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20'
-                              : fetchDataStatus.type === 'warning'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-red-50 text-red-600 border-red-100'
-                              }`}>
-                              <AlertCircle size={13} className="shrink-0" />
-                              {fetchDataStatus.message}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Actions Panel */}
-                      <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-[#F0F0ED]">
-                        {patient.report_uploaded && patient.report_url ? (
-                          <>
-                            <button
-                              onClick={() => setPreviewPdfUrl(patient.report_url)}
-                              className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                            >
-                              <FileText size={14} className="text-[#6057D7]" />
-                              View Uploaded Report
-                            </button>
-                            {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
-                              <button
-                                onClick={() => setDeleteReportAction({ id: patient.id, name: patient.full_name || patient.username })}
-                                disabled={actionLoading === patient.id}
-                                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                              >
-                                {actionLoading === patient.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                Delete Report
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <button
-                            disabled
-                            className="flex items-center gap-2 px-4 py-2 bg-[#F7F7F5] border border-[#E8E8E5] text-[#8B8B86] rounded-xl text-xs font-bold cursor-not-allowed"
-                          >
-                            <FileText size={14} />
-                            No Uploaded Report
-                          </button>
-                        )}
-
-                        {patient.report_generated ? (
-                          <button
-                            onClick={() => handleViewGeneratedReport(patient)}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#6057D7]/10 hover:bg-[#6057D7]/15 border border-[#6057D7]/20 text-[#6057D7] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                          >
-                            <Sparkles size={14} />
-                            View Generated Report
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="flex items-center gap-2 px-4 py-2 bg-[#F7F7F5] border border-[#E8E8E5] text-[#8B8B86] rounded-xl text-xs font-bold cursor-not-allowed"
-                          >
-                            <Sparkles size={14} />
-                            No Generated Report
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => setVerifyAction(patient)}
-                          disabled={actionLoading === patient.id}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${patient.report_verified
-                            ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
-                            : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
-                            }`}
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-[#8B8B86] uppercase tracking-wider mb-2 block">Gene Panel Configuration</label>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-row flex-wrap gap-2">
+                      {/* Selected Genes */}
+                      {editedGeneType.split(',').map(g => g.trim()).filter(Boolean).map((g, idx) => (
+                        <span
+                          key={idx}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border leading-none cursor-pointer hover:opacity-80 transition-opacity ${getGeneColor(g)}`}
+                          onClick={() => {
+                            const genes = editedGeneType.split(',').map(x => x.trim()).filter(Boolean);
+                            setEditedGeneType(genes.filter(x => x !== g).join(', '));
+                          }}
                         >
-                          {actionLoading === patient.id ? (
-                            <Loader2 className="animate-spin w-3.5 h-3.5" />
-                          ) : patient.report_verified ? (
-                            '\u2713 Report Verified'
-                          ) : (
-                            'Verify Report'
-                          )}
-                        </button>
+                          {g}
+                          <X size={12} className="opacity-70 hover:opacity-100" />
+                        </span>
+                      ))}
 
-                        {/* Resync Data button — always visible to pull latest from sheets */}
-                        <button
-                          onClick={() => handleFetchPhenotypicData(patient.id, true)}
-                          disabled={fetchDataLoading === patient.id}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                      {/* Unselected Genes */}
+                      {[
+                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3)' },
+                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR)' },
+                        { short: 'CYP1A2', full: 'Caffine Response (CYP1A2)' }
+                      ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
+                        <span
+                          key={`add-${idx}`}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
+                          onClick={() => {
+                            const genes = editedGeneType ? editedGeneType.split(',').map(x => x.trim()).filter(Boolean) : [];
+                            setEditedGeneType([...genes, ag.full].join(', '));
+                          }}
                         >
-                          <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
-                          {fetchDataLoading === patient.id ? 'Syncing...' : 'Resync'}
-                        </button>
-
-                        {/* Fetch Data button — always visible if phenotypic_analysis is null */}
-                        {!patient.phenotypic_analysis && (
-                          <button
-                            onClick={() => handleFetchPhenotypicData(patient.id, false)}
-                            disabled={fetchDataLoading === patient.id}
-                            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                          >
-                            <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
-                            {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
-                          </button>
-                        )}
-                      </div>
+                          {ag.full}
+                          <Plus size={12} className="opacity-70" />
+                        </span>
+                      ))}
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-                </motion.div>
-        );
-            })}
-      </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setEditingGenePatient(null)}
+                    disabled={isUpdatingGene}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-[#D4D4CE] text-[#5A5A55] font-semibold text-sm hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateGene}
+                    disabled={isUpdatingGene}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#6057D7] text-white font-semibold text-sm hover:bg-[#4F46BA] transition-colors disabled:opacity-50"
+                  >
+                    {isUpdatingGene ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
-    </div>
+      </AnimatePresence>
 
-      {/* Delete Confirmation Modal */ }
-  <AnimatePresence>
-    {userToDelete && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-          onClick={() => !isDeletingUser && setUserToDelete(null)}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <button
-                onClick={() => !isDeletingUser && setUserToDelete(null)}
-                className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete User Profile</h3>
-            <p className="text-[#5A5A55] text-sm mb-6">
-              Are you sure you want to completely delete the profile for <span className="font-bold text-[#1A1A19]">{userToDelete.full_name}</span>? This action is permanent and cannot be undone.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setUserToDelete(null)}
-                disabled={isDeletingUser}
-                className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteUser}
-                disabled={isDeletingUser}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {isDeletingUser ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                {isDeletingUser ? 'Deleting...' : 'Delete Profile'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
-  {/* Verify Confirmation Modal */ }
-  <AnimatePresence>
-    {verifyAction && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-          onClick={() => !actionLoading && setVerifyAction(null)}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyAction.report_verified ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                <ShieldAlert className="w-5 h-5" />
-              </div>
-              <button
-                onClick={() => !actionLoading && setVerifyAction(null)}
-                className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{verifyAction.report_verified ? 'Unverify' : 'Verify'} Report</h3>
-            <p className="text-[#5A5A55] text-sm mb-6">
-              Are you sure you want to {verifyAction.report_verified ? 'unverify' : 'verify'} the report for <span className="font-bold text-[#1A1A19]">{verifyAction.full_name}</span>?
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setVerifyAction(null)}
-                disabled={actionLoading === verifyAction.id}
-                className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmVerifyReport}
-                disabled={actionLoading === verifyAction.id}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${verifyAction.report_verified ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
-              >
-                {actionLoading === verifyAction.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4" />
-                )}
-                {actionLoading === verifyAction.id ? 'Processing...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
-
-  {/* Bulk Delete Modal */ }
-  <AnimatePresence>
-    {showBulkDeleteModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-          onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <button
-                onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}
-                className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete {selectedUsers.size} Users</h3>
-            <p className="text-[#5A5A55] text-sm mb-6">
-              Are you sure you want to permanently delete the {selectedUsers.size} selected user profiles? This action cannot be undone.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowBulkDeleteModal(false)}
-                disabled={isBulkDeleting}
-                className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={isBulkDeleting}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {isBulkDeleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                {isBulkDeleting ? 'Deleting...' : 'Delete All'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
-
-  {/* Floating Action Bar for Bulk Selection */ }
-  <AnimatePresence>
-    {selectedUsers.size > 0 && (
-      <motion.div
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#1A1A19] text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgb(0,0,0,0.2)] border border-white/10 flex items-center gap-6"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center bg-[#333331] text-[#A0A09D] font-mono text-sm font-bold rounded-lg h-7 min-w-[28px] px-2">
-            {selectedUsers.size}
-          </div>
-          <span className="text-white text-sm font-medium">profiles selected</span>
-        </div>
-        <div className="w-px h-6 bg-white/15" />
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleBulkFetch(false)}
-            disabled={isBulkFetching}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
-          >
-            {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Fetch Missing
-          </button>
-          <button
-            onClick={() => handleBulkFetch(true)}
-            disabled={isBulkFetching}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
-          >
-            {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Resync Selected
-          </button>
-          <div className="w-px h-6 bg-white/15 mx-1" />
-          <button
-            onClick={() => setShowBulkDeleteModal(true)}
-            disabled={isBulkFetching}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete Selected
-          </button>
-          <button
-            onClick={() => setSelectedUsers(new Set())}
-            disabled={isBulkFetching}
-            className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10 disabled:opacity-60"
-          >
-            <X className="w-4 h-4 text-[#A0A09D]" />
-          </button>
-        </div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-
-  {/* PDF Preview Modal */ }
-  <AnimatePresence>
-    {previewPdfUrl && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={() => setPreviewPdfUrl(null)}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-5xl h-[85vh] bg-white rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col"
-        >
-          <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#6057D7]/10 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-[#6057D7]" />
-              </div>
-              <div>
-                <h3 className="font-bold text-[#1A1A19]">Document Preview</h3>
-                <p className="text-xs text-[#8B8B86]">Uploaded Genomic Report</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={previewPdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-2 bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-lg text-xs font-bold hover:bg-[#F4F4F2] transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Download PDF
-              </a>
-              <button
-                onClick={() => setPreviewPdfUrl(null)}
-                className="p-2 text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 w-full bg-[#F4F4F2] relative">
-            {/* Fallback link if iframe fails or is blocked */}
-            <div className="absolute inset-0 flex items-center justify-center -z-10 text-[#8B8B86] text-sm">
-              Loading preview...
-            </div>
-            <iframe
-              src={`${previewPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-              title="PDF Preview"
-              className="w-full h-full border-none relative z-10"
+      {/* Delete Report Confirmation Modal */}
+      <AnimatePresence>
+        {deleteReportAction && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteReportAction(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
-          </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
-
-  {/* Edit Patient Modal */ }
-  <AnimatePresence>
-    {editingGenePatient && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setEditingGenePatient(null)}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
-                  {editingGenePatient.full_name?.charAt(0) || 'U'}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <button
+                    onClick={() => setDeleteReportAction(null)}
+                    className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <div>
-                  <h3 className="font-bold text-[#1A1A19]">{editingGenePatient.full_name}</h3>
-                  <div className="text-xs text-[#8B8B86]">{formatUserId(editingGenePatient.id)}</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setEditingGenePatient(null)}
-                className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="bg-[#F4F4F2] p-3 rounded-xl mb-6">
-              <div className="text-xs text-[#5A5A55]">
-                <span className="font-semibold text-[#1A1A19]">Email:</span> {editingGenePatient.email || 'N/A'}
-              </div>
-              <div className="text-xs text-[#5A5A55] mt-1">
-                <span className="font-semibold text-[#1A1A19]">Phone:</span> {editingGenePatient.phone || 'N/A'}
-              </div>
-            </div>
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
+                <p className="text-[#5A5A55] text-sm mb-6">
+                  Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteReportAction.name}</span>? <br /><br />
+                  This action cannot be undone.
+                </p>
 
-            <div className="mb-6">
-              <label className="text-xs font-bold text-[#8B8B86] uppercase tracking-wider mb-2 block">Gene Panel Configuration</label>
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-row flex-wrap gap-2">
-                  {/* Selected Genes */}
-                  {editedGeneType.split(',').map(g => g.trim()).filter(Boolean).map((g, idx) => (
-                    <span
-                      key={idx}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border leading-none cursor-pointer hover:opacity-80 transition-opacity ${getGeneColor(g)}`}
-                      onClick={() => {
-                        const genes = editedGeneType.split(',').map(x => x.trim()).filter(Boolean);
-                        setEditedGeneType(genes.filter(x => x !== g).join(', '));
-                      }}
-                    >
-                      {g}
-                      <X size={12} className="opacity-70 hover:opacity-100" />
-                    </span>
-                  ))}
-
-                  {/* Unselected Genes */}
-                  {[
-                    { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3)' },
-                    { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR)' },
-                    { short: 'CYP1A2', full: 'Caffine Response (CYP1A2)' }
-                  ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
-                    <span
-                      key={`add-${idx}`}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
-                      onClick={() => {
-                        const genes = editedGeneType ? editedGeneType.split(',').map(x => x.trim()).filter(Boolean) : [];
-                        setEditedGeneType([...genes, ag.full].join(', '));
-                      }}
-                    >
-                      {ag.full}
-                      <Plus size={12} className="opacity-70" />
-                    </span>
-                  ))}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteReportAction(null)}
+                    disabled={!!actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteReport}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {actionLoading === deleteReportAction.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {actionLoading === deleteReportAction.id ? 'Deleting...' : 'Delete'}
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setEditingGenePatient(null)}
-                disabled={isUpdatingGene}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-[#D4D4CE] text-[#5A5A55] font-semibold text-sm hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateGene}
-                disabled={isUpdatingGene}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#6057D7] text-white font-semibold text-sm hover:bg-[#4F46BA] transition-colors disabled:opacity-50"
-              >
-                {isUpdatingGene ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Save Changes
-              </button>
-            </div>
+            </motion.div>
           </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
-
-  {/* Delete Report Confirmation Modal */ }
-  <AnimatePresence>
-    {deleteReportAction && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setDeleteReportAction(null)}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <button
-                onClick={() => setDeleteReportAction(null)}
-                className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
-            <p className="text-[#5A5A55] text-sm mb-6">
-              Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteReportAction.name}</span>? <br /><br />
-              This action cannot be undone.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteReportAction(null)}
-                disabled={!!actionLoading}
-                className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeleteReport}
-                disabled={!!actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {actionLoading === deleteReportAction.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                {actionLoading === deleteReportAction.id ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    )}
-  </AnimatePresence>
+        )}
+      </AnimatePresence>
     </motion.div >
   );
 }
