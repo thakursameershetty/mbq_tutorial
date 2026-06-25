@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, CheckCircle2, Clock, User, Phone, Mail, Calendar, Activity, Loader2 } from 'lucide-react';
+import { Search, CheckCircle2, Clock, User, Phone, Mail, Calendar, Activity, Loader2, Edit, X, Plus, Check } from 'lucide-react';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
   if (isNaN(num)) return `MBQ${id}`;
   return `MBQ${String(num).padStart(3, '0')}`;
+};
+
+const getGeneColor = (geneName: string) => {
+  const name = geneName.toLowerCase();
+  if (name.includes('actn3')) return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (name.includes('edar')) return 'bg-purple-50 text-purple-700 border-purple-200';
+  if (name.includes('cyp1a2') || name.includes('caffeine') || name.includes('caffine')) return 'bg-amber-50 text-amber-700 border-amber-200';
+
+  return 'bg-[#F4F4F2] text-[#5A5A55] border-[#D4D4CE]';
 };
 
 export default function VolunteerPage() {
@@ -20,6 +29,34 @@ export default function VolunteerPage() {
     currentStatus: false,
     patientName: ''
   });
+
+  const [editingGenePatient, setEditingGenePatient] = useState<any>(null);
+  const [editedGeneType, setEditedGeneType] = useState<string>('');
+  const [isUpdatingGene, setIsUpdatingGene] = useState(false);
+
+  const handleUpdateGene = async () => {
+    if (!editingGenePatient) return;
+    setIsUpdatingGene(true);
+    try {
+      const response = await fetch(`/api/users/${editingGenePatient.id}/gene`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gene_type: editedGeneType }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPatients(prev => prev.map(p => p.id === editingGenePatient.id ? { ...p, gene_type: editedGeneType } : p));
+        setEditingGenePatient(null);
+      } else {
+        alert(data.error || 'Failed to update gene panel');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setIsUpdatingGene(false);
+    }
+  };
 
   const fetchPatients = (silent = false) => {
     if (!silent) setLoading(true);
@@ -171,7 +208,7 @@ export default function VolunteerPage() {
                 const isActionLoading = actionLoading === String(patient.id);
 
                 // Parse multiple genotypes if stored as comma separated string
-                const genesList = patient.gene_type ? patient.gene_type.split(', ') : [];
+                const genesList = patient.gene_type ? patient.gene_type.split(/,\s*(?![^(]*\))/) : [];
 
                 return (
                   <motion.div
@@ -190,7 +227,18 @@ export default function VolunteerPage() {
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F4F4F2] to-[#E8E8E5] border border-[#D4D4CE] flex items-center justify-center text-sm font-bold text-[#1A1A19] shadow-inner shrink-0">
                           {patient.full_name?.charAt(0).toUpperCase() || 'U'}
                         </div>
-                        <div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingGenePatient(patient);
+                              setEditedGeneType(patient.gene_type || '');
+                            }}
+                            className="p-1.5 bg-[#F4F4F2] hover:bg-[#E8E8E5] text-[#5A5A55] rounded-full transition-colors border border-[#D4D4CE]"
+                            title="Edit Gene Panel"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                           {isCollected ? (
                             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] text-[10px] font-bold uppercase tracking-wider">
                               <CheckCircle2 className="w-3 h-3" /> Collected
@@ -237,7 +285,7 @@ export default function VolunteerPage() {
                             {genesList.map((g: string, idx: number) => (
                               <span
                                 key={idx}
-                                className="inline-block px-2.5 py-1 bg-[#6057D7]/8 text-[#6057D7] rounded-lg text-[10px] font-bold border border-[#6057D7]/10"
+                                className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold border ${getGeneColor(g)}`}
                               >
                                 {g}
                               </span>
@@ -282,6 +330,115 @@ export default function VolunteerPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Patient Modal */}
+      <AnimatePresence>
+        {editingGenePatient && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingGenePatient(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#F4F4F2] border border-[#D4D4CE] flex items-center justify-center text-[#1A1A19] font-bold shadow-inner shrink-0">
+                      {editingGenePatient.full_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-[#1A1A19]">{editingGenePatient.full_name}</h3>
+                      <div className="text-xs text-[#8B8B86]">{formatUserId(editingGenePatient.id)}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setEditingGenePatient(null)}
+                    className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-[#F4F4F2] p-3 rounded-xl mb-6">
+                  <div className="text-xs text-[#5A5A55]">
+                    <span className="font-semibold text-[#1A1A19]">Email:</span> {editingGenePatient.email || 'N/A'}
+                  </div>
+                  <div className="text-xs text-[#5A5A55] mt-1">
+                    <span className="font-semibold text-[#1A1A19]">Phone:</span> {editingGenePatient.phone || 'N/A'}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-[#8B8B86] uppercase tracking-wider mb-2 block">Gene Panel Configuration</label>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-row flex-wrap gap-2">
+                      {/* Selected Genes */}
+                      {editedGeneType.split(/,\s*(?![^(]*\))/).map(g => g.trim()).filter(Boolean).map((g, idx) => (
+                        <span
+                          key={idx}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border leading-none cursor-pointer hover:opacity-80 transition-opacity ${getGeneColor(g)}`}
+                          onClick={() => {
+                            const genes = editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean);
+                            setEditedGeneType(genes.filter(x => x !== g).join(', '));
+                          }}
+                        >
+                          {g}
+                          <X size={12} className="opacity-70 hover:opacity-100" />
+                        </span>
+                      ))}
+
+                      {/* Unselected Genes */}
+                      {[
+                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3,ACE)' },
+                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR,FGFR2)' },
+                        { short: 'CYP1A2', full: 'Caffeine Response (CYP1A2,ADORA2A)' }
+                      ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
+                        <span
+                          key={`add-${idx}`}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
+                          onClick={() => {
+                            const genes = editedGeneType ? editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean) : [];
+                            setEditedGeneType([...genes, ag.full].join(', '));
+                          }}
+                        >
+                          {ag.full}
+                          <Plus size={12} className="opacity-70" />
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setEditingGenePatient(null)}
+                    disabled={isUpdatingGene}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-[#D4D4CE] text-[#5A5A55] font-semibold text-sm hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateGene}
+                    disabled={isUpdatingGene}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#6057D7] text-white font-semibold text-sm hover:bg-[#4F46BA] transition-colors disabled:opacity-50"
+                  >
+                    {isUpdatingGene ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Confirmation Modal */}
       <AnimatePresence>

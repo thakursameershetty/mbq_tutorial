@@ -11,7 +11,7 @@ const formatUserId = (id: any) => {
 
 const getRequiredGenes = (patientGeneString: string) => {
   if (!patientGeneString) return [];
-  const panels = patientGeneString.split(',').map(s => s.trim().toLowerCase());
+  const panels = patientGeneString.split(/,\s*(?![^(]*\))/).map(s => s.trim().toLowerCase());
   const requiredGenes: { panel: string, name: string, variants: string[] }[] = [];
 
   panels.forEach(panel => {
@@ -257,7 +257,7 @@ export default function LabDashboard() {
     const counts: Record<string, number> = {};
     filteredPatients.forEach(p => {
       if (p.gene) {
-        const genes = p.gene.split(', ');
+        const genes = p.gene.split(/,\s*(?![^(]*\))/);
         genes.forEach((g: string) => {
           counts[g] = (counts[g] || 0) + 1;
         });
@@ -496,7 +496,7 @@ export default function LabDashboard() {
                       <div className="flex flex-col min-w-[200px]">
                         <span className="text-[10px] uppercase tracking-widest font-bold text-[#A0A09D] mb-1">Gene</span>
                         <div className="flex flex-row flex-wrap items-center gap-1.5">
-                          {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
+                          {(patient.gene ? patient.gene.split(/,\s*(?![^(]*\))/) : []).map((g: string, idx: number) => (
                             <span
                               key={idx}
                               className={`px-2 py-1 rounded-md text-[9.5px] font-bold border leading-none ${getGeneColor(g)}`}
@@ -750,7 +750,7 @@ export default function LabDashboard() {
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-[#8B8B86] font-medium">Gene</span>
                       <div className="flex flex-wrap gap-1.5 justify-end">
-                        {(patient.gene ? patient.gene.split(', ') : []).map((g: string, idx: number) => (
+                        {(patient.gene ? patient.gene.split(/,\s*(?![^(]*\))/) : []).map((g: string, idx: number) => (
                           <span
                             key={idx}
                             className={`px-2 py-1 rounded-md text-[9.5px] font-bold border leading-none ${getGeneColor(g)}`}

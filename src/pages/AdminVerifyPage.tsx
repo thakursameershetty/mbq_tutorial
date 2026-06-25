@@ -271,7 +271,7 @@ export default function AdminVerifyPage() {
     const counts: Record<string, number> = {};
     filteredPatients.forEach(p => {
       if (p.gene_type) {
-        const genes = p.gene_type.split(', ');
+        const genes = p.gene_type.split(/,\s*(?![^(]*\))/);
         genes.forEach((g: string) => {
           counts[g] = (counts[g] || 0) + 1;
         });
@@ -580,7 +580,7 @@ export default function AdminVerifyPage() {
             {filteredPatients.map((patient, i) => {
               const isExpanded = expandedPatientId === patient.id;
               const isCollected = patient.sample_collected === true;
-              const genesList = patient.gene_type ? patient.gene_type.split(', ') : [];
+              const genesList = patient.gene_type ? patient.gene_type.split(/,\s*(?![^(]*\))/) : [];
               const analysis = patient.phenotypic_analysis;
 
               return (
@@ -1380,12 +1380,12 @@ export default function AdminVerifyPage() {
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-row flex-wrap gap-2">
                       {/* Selected Genes */}
-                      {editedGeneType.split(',').map(g => g.trim()).filter(Boolean).map((g, idx) => (
+                      {editedGeneType.split(/,\s*(?![^(]*\))/).map(g => g.trim()).filter(Boolean).map((g, idx) => (
                         <span
                           key={idx}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border leading-none cursor-pointer hover:opacity-80 transition-opacity ${getGeneColor(g)}`}
                           onClick={() => {
-                            const genes = editedGeneType.split(',').map(x => x.trim()).filter(Boolean);
+                            const genes = editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean);
                             setEditedGeneType(genes.filter(x => x !== g).join(', '));
                           }}
                         >
@@ -1404,7 +1404,7 @@ export default function AdminVerifyPage() {
                           key={`add-${idx}`}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
                           onClick={() => {
-                            const genes = editedGeneType ? editedGeneType.split(',').map(x => x.trim()).filter(Boolean) : [];
+                            const genes = editedGeneType ? editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean) : [];
                             setEditedGeneType([...genes, ag.full].join(', '));
                           }}
                         >
