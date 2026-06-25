@@ -470,6 +470,37 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Update User Gene Type Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/users/:id/gene', async (req, res) => {
+  const userId = req.params.id;
+  const { gene_type } = req.body;
+
+  try {
+    const query = `
+      UPDATE users 
+      SET gene_type = $1
+      WHERE id = $2
+      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+                sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, status_timestamps, created_at;
+    `;
+    const result = await pool.query(query, [gene_type, userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update Gene Type Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET Route for Admin Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
 // Get Specific User Route
