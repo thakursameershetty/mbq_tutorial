@@ -331,9 +331,9 @@ const TUTORIAL_STEPS = [
 ];
 
 const GENE_OPTIONS = [
-  "Caffine Response (CYP1A2)",
-  "Muscle Power vs Endurance (ACTN3)",
-  "Hair Thickness & Root Structure (EDAR)"
+  "Caffeine Response (CYP1A2,ADORA2A)",
+  "Muscle Power vs Endurance (ACTN3,ACE)",
+  "Hair Thickness & Root Structure (EDAR,FGFR2)"
 ];
 
 export default function RegisterPage() {

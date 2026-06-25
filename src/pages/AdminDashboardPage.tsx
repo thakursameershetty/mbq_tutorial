@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -37,6 +38,14 @@ const getGeneColor = (geneName: string) => {
   return 'bg-[#F4F4F2] text-[#5A5A55] border-[#D4D4CE]';
 };
 
+const getGenePieColor = (geneName: string) => {
+  const name = geneName.toLowerCase();
+  if (name.includes('actn3')) return '#3b82f6';
+  if (name.includes('edar')) return '#a855f7';
+  if (name.includes('cyp1a2') || name.includes('caffeine') || name.includes('caffine')) return '#f59e0b';
+  return '#8B8B86';
+};
+
 export default function LabDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
@@ -49,6 +58,7 @@ export default function LabDashboard() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedPatients, setSelectedPatients] = useState<Set<string>>(new Set());
   const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
 
   const fetchPatients = () => {
     fetch('/api/admin/patients')
@@ -242,6 +252,19 @@ export default function LabDashboard() {
   };
 
   const totalPatients = patients.filter(p => p.sample_collected).length;
+
+  const geneCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredPatients.forEach(p => {
+      if (p.gene) {
+        const genes = p.gene.split(', ');
+        genes.forEach((g: string) => {
+          counts[g] = (counts[g] || 0) + 1;
+        });
+      }
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [filteredPatients]);
   const markedPatients = patients.filter(p => p.sample_collected && p.sample_received).length;
   const unmarkedPatients = totalPatients - markedPatients;
   const markedPercentage = totalPatients === 0 ? 0 : Math.round((markedPatients / totalPatients) * 100);
@@ -253,8 +276,8 @@ export default function LabDashboard() {
       className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 mx-auto"
     >
       {/* Header Section */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-start justify-between gap-6 relative z-10">
-        <div className="space-y-2">
+      <div className="mb-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+        <div className="space-y-2 lg:flex-1 shrink-0">
           <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/60 border border-[#E8E8E5] text-xs font-semibold text-[#6057D7] tracking-widest uppercase mb-2 shadow-sm backdrop-blur-md">
             <Activity className="w-3.5 h-3.5" />
             Lab Operations
@@ -265,32 +288,87 @@ export default function LabDashboard() {
           </p>
         </div>
 
-        {/* Stats Widget */}
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-5 bg-white/80 backdrop-blur-2xl border border-[#E8E8E5] p-4 rounded-3xl shadow-sm">
-          <div className="relative w-14 h-14 transform -rotate-90 shrink-0">
-            <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm">
-              <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#F4F4F2" strokeWidth="5" />
-              <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#027A48" strokeWidth="5" strokeDasharray={`${(markedPercentage * (2 * Math.PI * 15.5)) / 100} ${2 * Math.PI * 15.5}`} strokeDashoffset="0" className="transition-all duration-1000 ease-out" strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center transform rotate-90">
-              <span className="text-[11px] font-black text-[#1A1A19]">{markedPercentage}%</span>
+        {/* Gene Distribution Pie Chart */}
+        <div
+          className="fixed bottom-4 left-4 z-[100] xl:static xl:flex items-center justify-center shrink-0 origin-bottom-left scale-[0.65] sm:scale-75 md:scale-90 xl:scale-100 transition-transform pointer-events-none xl:pointer-events-auto cursor-pointer xl:cursor-auto"
+          onClick={() => window.innerWidth < 1280 && setIsMobilePieModalOpen(true)}
+        >
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-4 bg-white/95 xl:bg-white/80 backdrop-blur-3xl xl:backdrop-blur-2xl border border-[#E8E8E5] px-4 py-2.5 rounded-2xl shadow-2xl xl:shadow-sm w-max shrink-0 pointer-events-auto">
+            <div className="relative w-12 h-12 shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={geneCounts}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={14}
+                    outerRadius={22}
+                    paddingAngle={2}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {geneCounts.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={getGenePieColor(entry.name)} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #E8E8E5', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          <div className="flex flex-col justify-center pr-2">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#A0A09D] mb-2">Swab Status</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#027A48] shadow-[0_0_8px_rgb(2,122,72,0.4)]" />
-                <span className="text-sm font-extrabold text-[#1A1A19]">{markedPatients} <span className="font-semibold text-[#8B8B86]">Marked</span></span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#E8E8E5]" />
-                <span className="text-sm font-extrabold text-[#1A1A19]">{unmarkedPatients} <span className="font-semibold text-[#8B8B86]">Unmarked</span></span>
+            <div className="flex flex-col justify-center pr-2">
+              <h3 className="text-[9px] font-bold uppercase tracking-widest text-[#A0A09D] mb-1.5">Gene Distribution</h3>
+              <div className="flex flex-col gap-1 text-[10px] font-semibold">
+                {geneCounts.length > 0 ? geneCounts.map(g => (
+                  <div key={g.name} className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getGenePieColor(g.name) }} />
+                      <span className="text-[#5A5A55] whitespace-nowrap">
+                        {g.name.toLowerCase().includes('actn3') ? 'Muscle (ACTN3, ACE)' : g.name.toLowerCase().includes('edar') ? 'Hair (EDAR, FGFR2)' : 'Caffeine (CYP1A2, ADORA2A)'}
+                      </span>
+                    </div>
+                    <span className="text-[#1A1A19] font-bold">{g.value}</span>
+                  </div>
+                )) : (
+                  <span className="text-[#8B8B86]">No data</span>
+                )}
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto lg:flex-1 lg:justify-end shrink-0">
+
+          {/* Stats Widget */}
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-5 bg-white/80 backdrop-blur-2xl border border-[#E8E8E5] p-4 rounded-3xl shadow-sm">
+            <div className="relative w-14 h-14 transform -rotate-90 shrink-0">
+              <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm">
+                <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#F4F4F2" strokeWidth="5" />
+                <circle cx="18" cy="18" r="15.5" fill="transparent" stroke="#027A48" strokeWidth="5" strokeDasharray={`${(markedPercentage * (2 * Math.PI * 15.5)) / 100} ${2 * Math.PI * 15.5}`} strokeDashoffset="0" className="transition-all duration-1000 ease-out" strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center transform rotate-90">
+                <span className="text-[11px] font-black text-[#1A1A19]">{markedPercentage}%</span>
+              </div>
+            </div>
+            <div className="flex flex-col justify-center pr-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#A0A09D] mb-2">Swab Status</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#027A48] shadow-[0_0_8px_rgb(2,122,72,0.4)]" />
+                  <span className="text-sm font-extrabold text-[#1A1A19]">{markedPatients} <span className="font-semibold text-[#8B8B86]">Marked</span></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#E8E8E5]" />
+                  <span className="text-sm font-extrabold text-[#1A1A19]">{unmarkedPatients} <span className="font-semibold text-[#8B8B86]">Unmarked</span></span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
+
 
       {/* Controls & Bulk Action */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4 relative z-10 bg-white/60 backdrop-blur-xl p-3 sm:p-4 rounded-3xl border border-[#E8E8E5] shadow-sm">
@@ -309,18 +387,18 @@ export default function LabDashboard() {
             <select
               value={selectedGeneFilter}
               onChange={(e) => setSelectedGeneFilter(e.target.value)}
-              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
             >
               <option value="all">All Genes</option>
-              <option value="actn3">ACTN3 (Muscle)</option>
-              <option value="edar">EDAR (Hair)</option>
-              <option value="cyp1a2">CYP1A2 (Caffeine)</option>
+              <option value="actn3">ACTN3, ACE (Muscle)</option>
+              <option value="edar">EDAR, FGFR2 (Hair)</option>
+              <option value="cyp1a2">CYP1A2, ADORA2A (Caffeine)</option>
             </select>
 
             <select
               value={selectedGenderFilter}
               onChange={(e) => setSelectedGenderFilter(e.target.value)}
-              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
             >
               <option value="all">All Genders</option>
               <option value="Male">Male</option>
@@ -331,7 +409,7 @@ export default function LabDashboard() {
             <select
               value={selectedStatusFilter}
               onChange={(e) => setSelectedStatusFilter(e.target.value)}
-              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 cursor-pointer hover:bg-[#F9F9F8] transition-all shadow-sm h-[44px]"
             >
               <option value="all">All Statuses</option>
               <option value="marked">Marked (Received)</option>
@@ -1063,6 +1141,80 @@ export default function LabDashboard() {
                     {actionLoading === deleteAction.patientId + '-delete' ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Pie Chart Modal */}
+      <AnimatePresence>
+        {isMobilePieModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 xl:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobilePieModalOpen(false)}
+              className="absolute inset-0 bg-[#1A1A19]/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-[#E8E8E5] p-6 z-10"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-[#1A1A19]">Gene Distribution</h3>
+                <button
+                  onClick={() => setIsMobilePieModalOpen(false)}
+                  className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex justify-center mb-6">
+                <div className="relative w-40 h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={geneCounts}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {geneCounts.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={getGenePieColor(entry.name)} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #E8E8E5', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 text-sm font-semibold">
+                {geneCounts.length > 0 ? geneCounts.map(g => (
+                  <div key={g.name} className="flex items-center justify-between gap-4 p-3 bg-[#F9F9F8] rounded-xl border border-[#E8E8E5]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getGenePieColor(g.name) }} />
+                      <span className="text-[#5A5A55]">
+                        {g.name.toLowerCase().includes('actn3') ? 'Muscle (ACTN3, ACE)' : g.name.toLowerCase().includes('edar') ? 'Hair (EDAR, FGFR2)' : 'Caffeine (CYP1A2, ADORA2A)'}
+                      </span>
+                    </div>
+                    <span className="text-[#1A1A19] font-bold text-base">{g.value}</span>
+                  </div>
+                )) : (
+                  <div className="text-center text-[#A0A09D] py-4">No data</div>
+                )}
               </div>
             </motion.div>
           </div>

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -25,6 +26,15 @@ const getGeneColor = (geneName: string) => {
   return 'bg-[#F4F4F2] text-[#5A5A55] border-[#D4D4CE]';
 };
 
+const getGenePieColor = (geneName: string) => {
+  const name = geneName.toLowerCase();
+  if (name.includes('actn3')) return '#3b82f6';
+  if (name.includes('edar')) return '#a855f7';
+  if (name.includes('cyp1a2') || name.includes('caffeine') || name.includes('caffine')) return '#f59e0b';
+  return '#8B8B86';
+};
+
+
 export default function AdminVerifyPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +46,7 @@ export default function AdminVerifyPage() {
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
 
   const [editingGenePatient, setEditingGenePatient] = useState<any>(null);
   const [editedGeneType, setEditedGeneType] = useState<string>('');
@@ -256,6 +267,19 @@ export default function AdminVerifyPage() {
     return matchesSearch && matchesGender && matchesSample && matchesData && matchesWorkflow && matchesGene;
   });
 
+  const geneCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredPatients.forEach(p => {
+      if (p.gene_type) {
+        const genes = p.gene_type.split(', ');
+        genes.forEach((g: string) => {
+          counts[g] = (counts[g] || 0) + 1;
+        });
+      }
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [filteredPatients]);
+
   const toggleSelectAll = () => {
     if (selectedUsers.size === filteredPatients.length && filteredPatients.length > 0) {
       setSelectedUsers(new Set());
@@ -368,8 +392,8 @@ export default function AdminVerifyPage() {
     >
       {/* Header Section */}
       <div className="mb-6 flex flex-col gap-6 relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          <div className="space-y-2">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 lg:flex-1 shrink-0">
             <motion.div
               initial={{ y: -10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -384,34 +408,89 @@ export default function AdminVerifyPage() {
             </p>
           </div>
 
-          {/* Core Actions (Search + Global Buttons) */}
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 lg:w-72">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
-              <input
-                type="text"
-                placeholder="Search patients..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-xl pl-10 pr-4 py-2 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
-              />
-            </div>
+          {/* Gene Distribution Pie Chart */}
+          <div 
+            className="fixed bottom-4 left-4 z-[100] xl:static xl:flex items-center justify-center shrink-0 origin-bottom-left scale-[0.65] sm:scale-75 md:scale-90 xl:scale-100 transition-transform pointer-events-none xl:pointer-events-auto cursor-pointer xl:cursor-auto"
+            onClick={() => window.innerWidth < 1280 && setIsMobilePieModalOpen(true)}
+          >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-4 bg-white/95 xl:bg-white/80 backdrop-blur-3xl xl:backdrop-blur-2xl border border-[#E8E8E5] px-4 py-2.5 rounded-2xl shadow-2xl xl:shadow-sm w-max shrink-0 pointer-events-auto">
+              <div className="relative w-12 h-12 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={geneCounts}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={14}
+                      outerRadius={22}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {geneCounts.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getGenePieColor(entry.name)} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #E8E8E5', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col justify-center pr-2">
+                <h3 className="text-[9px] font-bold uppercase tracking-widest text-[#A0A09D] mb-1.5">Gene Distribution</h3>
+                <div className="flex flex-col gap-1 text-[10px] font-semibold">
+                  {geneCounts.length > 0 ? geneCounts.map(g => (
+                    <div key={g.name} className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getGenePieColor(g.name) }} />
+                        <span className="text-[#5A5A55] whitespace-nowrap">
+                          {g.name.toLowerCase().includes('actn3') ? 'Muscle (ACTN3, ACE)' : g.name.toLowerCase().includes('edar') ? 'Hair (EDAR, FGFR2)' : 'Caffeine (CYP1A2, ADORA2A)'}
+                        </span>
+                      </div>
+                      <span className="text-[#1A1A19] font-bold">{g.value}</span>
+                    </div>
+                  )) : (
+                    <span className="text-[#8B8B86]">No data</span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
 
-            <button
-              onClick={handleDownloadCSV}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] rounded-xl text-sm font-semibold text-white transition-all shadow-sm shrink-0 hover:opacity-90 h-[42px]"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto lg:flex-1 lg:justify-end shrink-0">
+
+            {/* Core Actions (Search + Global Buttons) */}
+            <div className="flex flex-row items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 lg:w-64">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
+                <input
+                  type="text"
+                  placeholder="Search patients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white/80 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+                />
+              </div>
+
+              <button
+                onClick={handleDownloadCSV}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] rounded-2xl text-sm font-semibold text-white transition-all shadow-sm shrink-0 hover:opacity-90 h-[44px]"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+            </div>
           </div>
         </div>
+
 
         {/* Secondary Actions & Filters Bar */}
         <div className="flex flex-col sm:flex-row items-center gap-3 bg-white/40 backdrop-blur-md border border-[#E8E8E5] p-2 rounded-2xl shadow-sm">
           <button
             onClick={toggleSelectAll}
-            className="flex items-center justify-center gap-2 px-4 py-2 w-full sm:w-auto bg-white border border-[#E8E8E5] rounded-xl text-xs font-bold text-[#5A5A55] hover:bg-[#F8F8F7] transition-all shadow-sm shrink-0 h-[42px]"
+            className="flex items-center justify-center gap-2 px-4 py-2 w-full sm:w-auto bg-white border border-[#E8E8E5] rounded-2xl text-xs font-bold text-[#5A5A55] hover:bg-[#F8F8F7] transition-all shadow-sm shrink-0 h-[44px]"
           >
             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 ? 'bg-[#6057D7] border-[#6057D7] text-white' : 'border-[#D4D4CE] bg-white'}`}>
               {selectedUsers.size === filteredPatients.length && filteredPatients.length > 0 && <Check className="w-3 h-3" />}
@@ -425,7 +504,7 @@ export default function AdminVerifyPage() {
             <select
               value={selectedWorkflowFilter}
               onChange={(e) => setSelectedWorkflowFilter(e.target.value)}
-              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[44px]"
             >
               <option value="all">All Stages</option>
               <option value="registered">Registered</option>
@@ -439,18 +518,18 @@ export default function AdminVerifyPage() {
             <select
               value={selectedGeneFilter}
               onChange={(e) => setSelectedGeneFilter(e.target.value)}
-              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+              className="flex-1 min-w-[140px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[44px]"
             >
               <option value="all">All Gene Panels</option>
-              <option value="actn3">ACTN3 (Muscle)</option>
-              <option value="edar">EDAR (Hair)</option>
-              <option value="cyp1a2">CYP1A2 (Caffeine)</option>
+              <option value="actn3">ACTN3, ACE (Muscle)</option>
+              <option value="edar">EDAR, FGFR2 (Hair)</option>
+              <option value="cyp1a2">CYP1A2, ADORA2A (Caffeine)</option>
             </select>
 
             <select
               value={selectedGenderFilter}
               onChange={(e) => setSelectedGenderFilter(e.target.value)}
-              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[44px]"
             >
               <option value="all">All Genders</option>
               <option value="Male">Male</option>
@@ -461,7 +540,7 @@ export default function AdminVerifyPage() {
             <select
               value={selectedSampleFilter}
               onChange={(e) => setSelectedSampleFilter(e.target.value)}
-              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+              className="flex-1 min-w-[120px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[44px]"
             >
               <option value="all">All Samples</option>
               <option value="collected">Collected</option>
@@ -471,7 +550,7 @@ export default function AdminVerifyPage() {
             <select
               value={selectedDataFilter}
               onChange={(e) => setSelectedDataFilter(e.target.value)}
-              className="flex-1 min-w-[130px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[42px]"
+              className="flex-1 min-w-[130px] bg-white border border-[#E8E8E5] text-xs font-semibold text-[#5A5A55] rounded-2xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 cursor-pointer hover:bg-[#F8F8F7] h-[44px]"
             >
               <option value="all">All AI Data</option>
               <option value="has_data">Has Data</option>
@@ -1317,9 +1396,9 @@ export default function AdminVerifyPage() {
 
                       {/* Unselected Genes */}
                       {[
-                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3)' },
-                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR)' },
-                        { short: 'CYP1A2', full: 'Caffine Response (CYP1A2)' }
+                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3,ACE)' },
+                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR,FGFR2)' },
+                        { short: 'CYP1A2', full: 'Caffeine Response (CYP1A2,ADORA2A)' }
                       ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
                         <span
                           key={`add-${idx}`}
@@ -1417,6 +1496,80 @@ export default function AdminVerifyPage() {
                     {actionLoading === deleteReportAction.id ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Pie Chart Modal */}
+      <AnimatePresence>
+        {isMobilePieModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 xl:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobilePieModalOpen(false)}
+              className="absolute inset-0 bg-[#1A1A19]/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-[#E8E8E5] p-6 z-10"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-[#1A1A19]">Gene Distribution</h3>
+                <button
+                  onClick={() => setIsMobilePieModalOpen(false)}
+                  className="p-2 text-[#8B8B86] hover:bg-[#F4F4F2] rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex justify-center mb-6">
+                <div className="relative w-40 h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={geneCounts}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {geneCounts.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={getGenePieColor(entry.name)} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #E8E8E5', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 text-sm font-semibold">
+                {geneCounts.length > 0 ? geneCounts.map(g => (
+                  <div key={g.name} className="flex items-center justify-between gap-4 p-3 bg-[#F9F9F8] rounded-xl border border-[#E8E8E5]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getGenePieColor(g.name) }} />
+                      <span className="text-[#5A5A55]">
+                        {g.name.toLowerCase().includes('actn3') ? 'Muscle (ACTN3, ACE)' : g.name.toLowerCase().includes('edar') ? 'Hair (EDAR, FGFR2)' : 'Caffeine (CYP1A2, ADORA2A)'}
+                      </span>
+                    </div>
+                    <span className="text-[#1A1A19] font-bold text-base">{g.value}</span>
+                  </div>
+                )) : (
+                  <div className="text-center text-[#A0A09D] py-4">No data</div>
+                )}
               </div>
             </motion.div>
           </div>
