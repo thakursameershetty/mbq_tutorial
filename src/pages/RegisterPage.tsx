@@ -31,7 +31,7 @@ function TermsModal({
   onAgree: (platformConsent: boolean) => void;
   onDecline: () => void;
 }) {
-  const [platformConsent, setPlatformConsent] = useState<boolean | null>(null);
+  const [platformConsent, setPlatformConsent] = useState<boolean>(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +44,7 @@ function TermsModal({
     }
   };
 
-  const canAgree = hasScrolled && platformConsent !== null;
+  const canAgree = hasScrolled;
 
   const sections = [
     {
@@ -239,21 +239,12 @@ function TermsModal({
             <div className="space-y-2">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div
-                  onClick={() => { setPlatformConsent(true); triggerHaptic('light'); }}
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === true ? 'bg-[#3FC2AC] border-[#3FC2AC]' : 'border-[#D0D0CE] group-hover:border-[#3FC2AC]'}`}
+                  onClick={() => { setPlatformConsent(!platformConsent); triggerHaptic('light'); }}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent ? 'bg-[#3FC2AC] border-[#3FC2AC]' : 'border-[#D0D0CE] group-hover:border-[#3FC2AC]'}`}
                 >
-                  {platformConsent === true && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
+                  {platformConsent && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
                 </div>
                 <span className="text-xs text-[#3a3a38] leading-relaxed">I consent to the use of anonymized data for platform improvement.</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div
-                  onClick={() => { setPlatformConsent(false); triggerHaptic('light'); }}
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${platformConsent === false ? 'bg-[#6057D7] border-[#6057D7]' : 'border-[#D0D0CE] group-hover:border-[#6057D7]'}`}
-                >
-                  {platformConsent === false && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
-                </div>
-                <span className="text-xs text-[#3a3a38] leading-relaxed">I do not consent.</span>
               </label>
             </div>
           </div>
@@ -285,9 +276,7 @@ function TermsModal({
         <div className="px-6 py-4 border-t border-[#F0F0EE] flex-shrink-0 space-y-2.5">
           {!canAgree && (
             <p className="text-center text-[11px] text-[#8B8B86]">
-              {!hasScrolled
-                ? 'Scroll to the bottom to enable the agreement buttons.'
-                : 'Please select your platform improvement preference above.'}
+              Scroll to the bottom to enable the agreement buttons.
             </p>
           )}
           <motion.button
@@ -296,7 +285,7 @@ function TermsModal({
             onClick={() => {
               if (canAgree) {
                 triggerHaptic('medium');
-                onAgree(platformConsent!);
+                onAgree(platformConsent);
               }
             }}
             disabled={!canAgree}
