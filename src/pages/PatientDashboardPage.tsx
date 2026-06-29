@@ -141,7 +141,20 @@ export default function PatientDashboardPage() {
                 {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
               </button>
             )}
-            {user.report_verified && user.report_url && (
+            {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
+              Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
+                <a
+                  key={geneName}
+                  href={reportData.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+                >
+                  <FileText size={16} />
+                  View {geneName} Report
+                </a>
+              ))
+            ) : user.report_verified && user.report_url ? (
               <a
                 href={user.report_url}
                 target="_blank"
@@ -149,9 +162,9 @@ export default function PatientDashboardPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
               >
                 <FileText size={16} />
-                View Report
+                View Legacy Report
               </a>
-            )}
+            ) : null}
             <button
               onClick={() => setShowLogoutConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-sm font-medium hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
@@ -375,7 +388,22 @@ export default function PatientDashboardPage() {
                 />
               </div>
 
-              {user.report_verified && user.report_url && (
+              {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
+                <div className="mt-6 pt-4 border-t border-[#E8E8E5] flex flex-col gap-3">
+                  {Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
+                    <a
+                      key={geneName}
+                      href={reportData.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
+                    >
+                      <FileText size={18} />
+                      View {geneName} Report
+                    </a>
+                  ))}
+                </div>
+              ) : user.report_verified && user.report_url ? (
                 <div className="mt-6 pt-4 border-t border-[#E8E8E5]">
                   <a
                     href={user.report_url}
@@ -384,10 +412,10 @@ export default function PatientDashboardPage() {
                     className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
                   >
                     <FileText size={18} />
-                    View Report
+                    View Legacy Report
                   </a>
                 </div>
-              )}
+              ) : null}
             </motion.div>
           </motion.div>
         )}

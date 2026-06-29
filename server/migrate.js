@@ -35,6 +35,7 @@ async function runMigration() {
       ADD COLUMN IF NOT EXISTS report_generated BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS report_verified BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS report_url VARCHAR(555),
+      ADD COLUMN IF NOT EXISTS reports JSONB DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS status_timestamps JSONB DEFAULT '{}'::jsonb;
     `);
     

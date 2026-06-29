@@ -75,6 +75,7 @@ export default function LabDashboard() {
           sample_received: u.sample_received,
           report_uploaded: u.report_uploaded,
           report_url: u.report_url,
+          reports: u.reports,
           status_timestamps: u.status_timestamps,
           status: u.report_uploaded ? 'completed' : 'pending',
           surveyData: {
@@ -96,8 +97,8 @@ export default function LabDashboard() {
   }, []);
 
   const [sampleAction, setSampleAction] = useState<any>(null);
-  const [uploadAction, setUploadAction] = useState<{ patientId: string, file: File, patientName: string } | null>(null);
-  const [deleteAction, setDeleteAction] = useState<{ patientId: string, patientName: string } | null>(null);
+  const [uploadAction, setUploadAction] = useState<{ patientId: string, file: File, patientName: string, geneName: string } | null>(null);
+  const [deleteAction, setDeleteAction] = useState<{ patientId: string, patientName: string, geneName?: string } | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, Record<string, string>>>({});
 
   const handleVariantChange = (patientId: string, geneName: string, variant: string) => {
@@ -138,10 +139,11 @@ export default function LabDashboard() {
 
   const confirmUploadReport = async () => {
     if (!uploadAction) return;
-    const { patientId, file } = uploadAction;
+    const { patientId, file, geneName } = uploadAction;
     setActionLoading(patientId + '-upload');
     const formData = new FormData();
     formData.append('report', file);
+    formData.append('geneName', geneName);
     const genotypes = selectedVariants[patientId] || {};
     formData.append('genotypes', JSON.stringify(genotypes));
 
@@ -168,10 +170,15 @@ export default function LabDashboard() {
 
   const confirmDeleteReport = async () => {
     if (!deleteAction) return;
-    const { patientId } = deleteAction;
+    const { patientId, geneName } = deleteAction;
+
     setActionLoading(patientId + '-delete');
     try {
-      const response = await fetch(`/api/users/${patientId}/delete-report`, {
+      const url = geneName
+        ? `/api/users/${patientId}/delete-report?geneName=${encodeURIComponent(geneName)}`
+        : `/api/users/${patientId}/delete-report`;
+
+      const response = await fetch(url, {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -553,44 +560,65 @@ export default function LabDashboard() {
                           )}
                         </button>
 
-                        {patient.status === 'pending' ? (
-                          <div className="flex flex-col gap-3">
-                            {(() => {
-                              const requiredGenes = getRequiredGenes(patient.gene);
-                              if (requiredGenes.length === 0) return null;
+                        <div className="flex flex-col gap-3">
+                          {(() => {
+                            const requiredGenes = getRequiredGenes(patient.gene);
+                            if (requiredGenes.length === 0) return null;
 
-                              const panels = requiredGenes.reduce((acc, rg) => {
-                                if (!acc[rg.panel]) acc[rg.panel] = [];
-                                acc[rg.panel].push(rg);
-                                return acc;
-                              }, {} as Record<string, typeof requiredGenes>);
+                            const panels = requiredGenes.reduce((acc, rg) => {
+                              if (!acc[rg.panel]) acc[rg.panel] = [];
+                              acc[rg.panel].push(rg);
+                              return acc;
+                            }, {} as Record<string, typeof requiredGenes>);
 
-                              return (
-                                <>
-                                  {Object.entries(panels).map(([_panelName, panelGenes], pIdx) => (
-                                    <div key={pIdx} className="flex gap-2 items-start border-l-2 border-[#E8E8E5] pl-3">
-                                      {panelGenes.map((rg, idx) => (
-                                        <div key={idx} className="flex flex-col gap-1 w-[110px]">
-                                          <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
-                                          <select
-                                            disabled={!patient.sample_received}
-                                            className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            value={selectedVariants[patient.id]?.[rg.name] || ""}
-                                            onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
-                                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
-                                          >
-                                            <option value="" disabled>Sel {rg.name}</option>
-                                            {rg.variants.map((v, i) => (
-                                              <option key={i} value={v} className="truncate">{v}</option>
-                                            ))}
-                                          </select>
+                            return (
+                              <>
+                                {Object.entries(panels).map(([_panelName, panelGenes], pIdx) => (
+                                  <div key={pIdx} className="flex gap-2 items-start border-l-2 border-[#E8E8E5] pl-3">
+                                    {panelGenes.map((rg, idx) => (
+                                      <div key={idx} className="flex flex-col gap-1 w-[110px]">
+                                        <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
+                                        <select
+                                          disabled={!patient.sample_received}
+                                          className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                          onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
+                                        >
+                                          <option value="" disabled>Sel {rg.name}</option>
+                                          {rg.variants.map((v, i) => (
+                                            <option key={i} value={v} className="truncate">{v}</option>
+                                          ))}
+                                        </select>
 
+                                        {patient.reports?.[rg.name] ? (
+                                          <div className="flex w-full mt-1 gap-1 h-[34px]">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPreviewPdfUrl(patient.reports[rg.name].url);
+                                              }}
+                                              className="flex-1 bg-[#ECFDF3] text-[#027A48] border border-[#027A48]/20 hover:bg-[#D1FADF] rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1"
+                                            >
+                                              <FileText className="w-3 h-3" /> View
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteAction({ patientId: patient.id, patientName: patient.name, geneName: rg.name });
+                                              }}
+                                              className="w-[28px] shrink-0 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-xl flex items-center justify-center transition-all shadow-sm"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        ) : (
                                           <motion.label
                                             whileHover={patient.sample_received ? { scale: 1.02 } : {}}
                                             whileTap={patient.sample_received ? { scale: 0.98 } : {}}
                                             onClick={(e) => e.stopPropagation()}
-                                            className={`w-full bg-[#1A1A19] text-white h-[34px] px-2 rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1 shrink-0 mt-1 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(0,0,0,0.25)] cursor-pointer'}`}
+                                            className={`w-full h-[34px] px-2 rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1 shrink-0 mt-1 ${!patient.sample_received ? 'bg-[#1A1A19] text-white opacity-50 cursor-not-allowed pointer-events-none' : 'bg-[#1A1A19] text-white hover:shadow-[0_6px_16px_rgb(0,0,0,0.25)] cursor-pointer'}`}
                                           >
                                             {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                             Upload
@@ -608,47 +636,39 @@ export default function LabDashboard() {
                                               }}
                                               onChange={(e) => {
                                                 if (e.target.files && e.target.files[0]) {
-                                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
+                                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name, geneName: rg.name });
                                                   e.target.value = '';
                                                 }
                                               }}
                                             />
                                           </motion.label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ))}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewPdfUrl(patient.report_url);
-                              }}
-                              className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                            >
-                              <FileText size={14} className="text-[#6057D7]" />
-                              View
-                            </button>
-                            {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteAction({ patientId: patient.id, patientName: patient.name });
-                                }}
-                                disabled={actionLoading === patient.id + '-delete'}
-                                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                              >
-                                {actionLoading === patient.id + '-delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        )}
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </>
+                            );
+                          })()}
+
+                          {patient.status !== 'pending' && (
+                            <div className="flex gap-2">
+                              {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                                  }}
+                                  disabled={actionLoading === patient.id + '-delete'}
+                                  className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full justify-center"
+                                >
+                                  {actionLoading === patient.id + '-delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                  Delete Recent Upload
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="p-2 bg-[#F4F4F2] rounded-full text-[#5A5A55] hidden xl:block">
@@ -808,41 +828,63 @@ export default function LabDashboard() {
                       )}
                     </button>
 
-                    {patient.status === 'pending' ? (
-                      <div className="space-y-3">
-                        {(() => {
-                          const requiredGenes = getRequiredGenes(patient.gene);
-                          if (requiredGenes.length === 0) return null;
+                    <div className="space-y-3 mt-2">
+                      {(() => {
+                        const requiredGenes = getRequiredGenes(patient.gene);
+                        if (requiredGenes.length === 0) return null;
 
-                          const panels = requiredGenes.reduce((acc, rg) => {
-                            if (!acc[rg.panel]) acc[rg.panel] = [];
-                            acc[rg.panel].push(rg);
-                            return acc;
-                          }, {} as Record<string, typeof requiredGenes>);
+                        const panels = requiredGenes.reduce((acc, rg) => {
+                          if (!acc[rg.panel]) acc[rg.panel] = [];
+                          acc[rg.panel].push(rg);
+                          return acc;
+                        }, {} as Record<string, typeof requiredGenes>);
 
-                          return (
-                            <div className="flex flex-col gap-4">
-                              {Object.entries(panels).map(([panelName, panelGenes], pIdx) => (
-                                <div key={pIdx} className="space-y-3 p-3 bg-white/40 border border-[#E8E8E5] rounded-2xl">
-                                  <div className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider mb-1">{panelName}</div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {panelGenes.map((rg, idx) => (
-                                      <div key={idx} className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider">{rg.name}</span>
-                                        <select
-                                          disabled={!patient.sample_received}
-                                          className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl h-[36px] px-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
-                                          value={selectedVariants[patient.id]?.[rg.name] || ""}
-                                          onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
-                                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
-                                        >
-                                          <option value="" disabled>Select {rg.name}</option>
-                                          {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
-                                        </select>
+                        return (
+                          <div className="flex flex-col gap-4">
+                            {Object.entries(panels).map(([panelName, panelGenes], pIdx) => (
+                              <div key={pIdx} className="space-y-3 p-3 bg-white/40 border border-[#E8E8E5] rounded-2xl">
+                                <div className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider mb-1">{panelName}</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {panelGenes.map((rg, idx) => (
+                                    <div key={idx} className="flex flex-col gap-1">
+                                      <span className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider">{rg.name}</span>
+                                      <select
+                                        disabled={!patient.sample_received}
+                                        className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl h-[36px] px-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
+                                        value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                        onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
+                                      >
+                                        <option value="" disabled>Select {rg.name}</option>
+                                        {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
+                                      </select>
+                                      {patient.reports?.[rg.name] ? (
+                                        <div className="flex w-full mt-1 gap-1.5 h-[36px]">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPreviewPdfUrl(patient.reports[rg.name].url);
+                                            }}
+                                            className="flex-1 bg-[#ECFDF3] text-[#027A48] border border-[#027A48]/20 hover:bg-[#D1FADF] rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5"
+                                          >
+                                            <FileText className="w-3 h-3" /> View
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setDeleteAction({ patientId: patient.id, patientName: patient.name, geneName: rg.name });
+                                            }}
+                                            className="w-10 shrink-0 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-xl flex items-center justify-center transition-all shadow-sm"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      ) : (
                                         <motion.label
                                           whileHover={patient.sample_received ? { scale: 1.02 } : {}}
                                           whileTap={patient.sample_received ? { scale: 0.98 } : {}}
-                                          className={`w-full mt-1 bg-[#1A1A19] text-white h-[36px] px-3 rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-lg cursor-pointer'}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`w-full mt-1 h-[36px] px-3 rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 ${!patient.sample_received ? 'bg-[#1A1A19] text-white opacity-50 cursor-not-allowed pointer-events-none' : 'bg-[#1A1A19] text-white hover:shadow-lg cursor-pointer'}`}
                                         >
                                           {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                           Upload
@@ -863,48 +905,42 @@ export default function LabDashboard() {
                                                 setUploadAction({
                                                   patientId: patient.id,
                                                   file: e.target.files[0],
-                                                  patientName: patient.name
+                                                  patientName: patient.name,
+                                                  geneName: rg.name
                                                 });
                                                 e.target.value = '';
                                               }
                                             }}
                                           />
                                         </motion.label>
-                                      </div>
-                                    ))}
-                                  </div>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 w-full mt-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewPdfUrl(patient.report_url);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#F4F4F2] hover:bg-[#E8E8E5] text-[#1A1A19] rounded-2xl text-sm font-bold transition-all"
-                        >
-                          <FileText size={16} className="text-[#6057D7]" />
-                          View
-                        </button>
-                        {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteAction({ patientId: patient.id, patientName: patient.name });
-                            }}
-                            disabled={actionLoading === patient.id + '-delete'}
-                            className="flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
-                          >
-                            {actionLoading === patient.id + '-delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                      {patient.status !== 'pending' && (
+                        <div className="flex gap-2 w-full mt-2">
+                          {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                              }}
+                              disabled={actionLoading === patient.id + '-delete'}
+                              className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                            >
+                              {actionLoading === patient.id + '-delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                              Delete Recent Upload
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )
@@ -1140,7 +1176,7 @@ export default function LabDashboard() {
 
                 <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Delete Genomic Report</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
-                  Are you sure you want to delete the uploaded report for <span className="font-bold text-[#1A1A19]">{deleteAction.patientName}</span>? <br /><br />
+                  Are you sure you want to delete the uploaded {deleteAction.geneName ? <><span className="font-bold text-[#1A1A19]">{deleteAction.geneName}</span> </> : ''}report for <span className="font-bold text-[#1A1A19]">{deleteAction.patientName}</span>? <br /><br />
                   This action cannot be undone.
                 </p>
 
