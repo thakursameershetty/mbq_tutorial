@@ -554,64 +554,73 @@ export default function LabDashboard() {
                         </button>
 
                         {patient.status === 'pending' ? (
-                          <div className="flex gap-2 items-end">
+                          <div className="flex flex-col gap-3">
                             {(() => {
                               const requiredGenes = getRequiredGenes(patient.gene);
                               if (requiredGenes.length === 0) return null;
+
+                              const panels = requiredGenes.reduce((acc, rg) => {
+                                if (!acc[rg.panel]) acc[rg.panel] = [];
+                                acc[rg.panel].push(rg);
+                                return acc;
+                              }, {} as Record<string, typeof requiredGenes>);
+
                               return (
-                                <div className="flex gap-2">
-                                  {requiredGenes.map((rg, idx) => (
-                                    <div key={idx} className="flex flex-col gap-1 w-[110px]">
-                                      <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
-                                      <select
-                                        disabled={!patient.sample_received}
-                                        className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl px-2 py-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        value={selectedVariants[patient.id]?.[rg.name] || ""}
-                                        onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
-                                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
-                                      >
-                                        <option value="" disabled>Sel {rg.name}</option>
-                                        {rg.variants.map((v, i) => (
-                                          <option key={i} value={v} className="truncate">{v}</option>
-                                        ))}
-                                      </select>
+                                <>
+                                  {Object.entries(panels).map(([_panelName, panelGenes], pIdx) => (
+                                    <div key={pIdx} className="flex gap-2 items-start border-l-2 border-[#E8E8E5] pl-3">
+                                      {panelGenes.map((rg, idx) => (
+                                        <div key={idx} className="flex flex-col gap-1 w-[110px]">
+                                          <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
+                                          <select
+                                            disabled={!patient.sample_received}
+                                            className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                            onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
+                                          >
+                                            <option value="" disabled>Sel {rg.name}</option>
+                                            {rg.variants.map((v, i) => (
+                                              <option key={i} value={v} className="truncate">{v}</option>
+                                            ))}
+                                          </select>
+
+                                          <motion.label
+                                            whileHover={patient.sample_received ? { scale: 1.02 } : {}}
+                                            whileTap={patient.sample_received ? { scale: 0.98 } : {}}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className={`w-full bg-[#1A1A19] text-white h-[34px] px-2 rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1 shrink-0 mt-1 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(0,0,0,0.25)] cursor-pointer'}`}
+                                          >
+                                            {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                                            Upload
+                                            <input
+                                              type="file"
+                                              className="hidden"
+                                              accept=".pdf"
+                                              disabled={!patient.sample_received}
+                                              onClick={(e) => {
+                                                const patientVariants = selectedVariants[patient.id] || {};
+                                                if (!patientVariants[rg.name]) {
+                                                  e.preventDefault();
+                                                  alert(`Please select the genotype for ${rg.name} before uploading the report.`);
+                                                }
+                                              }}
+                                              onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
+                                                  e.target.value = '';
+                                                }
+                                              }}
+                                            />
+                                          </motion.label>
+                                        </div>
+                                      ))}
                                     </div>
                                   ))}
-                                </div>
+                                </>
                               );
                             })()}
-
-                            <motion.label
-                              whileHover={patient.sample_received ? { scale: 1.02 } : {}}
-                              whileTap={patient.sample_received ? { scale: 0.98 } : {}}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`bg-gradient-to-b from-[#6057D7] to-[#5149C0] text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-[0_4px_12px_rgb(96,87,215,0.25)] transition-all sm:w-auto text-center flex items-center justify-center gap-2 shrink-0 h-[34px] mb-[2px] ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-[0_6px_16px_rgb(96,87,215,0.35)] cursor-pointer'}`}
-                            >
-                              {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                              Upload
-                              <input
-                                type="file"
-                                className="hidden"
-                                accept=".pdf"
-                                disabled={!patient.sample_received}
-                                onClick={(e) => {
-                                  const requiredGenes = getRequiredGenes(patient.gene);
-                                  const patientVariants = selectedVariants[patient.id] || {};
-                                  const allSelected = requiredGenes.every(rg => patientVariants[rg.name]);
-                                  if (!allSelected) {
-                                    e.preventDefault();
-                                    alert("Please select all required genotypes before uploading the report.");
-                                  }
-                                }}
-                                onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) {
-                                    setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
-                                    e.target.value = '';
-                                  }
-                                }}
-                              />
-                            </motion.label>
                           </div>
                         ) : (
                           <div className="flex gap-2">
@@ -804,56 +813,71 @@ export default function LabDashboard() {
                         {(() => {
                           const requiredGenes = getRequiredGenes(patient.gene);
                           if (requiredGenes.length === 0) return null;
+
+                          const panels = requiredGenes.reduce((acc, rg) => {
+                            if (!acc[rg.panel]) acc[rg.panel] = [];
+                            acc[rg.panel].push(rg);
+                            return acc;
+                          }, {} as Record<string, typeof requiredGenes>);
+
                           return (
-                            <div className="grid grid-cols-2 gap-2">
-                              {requiredGenes.map((rg, idx) => (
-                                <div key={idx} className="flex flex-col gap-1">
-                                  <span className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider">{rg.name}</span>
-                                  <select
-                                    disabled={!patient.sample_received}
-                                    className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl px-2 py-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
-                                    value={selectedVariants[patient.id]?.[rg.name] || ""}
-                                    onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
-                                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
-                                  >
-                                    <option value="" disabled>Select {rg.name}</option>
-                                    {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
-                                  </select>
+                            <div className="flex flex-col gap-4">
+                              {Object.entries(panels).map(([panelName, panelGenes], pIdx) => (
+                                <div key={pIdx} className="space-y-3 p-3 bg-white/40 border border-[#E8E8E5] rounded-2xl">
+                                  <div className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider mb-1">{panelName}</div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {panelGenes.map((rg, idx) => (
+                                      <div key={idx} className="flex flex-col gap-1">
+                                        <span className="text-[10px] font-bold text-[#A0A09D] uppercase tracking-wider">{rg.name}</span>
+                                        <select
+                                          disabled={!patient.sample_received}
+                                          className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl h-[36px] px-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
+                                          value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                          onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
+                                        >
+                                          <option value="" disabled>Select {rg.name}</option>
+                                          {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
+                                        </select>
+                                        <motion.label
+                                          whileHover={patient.sample_received ? { scale: 1.02 } : {}}
+                                          whileTap={patient.sample_received ? { scale: 0.98 } : {}}
+                                          className={`w-full mt-1 bg-[#1A1A19] text-white h-[36px] px-3 rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-lg cursor-pointer'}`}
+                                        >
+                                          {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                                          Upload
+                                          <input
+                                            type="file"
+                                            className="hidden"
+                                            accept=".pdf"
+                                            disabled={!patient.sample_received}
+                                            onClick={(e) => {
+                                              const patientVariants = selectedVariants[patient.id] || {};
+                                              if (!patientVariants[rg.name]) {
+                                                e.preventDefault();
+                                                alert(`Please select the genotype for ${rg.name} before uploading the report.`);
+                                              }
+                                            }}
+                                            onChange={(e) => {
+                                              if (e.target.files && e.target.files[0]) {
+                                                setUploadAction({
+                                                  patientId: patient.id,
+                                                  file: e.target.files[0],
+                                                  patientName: patient.name
+                                                });
+                                                e.target.value = '';
+                                              }
+                                            }}
+                                          />
+                                        </motion.label>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           );
                         })()}
-
-                        <motion.label
-                          whileHover={patient.sample_received ? { scale: 1.02 } : {}}
-                          whileTap={patient.sample_received ? { scale: 0.98 } : {}}
-                          className={`w-full bg-[#1A1A19] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 ${!patient.sample_received ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:shadow-lg cursor-pointer'}`}
-                        >
-                          {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                          Upload Report
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf"
-                            disabled={!patient.sample_received}
-                            onClick={(e) => {
-                              const requiredGenes = getRequiredGenes(patient.gene);
-                              const patientVariants = selectedVariants[patient.id] || {};
-                              const allSelected = requiredGenes.every(rg => patientVariants[rg.name]);
-                              if (!allSelected) {
-                                e.preventDefault();
-                                alert("Please select all required genotypes before uploading the report.");
-                              }
-                            }}
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name });
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                        </motion.label>
                       </div>
                     ) : (
                       <div className="flex gap-2 w-full mt-2">
