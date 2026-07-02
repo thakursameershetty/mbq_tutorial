@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
 
 const formatUserId = (id: any) => {
@@ -96,7 +96,7 @@ export default function PatientDashboardPage() {
   if (!user) {
     return (
       <div className="w-full flex justify-center mt-20">
-        <p className="text-[#8B8B86]">Please log in to view your dashboard.</p>
+        <p className="text-[#8B8B86]">Please <Link to="/login" className="text-[#6057D7] hover:underline">log in</Link> to view your dashboard.</p>
       </div>
     );
   }
