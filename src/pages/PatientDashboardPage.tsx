@@ -256,10 +256,10 @@ export default function PatientDashboardPage() {
                 {renderField('Duration', ['phenotypic_analysis', 'caffeine_response', 'durationOfEffect'], true)}
                 {typeof user.phenotypic_analysis.caffeine_response.sensitivity === 'object' && user.phenotypic_analysis.caffeine_response.sensitivity !== null ? (
                   <>
-                    {renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physicalSensitivity'], true) || 
-                     renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physical'], true)}
-                    {renderField('Small Dose Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'smallDoseSensitivity'], true) || 
-                     renderField('Small Dose Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'smallDose'], true)}
+                    {renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physicalSensitivity'], true) ||
+                      renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physical'], true)}
+                    {renderField('Small Dose Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'smallDoseSensitivity'], true) ||
+                      renderField('Small Dose Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'smallDose'], true)}
                   </>
                 ) : (
                   renderField('Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity'], true)
