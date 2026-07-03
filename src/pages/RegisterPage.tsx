@@ -341,9 +341,8 @@ export default function RegisterPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [backendFinished, setBackendFinished] = useState(false);
   const [waitingForBackend, setWaitingForBackend] = useState(false);
-  const [needsSurvey, setNeedsSurvey] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
-  const [postTutorialAction, setPostTutorialAction] = useState<'login' | 'survey' | 'stay'>('stay');
+  const [postTutorialAction, setPostTutorialAction] = useState<'login' | 'stay'>('stay');
   const [showThankYou, setShowThankYou] = useState(false);
   const [showPendingScreen, setShowPendingScreen] = useState(false);
   const [usernameExists, setUsernameExists] = useState(false);
@@ -525,7 +524,6 @@ export default function RegisterPage() {
     setLoading(false);
     setShowThankYou(false);
     if (postTutorialAction === 'login') setShowPendingScreen(true);
-    else if (postTutorialAction === 'survey') setNeedsSurvey(true);
   };
 
 
@@ -766,10 +764,7 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.requiresSurvey) {
-        setToastMessage({ type: 'error', text: data.message || 'Survey required to finalize.' });
-        setPostTutorialAction('survey');
-      } else if (data.success) {
+      if (data.success) {
         setToastMessage({ type: 'success', text: 'Profile mapped and data linked successfully!' });
         setPostTutorialAction('login');
       } else {
@@ -807,68 +802,7 @@ export default function RegisterPage() {
     </AnimatePresence>
   );
 
-  // ── Survey Required screen ──────────────────────────────────────────────────
-  if (needsSurvey) {
-    return (
-      <>
-        {renderToast()}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key="survey-prompt"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            transition={{ duration: 0.45, ease: 'easeOut' }}
-            className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
-          >
-            <div className={theme.card}>
-              {/* Decorative pulse ring */}
-              <div className="flex justify-center mb-6">
-                <div className="relative flex items-center justify-center w-16 h-16">
-                  <span className="absolute inline-flex w-full h-full rounded-full bg-[#6057D7]/20 animate-ping" />
-                  <span className="relative flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#6057D7] to-[#3FC2AC]">
-                    <ExternalLink size={20} className="text-white" strokeWidth={2} />
-                  </span>
-                </div>
-              </div>
 
-              <h2 className={theme.heading}>Survey Required</h2>
-              <p className="text-sm text-[#8B8B86] text-center mb-8">
-                We couldn't find your data in our Tally.so records. To generate your
-                Phenotypic Profile, please complete our intake survey first.
-              </p>
-
-              <a
-                href="https://tally.so/r/your-survey-link"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${theme.buttonPrimary} flex items-center justify-center gap-2 no-underline`}
-              >
-                <ExternalLink size={16} />
-                Take the Tally.so Survey
-              </a>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setNeedsSurvey(false)}
-                className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-[#8B8B86] hover:text-[#1A1A19] transition-colors duration-300 py-3"
-              >
-                <RefreshCw size={14} />
-                I've completed it — try registering again
-              </motion.button>
-            </div>
-
-            <div className="mt-8 text-center">
-              <Link to="/login" className={theme.buttonSecondary}>
-                <ArrowLeft size={16} /> Back to Login
-              </Link>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </>
-    );
-  }
 
   // ── Sample Pending screen ───────────────────────────────────────────────────
   if (showPendingScreen) {

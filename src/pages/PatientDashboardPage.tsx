@@ -196,6 +196,32 @@ export default function PatientDashboardPage() {
         )}
       </AnimatePresence>
 
+      {/* Questionnaire Retake Banner */}
+      {user.survey_requested && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-amber-500 rounded-2xl p-6 sm:px-6 sm:py-4 w-full shadow-md"
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-4 w-full text-left">
+            <span className="bg-amber-700 text-white text-xs font-semibold px-4 py-1.5 rounded-full whitespace-nowrap shadow-sm mb-1 sm:mb-0">
+              Action Required
+            </span>
+            <p className="text-sm font-medium text-white flex-1 mb-2 sm:mb-0">
+              Please submit your answers again so that you can get your report
+            </p>
+            <a
+              href="https://tally.so/r/5B1ZJZ?"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-bold text-amber-700 bg-white pl-5 pr-4 py-2.5 sm:py-2 rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap shrink-0 self-end sm:self-auto"
+            >
+              Answer Now <span className="material-symbols-rounded text-[20px]" aria-hidden="true">chevron_right</span>
+            </a>
+          </div>
+        </motion.div>
+      )}
+
       {/* Null phenotypic data banner */}
       {!user.phenotypic_analysis && (
         <motion.div

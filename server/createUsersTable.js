@@ -22,6 +22,7 @@ async function createTable() {
         gender VARCHAR(50),
         gene_type VARCHAR(255),
         phenotypic_analysis JSONB,
+        survey_requested BOOLEAN DEFAULT FALSE,
         sample_collected BOOLEAN DEFAULT FALSE,
         sample_received BOOLEAN DEFAULT FALSE,
         report_uploaded BOOLEAN DEFAULT FALSE,

@@ -331,20 +331,15 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
-    // 3. If no match found, halt registration and prompt the frontend to show the survey
+    // 3. If no match found, continue registration with null phenotypic data
+    let analysisJSON = null;
     if (!matchResult.matched || !matchResult.matched_survey_data) {
-      console.log('❌ Gemini could not confidently match this user to any sheet row.');
-      return res.status(200).json({
-        success: false,
-        requiresSurvey: true,
-        message: 'User not found in Tally records. Please complete the intake survey first.',
-      });
+      console.log('❌ Gemini could not confidently match this user to any sheet row. Registering without phenotypic data.');
+    } else {
+      console.log('✅ Match found! Running phenotypic analysis...');
+      // 4. Transform the matched sheet row into a structured phenotypic profile
+      analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data, email, phone);
     }
-
-    console.log('✅ Match found! Running phenotypic analysis...');
-
-    // 4. Transform the matched sheet row into a structured phenotypic profile
-    const analysisJSON = await generatePhenotypicAnalysis(matchResult.matched_survey_data, email, phone);
 
     // 5. Save the verified user and their phenotypic analysis in a single transaction
     await pool.query('BEGIN');
@@ -827,6 +822,26 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
   } catch (error) {
     console.error('Update Report Verified Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Request Survey Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/users/:id/request-survey', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    const result = await pool.query(
+      `UPDATE users SET survey_requested = true WHERE id = $1 RETURNING *`,
+      [userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error requesting survey:', error);
+    res.status(500).json({ error: 'Server error requesting survey' });
   }
 });
 

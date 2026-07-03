@@ -180,6 +180,27 @@ export default function AdminVerifyPage() {
     }
   };
 
+  const handleRequestSurvey = async (patientId: number) => {
+    setActionLoading(patientId);
+    try {
+      const response = await fetch(`/api/users/${patientId}/request-survey`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPatients(prev => prev.map(p => p.id === patientId ? { ...p, survey_requested: true } : p));
+        alert('Survey requested successfully!');
+      } else {
+        alert(data.error || 'Failed to request survey');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleFetchPhenotypicData = async (patientId: number, force = false) => {
     setFetchDataLoading(patientId);
     setFetchDataStatus(null);
@@ -669,6 +690,19 @@ export default function AdminVerifyPage() {
                           title="Edit User"
                         >
                           <Edit className="w-4 h-4" />
+                        </button>
+
+                        {/* Collect Answers button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRequestSurvey(patient.id);
+                          }}
+                          disabled={actionLoading === patient.id || patient.survey_requested}
+                          className={`p-1.5 rounded-full transition-colors border ${patient.survey_requested ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-green-50 hover:bg-green-100 text-green-600 border-green-100'}`}
+                          title={patient.survey_requested ? "Survey Requested" : "Collect Answers"}
+                        >
+                          {actionLoading === patient.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                         </button>
 
                         {/* Delete button */}
