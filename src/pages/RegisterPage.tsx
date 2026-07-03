@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, ArrowLeft, ExternalLink, RefreshCw, Loader2, CheckCircle2, AlertCircle, ScrollText, X } from 'lucide-react';
+import { ChevronDown, ArrowLeft, Loader2, CheckCircle2, AlertCircle, ScrollText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerHaptic } from '@/lib/utils';
 import { theme } from '../theme';
