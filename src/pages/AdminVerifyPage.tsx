@@ -82,25 +82,13 @@ export default function AdminVerifyPage() {
   const [deleteReportAction, setDeleteReportAction] = useState<{ id: number, name: string } | null>(null);
 
   const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
+  const [lastSelectedUserId, setLastSelectedUserId] = useState<number | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkFetching, setIsBulkFetching] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState<number | null>(null);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ id: number; type: 'success' | 'error' | 'warning'; message: string } | null>(null);
-
-  const toggleSelectUser = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedUsers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
 
   const confirmDeleteReport = async () => {
     if (!deleteReportAction) return;
@@ -180,18 +168,19 @@ export default function AdminVerifyPage() {
     }
   };
 
-  const handleRequestSurvey = async (patientId: number) => {
+  const handleRequestSurvey = async (patientId: number, requested: boolean) => {
     setActionLoading(patientId);
     try {
       const response = await fetch(`/api/users/${patientId}/request-survey`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requested })
       });
       const data = await response.json();
       if (data.success) {
-        setPatients(prev => prev.map(p => p.id === patientId ? { ...p, survey_requested: true } : p));
-        alert('Survey requested successfully!');
+        setPatients(prev => prev.map(p => p.id === patientId ? { ...p, survey_requested: requested } : p));
       } else {
-        alert(data.error || 'Failed to request survey');
+        alert(data.error || 'Failed to update survey request');
       }
     } catch (err) {
       console.error(err);
@@ -309,6 +298,50 @@ export default function AdminVerifyPage() {
     }
   };
 
+  const toggleSelectUser = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (e.shiftKey && lastSelectedUserId !== null) {
+      const currentIndex = filteredPatients.findIndex(p => p.id === id);
+      const lastIndex = filteredPatients.findIndex(p => p.id === lastSelectedUserId);
+
+      if (currentIndex !== -1 && lastIndex !== -1) {
+        const start = Math.min(currentIndex, lastIndex);
+        const end = Math.max(currentIndex, lastIndex);
+
+        const isCurrentlySelected = selectedUsers.has(id);
+
+        setSelectedUsers(prev => {
+          const newSet = new Set(prev);
+          const targetState = !isCurrentlySelected;
+
+          for (let i = start; i <= end; i++) {
+            if (targetState) {
+              newSet.add(filteredPatients[i].id);
+            } else {
+              newSet.delete(filteredPatients[i].id);
+            }
+          }
+          return newSet;
+        });
+
+        setLastSelectedUserId(id);
+        return;
+      }
+    }
+
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+    setLastSelectedUserId(id);
+  };
+
   const handleBulkDelete = async () => {
     setIsBulkDeleting(true);
     try {
@@ -349,6 +382,30 @@ export default function AdminVerifyPage() {
     setIsBulkFetching(false);
     setFetchDataLoading(null);
     fetchPatients(true);
+  };
+
+  const handleBulkRequestSurvey = async (requested: boolean) => {
+    setIsBulkFetching(true);
+    const userIds = Array.from(selectedUsers);
+
+    for (const id of userIds) {
+      setActionLoading(id);
+      try {
+        const response = await fetch(`/api/users/${id}/request-survey`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requested })
+        });
+        if (response.ok) {
+          setPatients(prev => prev.map(p => p.id === id ? { ...p, survey_requested: requested } : p));
+        }
+      } catch (err) {
+        console.error(`Failed to update survey request for user ${id}`, err);
+      }
+    }
+
+    setIsBulkFetching(false);
+    setActionLoading(null);
   };
 
   const handleDownloadCSV = () => {
@@ -430,7 +487,7 @@ export default function AdminVerifyPage() {
           </div>
 
           {/* Gene Distribution Pie Chart */}
-          <div 
+          <div
             className="fixed bottom-4 left-4 z-[100] xl:static xl:flex items-center justify-center shrink-0 origin-bottom-left scale-[0.65] sm:scale-75 md:scale-90 xl:scale-100 transition-transform pointer-events-none xl:pointer-events-auto cursor-pointer xl:cursor-auto"
             onClick={() => window.innerWidth < 1280 && setIsMobilePieModalOpen(true)}
           >
@@ -696,13 +753,13 @@ export default function AdminVerifyPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRequestSurvey(patient.id);
+                            handleRequestSurvey(patient.id, !patient.survey_requested);
                           }}
-                          disabled={actionLoading === patient.id || patient.survey_requested}
-                          className={`p-1.5 rounded-full transition-colors border ${patient.survey_requested ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-green-50 hover:bg-green-100 text-green-600 border-green-100'}`}
-                          title={patient.survey_requested ? "Survey Requested" : "Collect Answers"}
+                          disabled={actionLoading === patient.id}
+                          className={`p-1.5 rounded-full transition-colors border ${patient.survey_requested ? 'bg-amber-50 hover:bg-amber-100 text-amber-600 border-amber-100' : 'bg-green-50 hover:bg-green-100 text-green-600 border-green-100'}`}
+                          title={patient.survey_requested ? "Cancel Survey Request" : "Collect Answers"}
                         >
-                          {actionLoading === patient.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                          {actionLoading === patient.id ? <Loader2 className="w-4 h-4 animate-spin" /> : patient.survey_requested ? <FileText className="w-4 h-4 opacity-60" /> : <FileText className="w-4 h-4" />}
                         </button>
 
                         {/* Delete button */}
@@ -1279,20 +1336,20 @@ export default function AdminVerifyPage() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#1A1A19] text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgb(0,0,0,0.2)] border border-white/10 flex items-center gap-6"
+            className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-40 w-[95%] sm:w-auto max-w-full overflow-x-auto bg-[#1A1A19] text-white px-4 sm:px-6 py-3 sm:py-4 rounded-2xl shadow-[0_10px_40px_rgb(0,0,0,0.2)] border border-white/10 flex items-center gap-3 sm:gap-6"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <div className="flex items-center justify-center bg-[#333331] text-[#A0A09D] font-mono text-sm font-bold rounded-lg h-7 min-w-[28px] px-2">
                 {selectedUsers.size}
               </div>
-              <span className="text-white text-sm font-medium">profiles selected</span>
+              <span className="text-white text-sm font-medium hidden sm:block">profiles selected</span>
             </div>
-            <div className="w-px h-6 bg-white/15" />
-            <div className="flex items-center gap-2">
+            <div className="w-px h-6 bg-white/15 shrink-0" />
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => handleBulkFetch(false)}
                 disabled={isBulkFetching}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
               >
                 {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 Fetch Missing
@@ -1300,16 +1357,32 @@ export default function AdminVerifyPage() {
               <button
                 onClick={() => handleBulkFetch(true)}
                 disabled={isBulkFetching}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
               >
                 {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 Resync Selected
               </button>
-              <div className="w-px h-6 bg-white/15 mx-1" />
+              <button
+                onClick={() => handleBulkRequestSurvey(true)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                Collect Answers
+              </button>
+              <button
+                onClick={() => handleBulkRequestSurvey(false)}
+                disabled={isBulkFetching}
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+              >
+                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                Undo Request
+              </button>
+              <div className="w-px h-6 bg-white/15 mx-1 shrink-0 hidden sm:block" />
               <button
                 onClick={() => setShowBulkDeleteModal(true)}
                 disabled={isBulkFetching}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Selected
@@ -1317,7 +1390,7 @@ export default function AdminVerifyPage() {
               <button
                 onClick={() => setSelectedUsers(new Set())}
                 disabled={isBulkFetching}
-                className="p-2 hover:bg-[#333331] rounded-xl transition-colors ml-2 border border-transparent hover:border-white/10 disabled:opacity-60"
+                className="p-2 hover:bg-[#333331] rounded-xl transition-colors sm:ml-2 border border-transparent hover:border-white/10 disabled:opacity-60 shrink-0"
               >
                 <X className="w-4 h-4 text-[#A0A09D]" />
               </button>
@@ -1585,7 +1658,7 @@ export default function AdminVerifyPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="flex justify-center mb-6">
                 <div className="relative w-40 h-40">
                   <ResponsiveContainer width="100%" height="100%">

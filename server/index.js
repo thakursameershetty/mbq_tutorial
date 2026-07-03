@@ -349,7 +349,7 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
     const insertUserQuery = `
-      INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, status_timestamps)
+      INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, status_timestamps)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id;
     `;
@@ -412,7 +412,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const query = `
       SELECT 
-        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
         sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users
       WHERE LOWER(email) = LOWER($1)
@@ -445,7 +445,7 @@ app.put('/api/users/:id', async (req, res) => {
       UPDATE users 
       SET full_name = $1, email = $2, phone = $3, age = $4, phenotypic_analysis = $5
       WHERE id = $6
-      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
                 sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at;
     `;
     const result = await pool.query(query, [full_name, email, phone, age, JSON.stringify(phenotypic_analysis), userId]);
@@ -476,7 +476,7 @@ app.put('/api/users/:id/gene', async (req, res) => {
       UPDATE users 
       SET gene_type = $1
       WHERE id = $2
-      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
                 sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at;
     `;
     const result = await pool.query(query, [gene_type, userId]);
@@ -504,7 +504,7 @@ app.get('/api/users/:id', async (req, res) => {
   const userId = req.params.id;
   try {
     const query = `
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `;
@@ -524,7 +524,7 @@ app.get('/api/admin/patients', async (req, res) => {
   try {
     const query = `
       SELECT 
-        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+        id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
         sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users
       ORDER BY created_at DESC;
@@ -580,7 +580,7 @@ app.put('/api/users/:id/sample-collected', async (req, res) => {
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
@@ -627,7 +627,7 @@ app.put('/api/users/:id/sample-received', async (req, res) => {
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
@@ -660,22 +660,22 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
     if (userRes.rowCount === 0) {
       return res.status(404).json({ error: 'User not found.' });
     }
-    
+
     let currentReports = userRes.rows[0].reports || {};
     if (typeof currentReports === 'string') {
-        currentReports = JSON.parse(currentReports);
+      currentReports = JSON.parse(currentReports);
     }
-    
+
     let currentGenotypes = userRes.rows[0].genotypes || {};
     if (typeof currentGenotypes === 'string') {
-        currentGenotypes = JSON.parse(currentGenotypes);
+      currentGenotypes = JSON.parse(currentGenotypes);
     }
-    
+
     // Merge new genotypes with existing ones
     if (genotypes) {
-        currentGenotypes = { ...currentGenotypes, ...genotypes };
+      currentGenotypes = { ...currentGenotypes, ...genotypes };
     }
-    
+
     if (geneName) {
       currentReports[geneName] = { url: reportUrl, uploadedAt: new Date().toISOString() };
     }
@@ -704,7 +704,7 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
@@ -803,7 +803,7 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
@@ -828,12 +828,13 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Survey Route
 // ─────────────────────────────────────────────────────────────────────────────
-app.post('/api/users/:id/request-survey', async (req, res) => {
+app.post('/api/users/:id/request-survey', express.json(), async (req, res) => {
   const userId = req.params.id;
+  const requested = req.body.requested !== undefined ? req.body.requested : true;
   try {
     const result = await pool.query(
-      `UPDATE users SET survey_requested = true WHERE id = $1 RETURNING *`,
-      [userId]
+      `UPDATE users SET survey_requested = $1 WHERE id = $2 RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at`,
+      [requested, userId]
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -923,7 +924,7 @@ app.post('/api/users/:id/fetch-phenotypic-data', async (req, res) => {
 
     // 6. Return updated user
     const updatedRes = await pool.query(
-      `SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis,
+      `SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested,
               sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
        FROM users WHERE id = $1`,
       [userId]
