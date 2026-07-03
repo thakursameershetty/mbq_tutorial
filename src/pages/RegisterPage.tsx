@@ -870,7 +870,7 @@ export default function RegisterPage() {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-lg w-full border border-[#E8E8E5] relative overflow-hidden"
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-lg w-full border border-[#E8E8E5] relative overflow-y-auto max-h-[90vh]"
             >
 
               {showThankYou ? (
