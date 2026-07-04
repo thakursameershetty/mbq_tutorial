@@ -341,7 +341,7 @@ export default function LoginPage() {
                     className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
                       sendingOtp || otpTimer > 0
                         ? 'bg-[#F0F0ED] text-[#B0B0AE] cursor-not-allowed'
-                        : 'bg-[#F7F7F5] text-[#1A1A19] hover:bg-[#E8E8E5] active:scale-95 border border-[#E8E8E5] shadow-sm'
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 shadow-md hover:shadow-lg active:scale-95'
                     }`}
                   >
                     {sendingOtp ? <Loader2 className="animate-spin" size={18} /> : (otpSent ? (otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : 'Resend OTP') : 'Send OTP')}

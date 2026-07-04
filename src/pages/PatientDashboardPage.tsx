@@ -35,6 +35,10 @@ export default function PatientDashboardPage() {
             if (!latestData.error) {
               setUser(latestData);
               localStorage.setItem('userProfile', JSON.stringify(latestData));
+            } else if (latestData.error === 'User not found.') {
+              localStorage.removeItem('userProfile');
+              setUser(null);
+              navigate('/login');
             }
           })
           .catch(err => console.error("Error fetching latest profile:", err));
@@ -501,6 +505,7 @@ export default function PatientDashboardPage() {
           isOpen={showSurveyModal}
           onClose={() => setShowSurveyModal(false)}
           userId={user.id}
+          geneType={user.gene_type}
           onComplete={() => {
             // Optimistically update the UI to remove the banner
             setUser((prev: any) => ({ ...prev, survey_requested: false }));

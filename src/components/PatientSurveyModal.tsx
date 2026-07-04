@@ -20,10 +20,11 @@ interface PatientSurveyModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string | number;
+  geneType: string;
   onComplete: () => void;
 }
 
-export default function PatientSurveyModal({ isOpen, onClose, userId, onComplete }: PatientSurveyModalProps) {
+export default function PatientSurveyModal({ isOpen, onClose, userId, geneType, onComplete }: PatientSurveyModalProps) {
   const [questions, setQuestions] = useState<SelectedQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -44,6 +45,10 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, onComplete
 
       const selectedQs: SelectedQuestion[] = [];
       data.forEach((test: any) => {
+        if (!geneType || !geneType.toLowerCase().includes(test.test_name.toLowerCase())) {
+          return; // Skip tests that don't match the user's gene type
+        }
+
         const parseQ = (qs: any) => (typeof qs === 'string' ? JSON.parse(qs) : qs);
         const sub1 = parseQ(test.subgene1_questions);
         const sub2 = parseQ(test.subgene2_questions);
