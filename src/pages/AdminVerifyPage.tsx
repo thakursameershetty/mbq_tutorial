@@ -406,6 +406,8 @@ export default function AdminVerifyPage() {
       }
     }
 
+    alert(`Successfully ${requested ? 'requested survey for' : 'undid survey request for'} selected users.`);
+
     setIsBulkFetching(false);
     setActionLoading(null);
   };
@@ -1353,6 +1355,15 @@ export default function AdminVerifyPage() {
                 {selectedUsers.size}
               </div>
               <span className="text-white text-sm font-medium hidden sm:block">profiles selected</span>
+
+              <button
+                onClick={() => setSelectedUsers(new Set())}
+                disabled={isBulkFetching}
+                className="p-1.5 hover:bg-[#333331] rounded-lg transition-colors border border-transparent hover:border-white/10 disabled:opacity-60 shrink-0 ml-1 flex items-center justify-center text-[#A0A09D] hover:text-white"
+                title="Clear Selections"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
             <div className="w-px h-6 bg-white/15 shrink-0" />
             <div className="flex items-center gap-2 shrink-0">
@@ -1370,39 +1381,36 @@ export default function AdminVerifyPage() {
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
               >
                 {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                Resync Selected
+                Resync
               </button>
-              <button
-                onClick={() => handleBulkRequestSurvey(true)}
-                disabled={isBulkFetching}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
-              >
-                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Collect Answers
-              </button>
-              <button
-                onClick={() => handleBulkRequestSurvey(false)}
-                disabled={isBulkFetching}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
-              >
-                {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                Undo Request
-              </button>
+              {patients.filter(p => selectedUsers.has(p.id)).some(p => !p.survey_requested) && (
+                <button
+                  onClick={() => handleBulkRequestSurvey(true)}
+                  disabled={isBulkFetching}
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+                >
+                  {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  Collect Answers
+                </button>
+              )}
+              {patients.filter(p => selectedUsers.has(p.id)).some(p => p.survey_requested) && (
+                <button
+                  onClick={() => handleBulkRequestSurvey(false)}
+                  disabled={isBulkFetching}
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+                >
+                  {isBulkFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                  Undo Request
+                </button>
+              )}
               <div className="w-px h-6 bg-white/15 mx-1 shrink-0 hidden sm:block" />
               <button
                 onClick={() => setShowBulkDeleteModal(true)}
                 disabled={isBulkFetching}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+                className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors disabled:opacity-60 shrink-0"
+                title="Delete Selected"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete Selected
-              </button>
-              <button
-                onClick={() => setSelectedUsers(new Set())}
-                disabled={isBulkFetching}
-                className="p-2 hover:bg-[#333331] rounded-xl transition-colors sm:ml-2 border border-transparent hover:border-white/10 disabled:opacity-60 shrink-0"
-              >
-                <X className="w-4 h-4 text-[#A0A09D]" />
               </button>
             </div>
           </motion.div>
