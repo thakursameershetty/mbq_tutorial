@@ -537,6 +537,44 @@ app.get('/api/admin/patients', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Questions API
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/admin/questions', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM test_questions ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching questions:', error);
+    res.status(500).json({ error: 'Failed to fetch questions' });
+  }
+});
+
+app.put('/api/admin/questions/:id', async (req, res) => {
+  const { id } = req.params;
+  const { subgene1_questions, subgene2_questions } = req.body;
+  try {
+    const query = `
+      UPDATE test_questions
+      SET subgene1_questions = $1, subgene2_questions = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [
+      JSON.stringify(subgene1_questions), 
+      JSON.stringify(subgene2_questions), 
+      id
+    ]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Questions not found.' });
+    }
+    res.json({ success: true, questions: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating questions:', error);
+    res.status(500).json({ error: 'Failed to update questions' });
+  }
+});
+
 // Helper function to update status timestamps in PG
 async function updateStatusTimestamp(userId, statusName, isTrue) {
   const selectQuery = `SELECT status_timestamps FROM users WHERE id = $1`;

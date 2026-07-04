@@ -423,7 +423,7 @@ export default function RegisterPage() {
     const checkUsername = async () => {
       const username = formData.username.trim();
       const hasInvalidChars = /[^a-zA-Z0-9._]/.test(username);
-      if (!username || hasInvalidChars) {
+      if (!username || hasInvalidChars || username.length < 5) {
         setUsernameExists(false);
         setCheckingUsername(false);
         return;
@@ -647,7 +647,7 @@ export default function RegisterPage() {
   const yearSuggestion = getYearSuggestion();
 
   const isFormPerfectlyFilled =
-    formData.username.trim().length > 0 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
+    formData.username.trim().length >= 5 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
     formData.fullName.trim().length > 0 &&
     formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailExists && !checkingEmail && !emailSuggestion &&
     formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
@@ -697,6 +697,10 @@ export default function RegisterPage() {
       setFormData(updatedFormData);
     }
 
+    if (updatedFormData.username.trim().length < 5) {
+      setToastMessage({ type: 'error', text: 'Username must be at least 5 characters long.' });
+      return;
+    }
     if (/[^a-zA-Z0-9._]/.test(updatedFormData.username)) {
       setToastMessage({ type: 'error', text: 'Username can only contain letters, numbers, dots, and underscores.' });
       return;
@@ -1008,10 +1012,10 @@ export default function RegisterPage() {
                 value={formData.username}
                 onChange={handleChange}
                 placeholder="Unique Username"
-                className={`${theme.input} !mb-0 ${/[^a-zA-Z0-9._]/.test(formData.username) || usernameExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                className={`${theme.input} !mb-0 ${/[^a-zA-Z0-9._]/.test(formData.username) || usernameExists || (formData.username.length > 0 && formData.username.length < 5) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
                 required
               />
-              {checkingUsername && !/[^a-zA-Z0-9._]/.test(formData.username) && (
+              {checkingUsername && !/[^a-zA-Z0-9._]/.test(formData.username) && formData.username.length >= 5 && (
                 <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
               )}
               <AnimatePresence>
@@ -1034,7 +1038,7 @@ export default function RegisterPage() {
                     </div>
                   </motion.div>
                 )}
-                {usernameExists && !/[^a-zA-Z0-9._]/.test(formData.username) && (
+                {usernameExists && !/[^a-zA-Z0-9._]/.test(formData.username) && formData.username.length >= 5 && (
                   <motion.div
                     initial={{ opacity: 0, y: -10, height: 0 }}
                     animate={{ opacity: 1, y: 0, height: 'auto' }}
@@ -1043,6 +1047,18 @@ export default function RegisterPage() {
                   >
                     <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
                       <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This username is already taken.</span>
+                    </div>
+                  </motion.div>
+                )}
+                {formData.username.length > 0 && formData.username.length < 5 && !/[^a-zA-Z0-9._]/.test(formData.username) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-orange-600 bg-orange-50/80 px-3 py-2.5 rounded-xl border border-orange-200 mt-2 flex flex-col gap-1.5 shadow-sm">
+                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> Username must be at least 5 characters.</span>
                     </div>
                   </motion.div>
                 )}

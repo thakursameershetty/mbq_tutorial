@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import QuestionsModal from '../components/QuestionsModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -47,6 +48,7 @@ export default function AdminVerifyPage() {
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
+  const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
 
   const [editingGenePatient, setEditingGenePatient] = useState<any>(null);
   const [editedGeneType, setEditedGeneType] = useState<string>('');
@@ -542,13 +544,13 @@ export default function AdminVerifyPage() {
             {/* Core Actions (Search + Global Buttons) */}
             <div className="flex flex-row items-center gap-3 w-full sm:w-auto">
               <div className="relative flex-1 lg:w-64">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
+                <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search patients..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/80 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+                  className="w-full bg-white/80 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
                 />
               </div>
 
@@ -632,8 +634,16 @@ export default function AdminVerifyPage() {
             >
               <option value="all">All AI Data</option>
               <option value="has_data">Has Data</option>
-              <option value="null_data">Missing Data</option>
+              <option value="false">Phenotypic Pending</option>
             </select>
+
+            <button
+              onClick={() => setIsQuestionsModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-[#E8E8E5] rounded-2xl text-xs font-semibold text-[#5A5A55] transition-all shadow-sm shrink-0 hover:bg-[#F8F8F7] h-[44px]"
+            >
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Select Questions</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1705,6 +1715,11 @@ export default function AdminVerifyPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <QuestionsModal
+        isOpen={isQuestionsModalOpen}
+        onClose={() => setIsQuestionsModalOpen(false)}
+      />
     </motion.div >
   );
 }

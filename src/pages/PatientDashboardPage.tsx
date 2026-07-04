@@ -4,6 +4,7 @@ import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle } from 'lucide-re
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
+import PatientSurveyModal from '@/components/PatientSurveyModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -15,6 +16,7 @@ export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const navigate = useNavigate();
@@ -73,7 +75,12 @@ export default function PatientDashboardPage() {
     let val = getVal(user, path);
 
     if (typeof val === 'object' && val !== null) {
-      val = Object.values(val).filter(Boolean).join(' - ');
+      const values = Object.values(val).filter(Boolean);
+      if (label === 'Age' && values.length >= 2) {
+        val = `${values[0]}yrs (${values[1]})`;
+      } else {
+        val = values.join(' - ');
+      }
     }
 
     if (block) {
@@ -210,14 +217,12 @@ export default function PatientDashboardPage() {
             <p className="text-sm font-medium text-white flex-1 mb-2 sm:mb-0">
               Please submit your answers again so that you can get your report
             </p>
-            <a
-              href="https://tally.so/r/5B1ZJZ?"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setShowSurveyModal(true)}
               className="inline-flex items-center gap-1 font-bold text-amber-700 bg-white pl-5 pr-4 py-2.5 sm:py-2 rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap shrink-0 self-end sm:self-auto"
             >
               Answer Now <span className="material-symbols-rounded text-[20px]" aria-hidden="true">chevron_right</span>
-            </a>
+            </button>
           </div>
         </motion.div>
       )}
@@ -489,6 +494,19 @@ export default function PatientDashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modals */}
+      {user && (
+        <PatientSurveyModal
+          isOpen={showSurveyModal}
+          onClose={() => setShowSurveyModal(false)}
+          userId={user.id}
+          onComplete={() => {
+            // Optimistically update the UI to remove the banner
+            setUser((prev: any) => ({ ...prev, survey_requested: false }));
+          }}
+        />
+      )}
     </motion.div>
   );
 }

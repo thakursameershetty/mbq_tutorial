@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle, Edit } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import QuestionsModal from '../components/QuestionsModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -59,6 +60,7 @@ export default function LabDashboard() {
   const [selectedPatients, setSelectedPatients] = useState<Set<string>>(new Set());
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
+  const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
 
   const fetchPatients = () => {
     fetch('/api/admin/patients')
@@ -381,13 +383,13 @@ export default function LabDashboard() {
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4 relative z-10 bg-white/60 backdrop-blur-xl p-3 sm:p-4 rounded-3xl border border-[#E8E8E5] shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto">
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D]" />
+            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
             <input
               type="text"
               placeholder="Search patients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-[#E8E8E5] text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+              className="w-full bg-white border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
             />
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -422,6 +424,14 @@ export default function LabDashboard() {
               <option value="marked">Marked (Received)</option>
               <option value="unmarked">Unmarked (Pending)</option>
             </select>
+
+            <button
+              onClick={() => setIsQuestionsModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-[#E8E8E5] rounded-2xl text-xs font-semibold text-[#5A5A55] transition-all shadow-sm shrink-0 hover:bg-[#F9F9F8] h-[44px]"
+            >
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Select Questions</span>
+            </button>
           </div>
         </div>
 
@@ -1280,6 +1290,11 @@ export default function LabDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      <QuestionsModal
+        isOpen={isQuestionsModalOpen}
+        onClose={() => setIsQuestionsModalOpen(false)}
+      />
     </motion.div>
   );
 }
