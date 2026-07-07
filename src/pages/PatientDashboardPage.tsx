@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
 import PatientSurveyModal from '@/components/PatientSurveyModal';
+import AIReportModal from '@/components/AIReportModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -17,6 +18,7 @@ export default function PatientDashboardPage() {
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
+  const [selectedAIReport, setSelectedAIReport] = useState<{geneName: string, content: string} | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const navigate = useNavigate();
@@ -154,16 +156,26 @@ export default function PatientDashboardPage() {
             )}
             {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
               Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
-                <a
-                  key={geneName}
-                  href={reportData.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
-                >
-                  <FileText size={16} />
-                  View {geneName} Report
-                </a>
+                <div key={geneName} className="flex gap-2">
+                  <a
+                    href={reportData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+                  >
+                    <FileText size={16} />
+                    View {geneName} PDF
+                  </a>
+                  {reportData.ai_report && (
+                    <button
+                      onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-sm font-medium hover:bg-amber-200 transition-colors shadow-sm cursor-pointer"
+                    >
+                      <Sparkles size={16} />
+                      AI Insights
+                    </button>
+                  )}
+                </div>
               ))
             ) : user.report_verified && user.report_url ? (
               <a
@@ -426,16 +438,26 @@ export default function PatientDashboardPage() {
               {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
                 <div className="mt-6 pt-4 border-t border-[#E8E8E5] flex flex-col gap-3">
                   {Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
-                    <a
-                      key={geneName}
-                      href={reportData.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
-                    >
-                      <FileText size={18} />
-                      View {geneName} Report
-                    </a>
+                    <div key={geneName} className="flex flex-col sm:flex-row gap-2">
+                      <a
+                        href={reportData.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
+                      >
+                        <FileText size={18} />
+                        View {geneName} PDF
+                      </a>
+                      {reportData.ai_report && (
+                        <button
+                          onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                          className="flex-1 py-3.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
+                        >
+                          <Sparkles size={18} />
+                          AI Insights
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               ) : user.report_verified && user.report_url ? (
@@ -512,6 +534,12 @@ export default function PatientDashboardPage() {
           }}
         />
       )}
+      <AIReportModal
+        isOpen={!!selectedAIReport}
+        onClose={() => setSelectedAIReport(null)}
+        markdownContent={selectedAIReport?.content || ''}
+        geneName={selectedAIReport?.geneName || ''}
+      />
     </motion.div>
   );
 }

@@ -30,6 +30,7 @@ async function createTable() {
         report_verified BOOLEAN DEFAULT FALSE,
         report_url VARCHAR(555),
         reports JSONB DEFAULT '{}'::jsonb,
+        report_answers JSONB DEFAULT '{}'::jsonb,
         status_timestamps JSONB DEFAULT '{}'::jsonb,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );

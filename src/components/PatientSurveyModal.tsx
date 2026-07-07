@@ -81,13 +81,18 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, geneType, 
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/users/${userId}/request-survey`, {
+      const res = await fetch(`/api/users/${userId}/report-answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requested: false }),
+        body: JSON.stringify({ answers }),
       });
 
       if (res.ok) {
+        // Update user state if the backend returns it
+        const data = await res.json();
+        if (data.user) {
+          localStorage.setItem('userProfile', JSON.stringify(data.user));
+        }
         onComplete();
         onClose();
       } else {

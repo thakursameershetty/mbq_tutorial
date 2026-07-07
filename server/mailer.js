@@ -794,3 +794,111 @@ const sendReportReadyEmail = async (user) => {
 };
 
 module.exports.sendReportReadyEmail = sendReportReadyEmail;
+
+const sendCollectAnswersEmail = async (user) => {
+  if (!user || !user.email) return;
+  const firstName = user.full_name ? user.full_name.split(' ')[0] : user.username || 'User';
+
+  const mailOptions = {
+    from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',
+    to: user.email,
+    subject: 'Action Required: Answer questions to get your MyBodyQode report',
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F9F9F8;
+    color: #1A1A19;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #ffffff;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+  }
+  .header {
+    text-align: center;
+    padding: 40px 20px 20px;
+  }
+  .content {
+    padding: 20px 40px 40px;
+  }
+  .greeting {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #1A1A19;
+  }
+  .button-container {
+    text-align: center;
+    margin: 40px 0;
+  }
+  .button {
+    background-color: #d97706; /* amber-600 */
+    color: #FFFFFF !important;
+    text-decoration: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    display: inline-block;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="color: #1A1A19; font-size: 20px; font-weight: 800;">MyBodyQode</h1>
+    </div>
+    <div class="content">
+      <div class="greeting">Hi ${firstName},</div>
+      
+      <p style="font-size: 18px; color: #1A1A19; font-weight: 600;">Action Required: Please submit your answers.</p>
+      
+      <p>We need a bit more information from you to accurately generate your personalized MyBodyQode genetic report. Our scientists have selected a few specific questions tailored for you.</p>
+      
+      <p>Please log in to your dashboard to answer them.</p>
+      
+      <div class="button-container">
+        <a href="https://mybodyqode.vercel.app/login" class="button">Answer Questions Now</a>
+      </div>
+      
+      <p style="font-size: 14px;">If you have any questions, feel free to reply to this email.</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending collect answers email:', error);
+      return;
+    }
+    console.log(`Collect answers email sent to ${user.email}`, data);
+  } catch (error) {
+    console.error('Exception while sending collect answers email:', error);
+  }
+};
+
+module.exports.sendCollectAnswersEmail = sendCollectAnswersEmail;

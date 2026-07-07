@@ -4,7 +4,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache } = require('./aiMapping');
-const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail } = require('./mailer');
+const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
+const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -350,12 +351,13 @@ app.post('/api/auth/register', async (req, res) => {
 
     const insertUserQuery = `
       INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, status_timestamps)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id;
     `;
     const userResult = await pool.query(insertUserQuery, [
       username, fullName, email, phone, age, gender, geneType,
       analysisJSON ? JSON.stringify(analysisJSON) : null,
+      false,
       initialTimestamps
     ]);
 
@@ -561,8 +563,8 @@ app.put('/api/admin/questions/:id', async (req, res) => {
       RETURNING *;
     `;
     const result = await pool.query(query, [
-      JSON.stringify(subgene1_questions), 
-      JSON.stringify(subgene2_questions), 
+      JSON.stringify(subgene1_questions),
+      JSON.stringify(subgene2_questions),
       id
     ]);
     if (result.rowCount === 0) {
@@ -694,7 +696,7 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
   const geneName = req.body.geneName;
 
   try {
-    const userRes = await pool.query('SELECT reports, genotypes FROM users WHERE id = $1', [userId]);
+    const userRes = await pool.query('SELECT reports, genotypes, phenotypic_analysis FROM users WHERE id = $1', [userId]);
     if (userRes.rowCount === 0) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -732,13 +734,76 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
 
     await updateStatusTimestamp(userId, 'uploaded', true);
 
-    // Mock auto-generating the phenotypic report logic immediately after uploading genomic PDF
-    await pool.query(`
-      UPDATE users
-      SET report_generated = TRUE
-      WHERE id = $1
-    `, [userId]);
-    await updateStatusTimestamp(userId, 'generated', true);
+    // Use report_answers instead of phenotypic_analysis for the Python backend
+    let phenotypeData = userRes.rows[0].report_answers || {};
+    if (typeof phenotypeData === 'string') {
+      phenotypeData = JSON.parse(phenotypeData);
+    }
+
+    // Fallback to phenotypic_analysis if report_answers is empty
+    if (Object.keys(phenotypeData).length === 0) {
+      phenotypeData = userRes.rows[0].phenotypic_analysis || {};
+    }
+
+    const flatResponses = {};
+    const flatten = (obj, prefix = '') => {
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === 'object' && value !== null) {
+          flatten(value, `${prefix}${key}_`);
+        } else {
+          flatResponses[`${prefix}${key}`] = value;
+        }
+      }
+    };
+    flatten(phenotypeData);
+
+    const genotypeData = genotypes && geneName ? { genotype: genotypes[geneName] } : {};
+
+    try {
+      // Call python backend
+      console.log(`Sending to python backend for gene ${geneName}...`);
+      const pythonRes = await fetch('http://localhost:8000/analyze-genomic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          gene: geneName,
+          genotype_data: genotypeData,
+          phenotype_data: {
+            gene: geneName,
+            responses: flatResponses
+          },
+          lifestyle_context: {
+            user_type: "explorer"
+          }
+        })
+      });
+
+      if (!pythonRes.ok) {
+        const errText = await pythonRes.text();
+        console.error('Python backend error:', errText);
+        // Continue anyway to store the uploaded report
+      } else {
+        const pythonData = await pythonRes.json();
+        // Save the generated report
+        currentReports[geneName] = {
+          ...currentReports[geneName],
+          ai_report: pythonData.result
+        };
+
+        // Update DB with the ai_report
+        await pool.query(`
+          UPDATE users 
+          SET reports = $1, report_generated = TRUE
+          WHERE id = $2
+        `, [JSON.stringify(currentReports), userId]);
+
+        await updateStatusTimestamp(userId, 'generated', true);
+      }
+    } catch (pyErr) {
+      console.error('Failed to communicate with python backend:', pyErr);
+    }
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
@@ -871,16 +936,80 @@ app.post('/api/users/:id/request-survey', express.json(), async (req, res) => {
   const requested = req.body.requested !== undefined ? req.body.requested : true;
   try {
     const result = await pool.query(
-      `UPDATE users SET survey_requested = $1 WHERE id = $2 RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at`,
+      `UPDATE users SET survey_requested = $1 WHERE id = $2 RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, report_answers, status_timestamps, created_at`,
       [requested, userId]
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    if (requested) {
+      // Send the email to the user
+      await sendCollectAnswersEmail(result.rows[0]);
+    }
+
     res.json({ success: true, user: result.rows[0] });
   } catch (error) {
     console.error('Error requesting survey:', error);
     res.status(500).json({ error: 'Server error requesting survey' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Submit Report Answers Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
+  const userId = req.params.id;
+  const { answers } = req.body; // e.g. { "1-1-0": 1, "2-2-1": 0 }
+
+  try {
+    // We need to map these answers to the actual python question IDs with their scores.
+    // 1. Fetch test_questions to get the scores
+    const questionsRes = await pool.query('SELECT * FROM test_questions ORDER BY id ASC');
+    const testQuestions = questionsRes.rows;
+
+    const mappedAnswers = {};
+    for (const [uniqueId, optIdx] of Object.entries(answers)) {
+      const [testId, subgeneIdx, qIndex] = uniqueId.split('-').map(Number);
+
+      const test = testQuestions.find(t => t.id === testId);
+      if (!test) continue;
+
+      const subgeneKey = subgeneIdx === 1 ? 'subgene1_questions' : 'subgene2_questions';
+      let qs = test[subgeneKey];
+      if (typeof qs === 'string') qs = JSON.parse(qs);
+
+      const question = qs[qIndex];
+      if (!question || !question.options || !question.options[optIdx]) continue;
+
+      const pythonKey = QUESTION_ID_MAP[testId]?.[subgeneIdx]?.[qIndex];
+      if (pythonKey) {
+        mappedAnswers[pythonKey] = question.options[optIdx].score;
+      }
+    }
+
+    // 2. Fetch current user to merge or replace report_answers
+    const userRes = await pool.query('SELECT report_answers FROM users WHERE id = $1', [userId]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    let currentAnswers = userRes.rows[0].report_answers || {};
+    if (typeof currentAnswers === 'string') currentAnswers = JSON.parse(currentAnswers);
+
+    // Merge new mapped answers
+    const updatedAnswers = { ...currentAnswers, ...mappedAnswers };
+
+    // 3. Update DB
+    const updateRes = await pool.query(
+      `UPDATE users SET report_answers = $1, survey_requested = FALSE WHERE id = $2 RETURNING *`,
+      [JSON.stringify(updatedAnswers), userId]
+    );
+
+    res.json({ success: true, user: updateRes.rows[0] });
+  } catch (error) {
+    console.error('Error saving report answers:', error);
+    res.status(500).json({ error: 'Server error saving answers' });
   }
 });
 

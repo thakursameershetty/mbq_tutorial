@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
+import AIReportModal from '../components/AIReportModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -46,6 +47,7 @@ export default function AdminVerifyPage() {
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
+  const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
@@ -135,11 +137,6 @@ export default function AdminVerifyPage() {
     } finally {
       setIsDeletingUser(false);
     }
-  };
-
-  const handleViewGeneratedReport = (patient: any) => {
-    localStorage.setItem('userProfile', JSON.stringify(patient));
-    window.open('/report', '_blank');
   };
 
   const confirmVerifyReport = async () => {
@@ -1038,14 +1035,24 @@ export default function AdminVerifyPage() {
                             {patient.reports && Object.keys(patient.reports).length > 0 ? (
                               <>
                                 {Object.entries(patient.reports).map(([geneName, reportData]: [string, any]) => (
-                                  <button
-                                    key={geneName}
-                                    onClick={() => setPreviewPdfUrl(reportData.url)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                                  >
-                                    <FileText size={14} className="text-[#6057D7]" />
-                                    View {geneName} Report
-                                  </button>
+                                  <div key={geneName} className="flex flex-col sm:flex-row gap-2">
+                                    <button
+                                      onClick={() => setPreviewPdfUrl(reportData.url)}
+                                      className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                    >
+                                      <FileText size={14} className="text-[#6057D7]" />
+                                      View {geneName} Report
+                                    </button>
+                                    {reportData.ai_report && (
+                                      <button
+                                        onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                                        className="flex items-center gap-2 px-4 py-2 bg-amber-100/80 hover:bg-amber-200 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                      >
+                                        <Sparkles size={14} />
+                                        View {geneName} AI Insights
+                                      </button>
+                                    )}
+                                  </div>
                                 ))}
                                 {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
                                   <button
@@ -1088,23 +1095,7 @@ export default function AdminVerifyPage() {
                               </button>
                             )}
 
-                            {patient.report_generated ? (
-                              <button
-                                onClick={() => handleViewGeneratedReport(patient)}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#6057D7]/10 hover:bg-[#6057D7]/15 border border-[#6057D7]/20 text-[#6057D7] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                              >
-                                <Sparkles size={14} />
-                                View Generated Report
-                              </button>
-                            ) : (
-                              <button
-                                disabled
-                                className="flex items-center gap-2 px-4 py-2 bg-[#F7F7F5] border border-[#E8E8E5] text-[#8B8B86] rounded-xl text-xs font-bold cursor-not-allowed"
-                              >
-                                <Sparkles size={14} />
-                                No Generated Report
-                              </button>
-                            )}
+                            {/* We removed the old generic 'View Generated Report' button as we now use specific AI Insight buttons above */}
 
                             <button
                               onClick={() => setVerifyAction(patient)}
@@ -1728,6 +1719,16 @@ export default function AdminVerifyPage() {
         isOpen={isQuestionsModalOpen}
         onClose={() => setIsQuestionsModalOpen(false)}
       />
+
+      {/* AI Report Modal */}
+      {selectedAIReport && (
+        <AIReportModal
+          isOpen={!!selectedAIReport}
+          onClose={() => setSelectedAIReport(null)}
+          geneName={selectedAIReport.geneName}
+          markdownContent={selectedAIReport.content}
+        />
+      )}
     </motion.div >
   );
 }
