@@ -347,15 +347,15 @@ export default function RegisterPage() {
   const [showPendingScreen, setShowPendingScreen] = useState(false);
   const [usernameExists, setUsernameExists] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
-  const [emailExists, setEmailExists] = useState(false);
-  const [checkingEmail, setCheckingEmail] = useState(false);
+
+
   const [phoneExists, setPhoneExists] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
 
   // State to hold the form data
   const [formData, setFormData] = useState({
-    username: '', fullName: '', email: '', otp: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', gender: ''
+    username: '', fullName: '', email: '', otp: '', countryCode: '+91', phone: '', dobDay: '', dobMonth: '', dobYear: '', age: '', ageInputMode: 'dob', gender: ''
   });
 
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -447,29 +447,7 @@ export default function RegisterPage() {
     return () => clearTimeout(debounceTimer);
   }, [formData?.username]);
 
-  // Check Email uniqueness
-  useEffect(() => {
-    const checkEmail = async () => {
-      const email = formData.email.trim();
-      if (!email || !email.includes('@')) {
-        setEmailExists(false);
-        setCheckingEmail(false);
-        return;
-      }
-      setCheckingEmail(true);
-      try {
-        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
-        const data = await response.json();
-        setEmailExists(data.exists);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setCheckingEmail(false);
-      }
-    };
-    const timer = setTimeout(checkEmail, 500);
-    return () => clearTimeout(timer);
-  }, [formData.email]);
+
 
   // Check Phone uniqueness
   useEffect(() => {
@@ -562,7 +540,13 @@ export default function RegisterPage() {
   };
 
   const validateDateOfBirth = (data = formData) => {
-    const { dobDay, dobMonth, dobYear } = data;
+    const { dobDay, dobMonth, dobYear, ageInputMode, age } = data;
+    if (ageInputMode === 'age') {
+      if (!age) return "Age is required.";
+      const ageNum = parseInt(age, 10);
+      if (isNaN(ageNum) || ageNum < 0 || ageNum > 120) return "Please enter a valid age.";
+      return null;
+    }
     const currentYear = new Date().getFullYear();
     const maxYear = currentYear - 18;
 
@@ -649,7 +633,7 @@ export default function RegisterPage() {
   const isFormPerfectlyFilled =
     formData.username.trim().length >= 5 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
     formData.fullName.trim().length > 0 &&
-    formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailExists && !checkingEmail && !emailSuggestion &&
+    formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailSuggestion &&
     formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
     !dobError && !yearSuggestion &&
     formData.gender !== '' &&
@@ -658,8 +642,8 @@ export default function RegisterPage() {
 
   const handleSendOtp = async () => {
     triggerHaptic('medium');
-    if (!formData.email || !formData.email.includes('@') || emailExists) {
-      setToastMessage({ type: 'error', text: 'Please enter a valid, unregistered email first.' });
+    if (!formData.email || !formData.email.includes('@')) {
+      setToastMessage({ type: 'error', text: 'Please enter a valid email first.' });
       return;
     }
 
@@ -713,10 +697,7 @@ export default function RegisterPage() {
       setToastMessage({ type: 'error', text: "Email address must include an '@' symbol." });
       return;
     }
-    if (emailExists) {
-      setToastMessage({ type: 'error', text: 'This email is already registered.' });
-      return;
-    }
+
     if (phoneExists) {
       setToastMessage({ type: 'error', text: 'This phone number is already registered.' });
       return;
@@ -741,7 +722,8 @@ export default function RegisterPage() {
         fullName: formData.fullName,
         email: formData.email,
         phone: `${formData.countryCode} ${formData.phone}`,
-        age: parseInt(calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear), 10) || null,
+        age: formData.ageInputMode === 'age' ? parseInt(formData.age, 10) : (parseInt(calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear), 10) || null),
+        dob: formData.ageInputMode === 'dob' ? `${formData.dobYear}-${formData.dobMonth}-${formData.dobDay}` : null,
         gender: formData.gender,
         geneType: selectedGenes.filter(Boolean).join(', '),
         otp: formData.otp
@@ -1074,12 +1056,9 @@ export default function RegisterPage() {
                 onBlur={() => setEmailTouched(true)}
                 placeholder="Email Address"
                 disabled={isEmailVerified}
-                className={`${theme.input} !mb-0 ${missingAtSymbol || emailSuggestion || emailExists ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''} ${isEmailVerified ? 'bg-[#F7F7F5]/50 cursor-not-allowed opacity-80' : ''}`}
+                className={`${theme.input} !mb-0 ${missingAtSymbol || emailSuggestion ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''} ${isEmailVerified ? 'bg-[#F7F7F5]/50 cursor-not-allowed opacity-80' : ''}`}
                 required
               />
-              {checkingEmail && !missingAtSymbol && !emailSuggestion && (
-                <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
-              )}
               {isEmailVerified && (
                 <div className="absolute right-4 top-[18px]"><CheckCircle2 className="text-green-500" size={16} /></div>
               )}
@@ -1115,22 +1094,11 @@ export default function RegisterPage() {
                     </div>
                   </motion.div>
                 )}
-                {emailExists && !missingAtSymbol && !emailSuggestion && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -10, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
-                      <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This email is already registered.</span>
-                    </div>
-                  </motion.div>
-                )}
+
               </AnimatePresence>
 
               <AnimatePresence>
-                {!isEmailVerified && formData.email.length > 0 && !emailExists && !missingAtSymbol && !emailSuggestion && (
+                {!isEmailVerified && formData.email.length > 0 && !missingAtSymbol && !emailSuggestion && (
                   <motion.div
                     initial={{ opacity: 0, height: 0, marginTop: 0 }}
                     animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
@@ -1239,60 +1207,95 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Date of Birth Input (Split) */}
+            {/* Age or DOB Toggle and Input */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-[#8B8B86] mb-1.5 text-left pl-1">
-                Date of Birth
-                {formData.dobDay && formData.dobMonth && formData.dobYear && formData.dobYear.length === 4 && !dobError && calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear) && (
-                  <span className="text-[#6057D7] font-semibold ml-2">
-                    (Age: {calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear)})
-                  </span>
-                )}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  name="dobDay"
-                  value={formData.dobDay}
-                  onChange={handleChange}
-                  placeholder="Day"
-                  className={`${theme.input} !mb-0 !w-1/4 sm:!w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${dobError ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
-                  required
-                />
-                <div className="relative flex-1">
-                  <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`} required defaultValue="">
-                    <option value="" disabled>Month</option>
-                    <option value="0">January</option>
-                    <option value="1">February</option>
-                    <option value="2">March</option>
-                    <option value="3">April</option>
-                    <option value="4">May</option>
-                    <option value="5">June</option>
-                    <option value="6">July</option>
-                    <option value="7">August</option>
-                    <option value="8">September</option>
-                    <option value="9">October</option>
-                    <option value="10">November</option>
-                    <option value="11">December</option>
-                  </select>
-                  <div className="absolute right-3 sm:right-4 top-[18px] pointer-events-none text-[#8B8B86]">
-                    <ChevronDown size={16} strokeWidth={2.5} />
-                  </div>
+              <div className="flex items-center justify-between mb-2 pl-1">
+                <label className="block text-sm font-medium text-[#8B8B86] text-left">
+                  {formData.ageInputMode === 'dob' ? 'Date of Birth' : 'Age'}
+                  {formData.ageInputMode === 'dob' && formData.dobDay && formData.dobMonth && formData.dobYear && formData.dobYear.length === 4 && !dobError && calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear) && (
+                    <span className="text-[#6057D7] font-semibold ml-2">
+                      (Age: {calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear)})
+                    </span>
+                  )}
+                </label>
+                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, ageInputMode: 'dob' })}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${formData.ageInputMode === 'dob' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    DOB
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, ageInputMode: 'age' })}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${formData.ageInputMode === 'age' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Age
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  name="dobYear"
-                  value={formData.dobYear}
-                  onChange={handleChange}
-                  placeholder="Year"
-                  className={`${theme.input} !mb-0 !w-1/3 sm:!w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
-                  required
-                />
               </div>
+
+              {formData.ageInputMode === 'dob' ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    name="dobDay"
+                    value={formData.dobDay}
+                    onChange={handleChange}
+                    placeholder="Day"
+                    className={`${theme.input} !mb-0 !w-1/4 sm:!w-[100px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${dobError ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                    required
+                  />
+                  <div className="relative flex-1">
+                    <select name="dobMonth" onChange={handleChange} className={`${theme.input} !mb-0 appearance-none cursor-pointer w-full ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`} required defaultValue="">
+                      <option value="" disabled>Month</option>
+                      <option value="0">January</option>
+                      <option value="1">February</option>
+                      <option value="2">March</option>
+                      <option value="3">April</option>
+                      <option value="4">May</option>
+                      <option value="5">June</option>
+                      <option value="6">July</option>
+                      <option value="7">August</option>
+                      <option value="8">September</option>
+                      <option value="9">October</option>
+                      <option value="10">November</option>
+                      <option value="11">December</option>
+                    </select>
+                    <div className="absolute right-3 sm:right-4 top-[18px] pointer-events-none text-[#8B8B86]">
+                      <ChevronDown size={16} strokeWidth={2.5} />
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    name="dobYear"
+                    value={formData.dobYear}
+                    onChange={handleChange}
+                    placeholder="Year"
+                    className={`${theme.input} !mb-0 !w-1/3 sm:!w-[110px] flex-shrink-0 px-2 sm:px-4 text-center sm:text-left ${(dobError || yearSuggestion) ? '!border-orange-300 focus:!ring-orange-500/10 focus:!border-orange-400' : ''}`}
+                    required
+                  />
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="number"
+                    name="age"
+                    value={formData.age}
+                    onChange={handleChange}
+                    placeholder="Enter Age"
+                    min="0"
+                    max="120"
+                    className={`${theme.input} w-full !mb-0`}
+                    required
+                  />
+                </div>
+              )}
               <AnimatePresence>
                 {dobError && !yearSuggestion && (
                   <motion.div

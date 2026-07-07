@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle, Edit } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, Clock, X, Trash2, AlertTriangle, Edit, Wand2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
+import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -49,6 +50,7 @@ const getGenePieColor = (geneName: string) => {
 
 export default function LabDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [viewMode] = useState<'list' | 'grid'>('grid');
   const [patients, setPatients] = useState<any[]>([]);
@@ -238,8 +240,18 @@ export default function LabDashboard() {
   };
 
   const filteredPatients = patients.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchTerms = searchQuery
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
+
+    const matchesSearch = searchTerms.length === 0 || searchTerms.some(term => 
+      p.name.toLowerCase().includes(term) ||
+      p.email.toLowerCase().includes(term) ||
+      (p.phone && p.phone.includes(term)) ||
+      formatUserId(p.id).toLowerCase().includes(term) ||
+      p.id.toString().includes(term)
+    );
 
     const matchesGene = selectedGeneFilter === 'all' ||
       (p.gene && p.gene.toLowerCase().includes(selectedGeneFilter));
@@ -382,15 +394,36 @@ export default function LabDashboard() {
       {/* Controls & Bulk Action */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4 relative z-10 bg-white/60 backdrop-blur-xl p-3 sm:p-4 rounded-3xl border border-[#E8E8E5] shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search patients..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
-            />
+          <div className="relative flex-1 sm:w-80 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name, email, id (comma separated for bulk)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onPaste={(e) => {
+                  const pastedText = e.clipboardData.getData('text');
+                  if (pastedText.includes('\n') || pastedText.includes('\t')) {
+                    e.preventDefault();
+                    const formatted = pastedText.split(/[\n\t]+/).map(s => s.trim()).filter(Boolean).join(', ');
+                    const input = e.target as HTMLInputElement;
+                    const start = input.selectionStart || 0;
+                    const end = input.selectionEnd || 0;
+                    const newValue = searchQuery.substring(0, start) + formatted + searchQuery.substring(end);
+                    setSearchQuery(newValue);
+                  }
+                }}
+                className="w-full bg-white border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+              />
+            </div>
+            <button
+              onClick={() => setIsSmartMatchOpen(true)}
+              className="flex items-center justify-center p-2.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-2xl border border-purple-200 transition-colors shadow-sm shrink-0"
+              title="Smart Match with AI"
+            >
+              <Wand2 className="w-5 h-5" />
+            </button>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <select
@@ -461,6 +494,12 @@ export default function LabDashboard() {
           </div>
         )}
       </div>
+
+      <SmartBulkMatchModal
+        isOpen={isSmartMatchOpen}
+        onClose={() => setIsSmartMatchOpen(false)}
+        onMatch={(ids) => setSearchQuery(ids)}
+      />
 
       {/* Main Content Area */}
       <div className="relative">

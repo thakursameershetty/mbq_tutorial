@@ -269,6 +269,109 @@ function getSheetCacheStatus() {
   return { cached: true, rows: _sheetCache.data.length, ttlSeconds: ttlLeft };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public: Bulk Match
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function attemptSmartBulkMatchWithAI(pastedText, users) {
+  const rawNames = pastedText.split(/[\n\t,]+/).map(s => s.trim()).filter(Boolean);
+  const locallyMatchedIds = new Set();
+  const unmatchedNames = [];
+
+  try {
+    // 1. First attempt to do a local exact/partial match to save AI tokens and improve accuracy
+    rawNames.forEach(rawName => {
+      const lowerRaw = rawName.toLowerCase();
+      // Try to find a user whose name exactly matches or matches without titles (Dr., Mr., etc)
+      const match = users.find(u => {
+        if (!u.full_name) return false;
+        const lowerDbName = u.full_name.toLowerCase();
+        return lowerDbName === lowerRaw ||
+          lowerDbName.replace(/^(dr\.?|mr\.?|ms\.?|mrs\.?)\s+/i, '').trim() === lowerRaw.replace(/^(dr\.?|mr\.?|ms\.?|mrs\.?)\s+/i, '').trim();
+      });
+
+      if (match) {
+        locallyMatchedIds.add(match.id);
+      } else {
+        unmatchedNames.push(rawName);
+      }
+    });
+
+    console.log(`🤖 Bulk Match: Locally matched ${locallyMatchedIds.size} names. Sending ${unmatchedNames.length} names to AI.`);
+
+    // If everything was matched locally, return immediately!
+    if (unmatchedNames.length === 0) {
+      return { matchedIds: Array.from(locallyMatchedIds), unmatchedNames: [] };
+    }
+
+    // 2. Prepare slim users array for AI (only send users that haven't been matched yet)
+    const slimUsers = users
+      .filter(u => !locallyMatchedIds.has(u.id))
+      .map(u => ({
+        id: u.id,
+        n: u.full_name || '',
+        e: u.email || '',
+        p: u.phone || ''
+      }));
+
+    const BATCH_SIZE = 15;
+    let aiMatchedIds = [];
+    let aiUnmatchedNames = [];
+
+    for (let i = 0; i < unmatchedNames.length; i += BATCH_SIZE) {
+      const batchNames = unmatchedNames.slice(i, i + BATCH_SIZE);
+      const prompt = `
+        You are a data matching assistant for a healthcare application.
+        The user provided a raw list of names that could not be matched perfectly via simple text comparison.
+        
+        Unmatched Raw Names:
+        ${JSON.stringify(batchNames)}
+
+        Here is the list of remaining users in our database (id, n=name, e=email, p=phone):
+        ${JSON.stringify(slimUsers)}
+
+        Your task is to match the people mentioned in the unmatched raw names to the remaining users in the database. 
+        Account for typos, partial names, or format differences.
+        
+        Return ONLY a JSON object with two keys:
+        "matched_ids": containing an array of integers representing the IDs of the matched users.
+        "unmatched_names": containing an array of strings representing the raw names from the "Unmatched Raw Names" list that could NOT be matched to any database user.
+        {
+          "matched_ids": [1, 5, 23],
+          "unmatched_names": ["John Doe", "Unknown Person"]
+        }
+      `;
+
+      try {
+        const parsed = await executeAzureOpenAI(prompt, true);
+        if (parsed.matched_ids) aiMatchedIds.push(...parsed.matched_ids);
+        if (parsed.unmatched_names) aiUnmatchedNames.push(...parsed.unmatched_names);
+      } catch (err) {
+        console.error("Error matching batch:", err);
+        aiUnmatchedNames.push(...batchNames);
+      }
+    }
+
+    console.log(`🤖 Bulk Match: AI found ${aiMatchedIds.length} matches and ${aiUnmatchedNames.length} unmatched.`);
+
+    // Combine local matches with AI matches
+    return {
+      matchedIds: [...Array.from(locallyMatchedIds), ...aiMatchedIds],
+      unmatchedNames: aiUnmatchedNames
+    };
+  } catch (error) {
+    console.error("Azure OpenAI Bulk Match Error:", error?.message || error);
+    if (error.response) {
+      console.error("Response data:", await error.response.text().catch(() => ''));
+    }
+    // Even if AI fails, return whatever we managed to match locally, and all the unmatched names
+    return {
+      matchedIds: Array.from(locallyMatchedIds),
+      unmatchedNames: unmatchedNames
+    };
+  }
+}
+
 module.exports = {
   attemptSmartMapWithAI,
   generatePhenotypicAnalysis,
@@ -277,4 +380,5 @@ module.exports = {
   getCachedSheetData,
   setCachedSheetData,
   invalidateSheetCache,
+  attemptSmartBulkMatchWithAI,
 };

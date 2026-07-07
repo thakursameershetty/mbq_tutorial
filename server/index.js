@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
-const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache } = require('./aiMapping');
+const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
 const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
@@ -287,7 +287,7 @@ app.post('/api/auth/recover-credentials', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { username, fullName, email, phone, age, gender, geneType, otp } = req.body;
+  const { username, fullName, email, phone, age, dob, gender, geneType, otp } = req.body;
 
   if (!otp) {
     return res.status(400).json({ error: 'OTP is required' });
@@ -350,12 +350,12 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
     const insertUserQuery = `
-      INSERT INTO users (username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, status_timestamps)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO users (username, full_name, email, phone, age, dob, gender, gene_type, phenotypic_analysis, survey_requested, status_timestamps)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id;
     `;
     const userResult = await pool.query(insertUserQuery, [
-      username, fullName, email, phone, age, gender, geneType,
+      username, fullName, email, phone, age, dob, gender, geneType,
       analysisJSON ? JSON.stringify(analysisJSON) : null,
       false,
       initialTimestamps
@@ -381,7 +381,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (error.code === '23505') {
       return res.status(409).json({
         success: false,
-        message: 'This email or username is already registered. Please login instead.'
+        message: 'This username or phone number is already registered. Please login instead.'
       });
     }
 
@@ -425,10 +425,17 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(404).json({ error: 'Invalid username or email.' });
     }
 
-    res.json({
-      success: true,
-      user: result.rows[0]
-    });
+    if (result.rowCount === 1) {
+      res.json({
+        success: true,
+        user: result.rows[0]
+      });
+    } else {
+      res.json({
+        success: true,
+        users: result.rows
+      });
+    }
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -536,6 +543,46 @@ app.get('/api/admin/patients', async (req, res) => {
   } catch (error) {
     console.error('Error fetching patients:', error);
     res.status(500).json({ error: 'Failed to fetch patients' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Smart Bulk Match API
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/admin/smart-bulk-match', async (req, res) => {
+  const { pastedText } = req.body;
+  if (!pastedText) {
+    return res.status(400).json({ error: 'pastedText is required' });
+  }
+
+  try {
+    const query = `
+      SELECT id, full_name, email, phone, username, sample_received
+      FROM users;
+    `;
+    const result = await pool.query(query);
+    const users = result.rows;
+
+    const matchResult = await attemptSmartBulkMatchWithAI(pastedText, users);
+
+    // Support both old array return and new object return
+    const matchedIds = Array.isArray(matchResult) ? matchResult : matchResult.matchedIds;
+    const unmatchedNames = Array.isArray(matchResult) ? [] : matchResult.unmatchedNames;
+
+    // Return full objects for the matched users so the frontend can display them
+    const matchedUsers = users
+      .filter(u => matchedIds.includes(u.id))
+      .map(u => ({
+        id: u.id,
+        full_name: u.full_name,
+        username: u.username,
+        sample_received: u.sample_received
+      }));
+
+    res.json({ success: true, matched_users: matchedUsers, matched_ids: matchedIds, unmatched_names: unmatchedNames });
+  } catch (error) {
+    console.error('Error in smart bulk match:', error);
+    res.status(500).json({ error: 'Failed to perform smart bulk match' });
   }
 });
 

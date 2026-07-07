@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
 import AIReportModal from '../components/AIReportModal';
+import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -53,6 +54,7 @@ export default function AdminVerifyPage() {
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
 
   const [editingGenePatient, setEditingGenePatient] = useState<any>(null);
+  const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [editedGeneType, setEditedGeneType] = useState<string>('');
   const [isUpdatingGene, setIsUpdatingGene] = useState(false);
 
@@ -236,12 +238,19 @@ export default function AdminVerifyPage() {
 
   const filteredPatients = patients.filter((p) => {
     if (!p) return false;
-    const nameMatch = (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const emailMatch = (p.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const usernameMatch = (p.username || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const phoneMatch = (p.phone || '').includes(searchQuery);
+    const searchTerms = searchQuery
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
 
-    const matchesSearch = nameMatch || emailMatch || usernameMatch || phoneMatch;
+    const matchesSearch = searchTerms.length === 0 || searchTerms.some(term => {
+      const nameMatch = (p.full_name || '').toLowerCase().includes(term);
+      const emailMatch = (p.email || '').toLowerCase().includes(term);
+      const usernameMatch = (p.username || '').toLowerCase().includes(term);
+      const phoneMatch = (p.phone || '').includes(term);
+      const idMatch = formatUserId(p.id).toLowerCase().includes(term) || p.id.toString().includes(term);
+      return nameMatch || emailMatch || usernameMatch || phoneMatch || idMatch;
+    });
 
     const matchesGender = selectedGenderFilter === 'all' || p.gender === selectedGenderFilter;
 
@@ -542,15 +551,36 @@ export default function AdminVerifyPage() {
 
             {/* Core Actions (Search + Global Buttons) */}
             <div className="flex flex-row items-center gap-3 w-full sm:w-auto">
-              <div className="relative flex-1 lg:w-64">
-                <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search patients..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/80 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
-                />
+              <div className="relative flex-1 lg:w-64 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, id (comma separated for bulk)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onPaste={(e) => {
+                      const pastedText = e.clipboardData.getData('text');
+                      if (pastedText.includes('\n') || pastedText.includes('\t')) {
+                        e.preventDefault();
+                        const formatted = pastedText.split(/[\n\t]+/).map(s => s.trim()).filter(Boolean).join(', ');
+                        const input = e.target as HTMLInputElement;
+                        const start = input.selectionStart || 0;
+                        const end = input.selectionEnd || 0;
+                        const newValue = searchQuery.substring(0, start) + formatted + searchQuery.substring(end);
+                        setSearchQuery(newValue);
+                      }
+                    }}
+                    className="w-full bg-white/80 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+                  />
+                </div>
+                <button
+                  onClick={() => setIsSmartMatchOpen(true)}
+                  className="flex items-center justify-center p-2.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-2xl border border-purple-200 transition-colors shadow-sm shrink-0"
+                  title="Smart Match with AI"
+                >
+                  <Wand2 className="w-5 h-5" />
+                </button>
               </div>
 
               <button
@@ -563,6 +593,12 @@ export default function AdminVerifyPage() {
             </div>
           </div>
         </div>
+
+        <SmartBulkMatchModal
+          isOpen={isSmartMatchOpen}
+          onClose={() => setIsSmartMatchOpen(false)}
+          onMatch={(ids) => setSearchQuery(ids)}
+        />
 
 
         {/* Secondary Actions & Filters Bar */}

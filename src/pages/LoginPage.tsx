@@ -24,6 +24,10 @@ export default function LoginPage() {
     }
   }, [navigate]);
 
+  // Multiple profiles states
+  const [multiProfiles, setMultiProfiles] = useState<any[] | null>(null);
+  const [showMultiProfileModal, setShowMultiProfileModal] = useState(false);
+
   // Dynamic Validation States
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -161,8 +165,13 @@ export default function LoginPage() {
 
       const data = await response.json();
       if (data.success) {
-        localStorage.setItem('userProfile', JSON.stringify(data.user));
-        navigate('/dashboard');
+        if (data.users && data.users.length > 1) {
+          setMultiProfiles(data.users);
+          setShowMultiProfileModal(true);
+        } else {
+          localStorage.setItem('userProfile', JSON.stringify(data.user || data.users[0]));
+          navigate('/dashboard');
+        }
       } else {
         setToastMessage({ type: 'error', text: data.error || 'Login failed' });
       }
@@ -406,6 +415,60 @@ export default function LoginPage() {
           <Link to="/" className="text-[#1A1A19] text-sm font-medium transition-colors underline-offset-4 hover:underline">Create your profile</Link>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showMultiProfileModal && multiProfiles && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMultiProfileModal(false)}
+              className="absolute inset-0 bg-[#1A1A19]/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl p-6 md:p-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-[#1A1A19]">Select Profile</h3>
+                  <p className="text-[#8B8B86] text-sm mt-1">Multiple profiles found for this email.</p>
+                </div>
+                <button
+                  onClick={() => setShowMultiProfileModal(false)}
+                  className="p-2 text-[#8B8B86] hover:bg-[#F0F0ED] rounded-full transition-colors"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {multiProfiles.map((profile, idx) => (
+                  <button
+                    key={profile.id || idx}
+                    onClick={() => {
+                      localStorage.setItem('userProfile', JSON.stringify(profile));
+                      navigate('/dashboard');
+                    }}
+                    className="w-full text-left p-4 rounded-2xl border border-[#E8E8E5] hover:border-[#6057D7] hover:bg-[#F9F9F8] transition-all flex items-center gap-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-[#F0F0ED] group-hover:bg-[#EBE9FC] flex items-center justify-center text-[#8B8B86] group-hover:text-[#6057D7] transition-colors shrink-0">
+                      <span className="font-semibold text-lg">{profile.full_name?.charAt(0) || 'U'}</span>
+                    </div>
+                    <div className="overflow-hidden">
+                      <h4 className="font-bold text-[#1A1A19] truncate">{profile.full_name}</h4>
+                      <p className="text-sm text-[#8B8B86] truncate">@{profile.username}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, CheckCircle2, Clock, User, Phone, Mail, Calendar, Activity, Loader2, Edit, X, Plus, Check } from 'lucide-react';
+import { Search, CheckCircle2, Clock, User, Phone, Mail, Calendar, Activity, Loader2, Edit, X, Plus, Check, Wand2 } from 'lucide-react';
+import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -21,6 +22,7 @@ export default function VolunteerPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'collected'>('pending');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, patientId: number | null, currentStatus: boolean, patientName: string }>({
@@ -105,12 +107,19 @@ export default function VolunteerPage() {
   };
 
   const filteredPatients = patients.filter((patient) => {
-    const nameMatch = patient.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const emailMatch = patient.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const usernameMatch = patient.username?.toLowerCase().includes(searchQuery.toLowerCase());
-    const phoneMatch = patient.phone?.includes(searchQuery);
+    const searchTerms = searchQuery
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
 
-    const matchesSearch = nameMatch || emailMatch || usernameMatch || phoneMatch;
+    const matchesSearch = searchTerms.length === 0 || searchTerms.some(term => {
+      const nameMatch = patient.full_name?.toLowerCase().includes(term);
+      const emailMatch = patient.email?.toLowerCase().includes(term);
+      const usernameMatch = patient.username?.toLowerCase().includes(term);
+      const phoneMatch = patient.phone?.includes(term);
+      const idMatch = formatUserId(patient.id).toLowerCase().includes(term) || patient.id.toString().includes(term);
+      return nameMatch || emailMatch || usernameMatch || phoneMatch || idMatch;
+    });
 
     if (statusFilter === 'all') return matchesSearch;
     if (statusFilter === 'collected') return matchesSearch && patient.sample_collected === true;
@@ -125,6 +134,12 @@ export default function VolunteerPage() {
       animate={{ opacity: 1 }}
       className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 mx-auto"
     >
+      <SmartBulkMatchModal
+        isOpen={isSmartMatchOpen}
+        onClose={() => setIsSmartMatchOpen(false)}
+        onMatch={(ids) => setSearchQuery(ids)}
+      />
+
       {/* Header Section */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
         <div className="space-y-2">
@@ -144,15 +159,36 @@ export default function VolunteerPage() {
 
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-3 items-center w-full md:w-auto">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search by name, email, id..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
-            />
+          <div className="relative w-full sm:w-64 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A09D] z-10 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name, email, id (comma separated for bulk)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onPaste={(e) => {
+                  const pastedText = e.clipboardData.getData('text');
+                  if (pastedText.includes('\n') || pastedText.includes('\t')) {
+                    e.preventDefault();
+                    const formatted = pastedText.split(/[\n\t]+/).map(s => s.trim()).filter(Boolean).join(', ');
+                    const input = e.target as HTMLInputElement;
+                    const start = input.selectionStart || 0;
+                    const end = input.selectionEnd || 0;
+                    const newValue = searchQuery.substring(0, start) + formatted + searchQuery.substring(end);
+                    setSearchQuery(newValue);
+                  }
+                }}
+                className="w-full bg-white/60 backdrop-blur-xl border border-[#E8E8E5] text-sm rounded-2xl pl-4 pr-10 py-2.5 outline-none focus:ring-4 focus:ring-[#6057D7]/15 focus:border-[#6057D7]/30 transition-all shadow-sm placeholder:text-[#A0A09D] font-medium"
+              />
+            </div>
+            <button
+              onClick={() => setIsSmartMatchOpen(true)}
+              className="flex items-center justify-center p-2.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-2xl border border-purple-200 transition-colors shadow-sm shrink-0"
+              title="Smart Match with AI"
+            >
+              <Wand2 className="w-5 h-5" />
+            </button>
           </div>
 
           <div className="flex bg-white/60 backdrop-blur-xl p-1 rounded-2xl border border-[#E8E8E5] shadow-sm w-full sm:w-auto overflow-x-auto">
