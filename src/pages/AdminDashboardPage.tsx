@@ -75,6 +75,7 @@ export default function LabDashboard() {
           phone: u.phone,
           gene: u.gene_type,
           gender: u.gender,
+          age: u.age,
           sample_collected: u.sample_collected,
           sample_received: u.sample_received,
           report_uploaded: u.report_uploaded,
@@ -245,13 +246,16 @@ export default function LabDashboard() {
       .map(t => t.trim().toLowerCase())
       .filter(t => t.length > 0);
 
-    const matchesSearch = searchTerms.length === 0 || searchTerms.some(term => 
-      p.name.toLowerCase().includes(term) ||
-      p.email.toLowerCase().includes(term) ||
-      (p.phone && p.phone.includes(term)) ||
-      formatUserId(p.id).toLowerCase().includes(term) ||
-      p.id.toString().includes(term)
-    );
+    const matchesSearch = searchTerms.length === 0 || searchTerms.some(term => {
+      const termWithoutHyphen = term.replace(/-/g, '');
+      return p.name.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        (p.phone && p.phone.includes(term)) ||
+        formatUserId(p.id).toLowerCase().includes(term) ||
+        formatUserId(p.id).toLowerCase().includes(termWithoutHyphen) ||
+        p.id.toString().includes(term) ||
+        p.id.toString().includes(termWithoutHyphen);
+    });
 
     const matchesGene = selectedGeneFilter === 'all' ||
       (p.gene && p.gene.toLowerCase().includes(selectedGeneFilter));
@@ -758,6 +762,14 @@ export default function LabDashboard() {
                                   <span className="text-[#8B8B86]">Phone</span>
                                   <span className="font-medium text-[#1A1A19]">{patient.phone || 'N/A'}</span>
                                 </div>
+                                <div className="flex justify-between items-center text-sm border-b border-[#F0F0ED] pb-2">
+                                  <span className="text-[#8B8B86]">Age</span>
+                                  <span className="font-medium text-[#1A1A19]">{patient.age || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm border-b border-[#F0F0ED] pb-2">
+                                  <span className="text-[#8B8B86]">Gender</span>
+                                  <span className="font-medium text-[#1A1A19]">{patient.gender || 'N/A'}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -841,6 +853,10 @@ export default function LabDashboard() {
                     <div className="flex justify-between items-center text-sm gap-4">
                       <span className="text-[#8B8B86] font-medium shrink-0">Email</span>
                       <span className="font-medium text-[#2C2C2A] truncate text-right">{patient.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm gap-4">
+                      <span className="text-[#8B8B86] font-medium shrink-0">Age / Gender</span>
+                      <span className="font-medium text-[#2C2C2A] truncate text-right">{patient.age || 'N/A'} / {patient.gender || 'N/A'}</span>
                     </div>
                     {/* Sample Statuses */}
                     <div className="flex justify-between items-center text-sm">

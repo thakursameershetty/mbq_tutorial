@@ -19,6 +19,7 @@ async function createTable() {
         email VARCHAR(255) UNIQUE NOT NULL,
         phone VARCHAR(50),
         age INTEGER,
+        dob DATE,
         gender VARCHAR(50),
         gene_type VARCHAR(255),
         phenotypic_analysis JSONB,
