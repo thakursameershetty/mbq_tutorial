@@ -351,9 +351,6 @@ export default function RegisterPage() {
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [allowDuplicateEmail, setAllowDuplicateEmail] = useState(false);
-
-  const [phoneExists, setPhoneExists] = useState(false);
-  const [checkingPhone, setCheckingPhone] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
 
   // State to hold the form data
@@ -475,32 +472,6 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [formData.email]);
 
-
-
-  // Check Phone uniqueness
-  useEffect(() => {
-    const checkPhone = async () => {
-      const phone = formData.phone.trim();
-      if (!phone || phone.length < 5) {
-        setPhoneExists(false);
-        setCheckingPhone(false);
-        return;
-      }
-      setCheckingPhone(true);
-      try {
-        const fullPhone = formData.countryCode + phone;
-        const response = await fetch(`/api/auth/check-phone?phone=${encodeURIComponent(fullPhone)}`);
-        const data = await response.json();
-        setPhoneExists(data.exists);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setCheckingPhone(false);
-      }
-    };
-    const timer = setTimeout(checkPhone, 500);
-    return () => clearTimeout(timer);
-  }, [formData.phone, formData.countryCode]);
 
   // Navigate automatically once the user finishes the tutorial AND the backend finishes
   useEffect(() => {
@@ -663,7 +634,7 @@ export default function RegisterPage() {
     formData.fullName.trim().length > 0 &&
     formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailSuggestion &&
     (emailExists === false || allowDuplicateEmail) && !checkingEmail &&
-    formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
+    formData.phone.trim().length > 4 &&
     !dobError && !yearSuggestion &&
     formData.gender !== '' &&
     formData.otp.trim().length === 6 &&
@@ -724,11 +695,6 @@ export default function RegisterPage() {
     }
     if (missingAtSymbol) {
       setToastMessage({ type: 'error', text: "Email address must include an '@' symbol." });
-      return;
-    }
-
-    if (phoneExists) {
-      setToastMessage({ type: 'error', text: 'This phone number is already registered.' });
       return;
     }
 
@@ -1207,7 +1173,7 @@ export default function RegisterPage() {
             <div className="mb-4">
               {/* Unified Country Code & Phone Input */}
               <div className="relative">
-                <div className={`flex w-full bg-white/50 text-[#2C2C2A] rounded-xl border ${phoneExists ? 'border-orange-300 ring-4 ring-orange-500/10' : 'border-[#E8E8E5] focus-within:ring-4 focus-within:ring-[#6057D7]/10 focus-within:bg-white focus-within:border-[#6057D7]/30'} transition-all duration-300`}>
+                <div className={`flex w-full bg-white/50 text-[#2C2C2A] rounded-xl border border-[#E8E8E5] focus-within:ring-4 focus-within:ring-[#6057D7]/10 focus-within:bg-white focus-within:border-[#6057D7]/30 transition-all duration-300`}>
                   <div className="relative w-[110px] flex-shrink-0 border-r border-[#E8E8E5]">
                     <select name="countryCode" onChange={handleChange} className="w-full h-full appearance-none cursor-pointer pl-4 pr-8 py-3.5 outline-none bg-transparent hover:bg-black/5 transition-colors font-medium text-sm rounded-l-xl" required defaultValue="+91">
                       <option value="+1">🇺🇸 +1</option>
@@ -1243,24 +1209,7 @@ export default function RegisterPage() {
                     className="w-full bg-transparent px-4 py-3.5 outline-none placeholder-[#A0A09D]"
                     required
                   />
-                  {checkingPhone && (
-                    <div className="absolute right-4 top-[18px]"><Loader2 className="animate-spin text-[#8B8B86]" size={16} /></div>
-                  )}
                 </div>
-                <AnimatePresence>
-                  {phoneExists && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10, height: 0 }}
-                      animate={{ opacity: 1, y: 0, height: 'auto' }}
-                      exit={{ opacity: 0, y: -10, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="text-sm text-red-600 bg-red-50/80 px-3 py-2.5 rounded-xl border border-red-200 mt-2 flex flex-col gap-1.5 shadow-sm">
-                        <span className="flex items-center gap-1.5 font-semibold"><AlertCircle size={14} strokeWidth={2.5} /> This phone number is already registered.</span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
 
