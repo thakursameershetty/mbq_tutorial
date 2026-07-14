@@ -31,7 +31,7 @@ export default function LoginPage() {
   // Dynamic Validation States
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
-  
+
   // Forgot Credentials States
   const [showForgot, setShowForgot] = useState(false);
   const [recoverIdentifier, setRecoverIdentifier] = useState('');
@@ -108,7 +108,7 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [email]);
 
-  const isFormPerfectlyFilled = 
+  const isFormPerfectlyFilled =
     email.trim().length > 0 && email.includes('@') && emailExists === true && !checkingEmail &&
     otp.trim().length === 6;
 
@@ -145,6 +145,13 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     triggerHaptic('medium');
+
+    // If we already fetched multiProfiles for this email, just show the modal again
+    if (multiProfiles && multiProfiles.length > 1 && multiProfiles[0].email.toLowerCase() === email.trim().toLowerCase()) {
+      setShowMultiProfileModal(true);
+      return;
+    }
+
     if (emailExists === false) {
       setToastMessage({ type: 'error', text: 'This email does not exist.' });
       return;
@@ -223,7 +230,7 @@ export default function LoginPage() {
           <p className="text-sm text-[#8B8B86] text-center mb-6">
             Enter the email address or phone number associated with your account, and we'll send your credentials to you.
           </p>
-          
+
           {recoverSuccess ? (
             <div className="flex flex-col items-center justify-center py-6">
               <div className="w-16 h-16 bg-gradient-to-br from-[#6057D7] to-[#3FC2AC] rounded-full flex items-center justify-center mb-4 shadow-lg">
@@ -269,11 +276,10 @@ export default function LoginPage() {
                 whileTap={recoverIdentifier.trim().length > 0 ? { scale: 0.98 } : {}}
                 type="submit"
                 disabled={recovering}
-                className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${
-                  recoverIdentifier.trim().length > 0
+                className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${recoverIdentifier.trim().length > 0
                     ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
                     : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
-                }`}
+                  }`}
               >
                 {recovering ? 'Sending...' : 'Send Credentials'}
               </motion.button>
@@ -303,7 +309,7 @@ export default function LoginPage() {
       <div className={theme.card}>
         <h2 className={theme.heading}>User Login</h2>
         <form onSubmit={handleLogin}>
-          
+
           <div className="relative mb-4">
             <input
               type="email"
@@ -334,7 +340,7 @@ export default function LoginPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-            
+
             <AnimatePresence>
               {!isEmailVerified && email.length > 0 && emailExists !== false && email.includes('@') && (
                 <motion.div
@@ -347,11 +353,10 @@ export default function LoginPage() {
                     type="button"
                     onClick={handleSendOtp}
                     disabled={sendingOtp || otpTimer > 0}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-                      sendingOtp || otpTimer > 0
+                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${sendingOtp || otpTimer > 0
                         ? 'bg-[#F0F0ED] text-[#B0B0AE] cursor-not-allowed'
                         : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 shadow-md hover:shadow-lg active:scale-95'
-                    }`}
+                      }`}
                   >
                     {sendingOtp ? <Loader2 className="animate-spin" size={18} /> : (otpSent ? (otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : 'Resend OTP') : 'Send OTP')}
                   </button>
@@ -401,11 +406,10 @@ export default function LoginPage() {
             whileTap={isFormPerfectlyFilled ? { scale: 0.98 } : {}}
             type="submit"
             disabled={loading}
-            className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${
-              isFormPerfectlyFilled
+            className={`w-full font-medium tracking-wide rounded-xl px-4 py-4 mt-2 transition-all duration-300 ${isFormPerfectlyFilled
                 ? 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white shadow-[0_4px_20px_rgb(96,87,215,0.25)] active:scale-[0.98]'
                 : 'bg-[#F0F0ED] text-[#8B8B86] hover:bg-[#E8E8E5]'
-            }`}
+              }`}
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </motion.button>

@@ -17,6 +17,7 @@ function Navigation() {
           <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" className="h-9 object-contain" />
         </Link>
       </div>
+      <div id="header-actions" className="flex items-center gap-3 flex-wrap justify-end"></div>
     </div>
   );
 }

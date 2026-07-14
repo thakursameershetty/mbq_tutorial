@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles, Users, ArrowLeft } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
@@ -18,9 +19,17 @@ export default function PatientDashboardPage() {
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
-  const [selectedAIReport, setSelectedAIReport] = useState<{geneName: string, content: string} | null>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
+  const [headerNode, setHeaderNode] = useState<HTMLElement | null>(null);
+  const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
+
+  // Switch Accounts state
+  const [showSwitchAccountsModal, setShowSwitchAccountsModal] = useState(false);
+  const [switchAccountsProfiles, setSwitchAccountsProfiles] = useState<any[]>([]);
+  const [switchingAccountsLoading, setSwitchingAccountsLoading] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,6 +37,17 @@ export default function PatientDashboardPage() {
     if (data) {
       const parsed = JSON.parse(data);
       setUser(parsed);
+
+      if (parsed.email) {
+        fetch(`/api/users/by-email/${encodeURIComponent(parsed.email)}`)
+          .then(res => res.json())
+          .then(profiles => {
+            if (Array.isArray(profiles) && profiles.length > 1) {
+              setHasMultipleProfiles(true);
+            }
+          })
+          .catch(err => console.error("Error fetching profiles count:", err));
+      }
 
       // Fetch latest profile to keep tracking updated
       const fetchLatestProfile = () => {
@@ -52,6 +72,15 @@ export default function PatientDashboardPage() {
     }
   }, []);
 
+  useEffect(() => {
+    setHeaderNode(document.getElementById('header-actions'));
+    return () => {
+      // Cleanup portal contents when leaving dashboard
+      const node = document.getElementById('header-actions');
+      if (node) node.innerHTML = '';
+    };
+  }, []);
+
   const handleFetchData = async (force = false) => {
     if (!user?.id) return;
     setFetchDataLoading(true);
@@ -73,6 +102,28 @@ export default function PatientDashboardPage() {
       setFetchDataStatus({ type: 'error', message: 'Network error. Please try again.' });
     } finally {
       setFetchDataLoading(false);
+    }
+  };
+
+  const handleSwitchAccounts = async () => {
+    if (!user?.email) return;
+    setSwitchingAccountsLoading(true);
+    try {
+      const response = await fetch(`/api/users/by-email/${encodeURIComponent(user.email)}`);
+      const data = await response.json();
+      if (response.ok && Array.isArray(data) && data.length > 1) {
+        setSwitchAccountsProfiles(data);
+        setShowSwitchAccountsModal(true);
+      } else {
+        setFetchDataStatus({ type: 'warning', message: 'No other profiles found for this email.' });
+        setTimeout(() => setFetchDataStatus(null), 4000);
+      }
+    } catch (err) {
+      console.error('Error fetching profiles', err);
+      setFetchDataStatus({ type: 'error', message: 'Failed to fetch profiles.' });
+      setTimeout(() => setFetchDataStatus(null), 4000);
+    } finally {
+      setSwitchingAccountsLoading(false);
     }
   };
 
@@ -106,6 +157,30 @@ export default function PatientDashboardPage() {
     );
   };
 
+  const getGenePills = (geneString: string) => {
+    if (!geneString) return null;
+    const genes = geneString.split(', ');
+    return (
+      <div className="flex flex-col gap-2">
+        {genes.map((gene, idx) => {
+          let styleClass = "border-[#E8E8E5] text-[#1A1A19] bg-white";
+          if (gene.includes("Caffeine")) {
+            styleClass = "border-[#FDE08B] text-[#B45309] bg-[#FFFBEB]";
+          } else if (gene.includes("Muscle Power")) {
+            styleClass = "border-[#BFDBFE] text-[#1D4ED8] bg-[#EFF6FF]";
+          } else if (gene.includes("Hair Thickness")) {
+            styleClass = "border-[#E9D5FF] text-[#7E22CE] bg-[#FAF5FF]";
+          }
+          return (
+            <div key={idx} className={`px-4 py-1.5 rounded-full border font-medium text-sm tracking-wide w-fit shadow-sm ${styleClass}`}>
+              {gene}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (!user) {
     return (
       <div className="w-full flex justify-center mt-20">
@@ -114,6 +189,87 @@ export default function PatientDashboardPage() {
     );
   }
 
+  const headerActionsContent = user ? (
+    <>
+      <button
+        onClick={() => setShowTracking(true)}
+        className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#6057D7] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
+      >
+        <Activity size={16} />
+        Track Updates
+      </button>
+      <button
+        onClick={() => handleFetchData(true)}
+        disabled={fetchDataLoading}
+        className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-full text-xs sm:text-sm font-medium transition-colors shadow-sm cursor-pointer"
+      >
+        <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
+        Resync
+      </button>
+      {!user.phenotypic_analysis && (
+        <button
+          onClick={() => handleFetchData(false)}
+          disabled={fetchDataLoading}
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-xs sm:text-sm font-medium transition-colors shadow-sm cursor-pointer"
+        >
+          <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
+          {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
+        </button>
+      )}
+      {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
+        Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
+          <div key={geneName} className="flex gap-2">
+            <a
+              href={reportData.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#027A48] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+            >
+              <FileText size={16} />
+              View {geneName} PDF
+            </a>
+            {reportData.ai_report && (
+              <button
+                onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-100 text-amber-700 rounded-full text-xs sm:text-sm font-medium hover:bg-amber-200 transition-colors shadow-sm cursor-pointer"
+              >
+                <Sparkles size={16} />
+                AI Insights
+              </button>
+            )}
+          </div>
+        ))
+      ) : user.report_verified && user.report_url ? (
+        <a
+          href={user.report_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#027A48] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+        >
+          <FileText size={16} />
+          View Legacy Report
+        </a>
+      ) : null}
+      {hasMultipleProfiles && (
+        <button
+          onClick={handleSwitchAccounts}
+          disabled={switchingAccountsLoading}
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#F0F0ED] text-[#1A1A19] rounded-full text-xs sm:text-sm font-medium hover:bg-[#E8E8E5] transition-colors shadow-sm cursor-pointer"
+        >
+          <Users size={16} className={switchingAccountsLoading ? 'animate-pulse' : ''} />
+          Switch
+        </button>
+      )}
+      <button
+        onClick={() => setShowLogoutConfirm(true)}
+        className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-xs sm:text-sm font-medium hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
+      >
+        <LogOut size={16} />
+        Logout
+      </button>
+    </>
+  ) : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -121,81 +277,12 @@ export default function PatientDashboardPage() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="w-full max-w-4xl mx-auto mt-8 sm:mt-12 px-4 pb-12"
     >
+      {headerNode && createPortal(headerActionsContent, headerNode)}
+
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
         <div className="flex-1 w-full min-w-0">
-          <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
+          <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 truncate">Hello, {user.full_name?.toUpperCase()}</h1>
           <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
-        </div>
-        <div className="w-full sm:w-auto">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setShowTracking(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#6057D7] text-white rounded-full text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
-            >
-              <Activity size={16} />
-              Track Updates
-            </button>
-            <button
-              onClick={() => handleFetchData(true)}
-              disabled={fetchDataLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 rounded-full text-sm font-medium transition-colors shadow-sm cursor-pointer"
-            >
-              <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
-              Resync
-            </button>
-            {/* Fetch Data button — shown only when phenotypic_analysis is missing */}
-            {!user.phenotypic_analysis && (
-              <button
-                onClick={() => handleFetchData(false)}
-                disabled={fetchDataLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-sm font-medium transition-colors shadow-sm cursor-pointer"
-              >
-                <RefreshCw size={16} className={fetchDataLoading ? 'animate-spin' : ''} />
-                {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
-              </button>
-            )}
-            {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
-              Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
-                <div key={geneName} className="flex gap-2">
-                  <a
-                    href={reportData.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
-                  >
-                    <FileText size={16} />
-                    View {geneName} PDF
-                  </a>
-                  {reportData.ai_report && (
-                    <button
-                      onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
-                      className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-sm font-medium hover:bg-amber-200 transition-colors shadow-sm cursor-pointer"
-                    >
-                      <Sparkles size={16} />
-                      AI Insights
-                    </button>
-                  )}
-                </div>
-              ))
-            ) : user.report_verified && user.report_url ? (
-              <a
-                href={user.report_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-[#027A48] text-white rounded-full text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
-              >
-                <FileText size={16} />
-                View Legacy Report
-              </a>
-            ) : null}
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-full text-sm font-medium hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
-          </div>
         </div>
       </div>
 
@@ -273,11 +360,8 @@ export default function PatientDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Gene Profile (Existing - Read Only) */}
         <div className="bg-white/70 backdrop-blur-xl border border-white/60 p-6 rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
-          <h3 className="text-[#8B8B86] text-xs font-semibold tracking-wider uppercase mb-4">Genomic Profile</h3>
-          <div className="bg-[#F7F7F5] rounded-xl p-4 border border-[#E8E8E5]">
-            <p className="text-[#5A5A55] text-sm mb-1">Tested Gene</p>
-            <p className="text-lg font-bold text-[#1A1A19]">{user.gene_type}</p>
-          </div>
+          <h3 className="text-[#8B8B86] text-xs font-semibold tracking-wider uppercase mb-6">Genomic Profile</h3>
+          {getGenePills(user.gene_type)}
         </div>
 
         {/* Dynamic AI Profile Sections */}
@@ -534,6 +618,80 @@ export default function PatientDashboardPage() {
           }}
         />
       )}
+
+      {/* Switch Accounts Modal */}
+      <AnimatePresence>
+        {showSwitchAccountsModal && switchAccountsProfiles.length > 1 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSwitchAccountsModal(false)}
+              className="absolute inset-0 bg-[#1A1A19]/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl p-6 md:p-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-[#1A1A19]">Switch Accounts</h3>
+                  <p className="text-[#8B8B86] text-sm mt-1">Select a profile to continue.</p>
+                </div>
+                <button
+                  onClick={() => setShowSwitchAccountsModal(false)}
+                  className="p-2 text-[#8B8B86] hover:bg-[#F0F0ED] rounded-full transition-colors"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {switchAccountsProfiles.map((profile, idx) => {
+                  const isCurrentProfile = profile.id === user.id;
+                  return (
+                    <button
+                      key={profile.id || idx}
+                      onClick={() => {
+                        if (!isCurrentProfile) {
+                          localStorage.setItem('userProfile', JSON.stringify(profile));
+                          setUser(profile);
+                          setShowSwitchAccountsModal(false);
+                          window.scrollTo(0, 0);
+                        }
+                      }}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 group ${isCurrentProfile
+                        ? 'border-[#6057D7] bg-[#F9F9F8]'
+                        : 'border-[#E8E8E5] hover:border-[#6057D7] hover:bg-[#F9F9F8]'
+                        }`}
+                    >
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0 ${isCurrentProfile
+                        ? 'bg-[#EBE9FC] text-[#6057D7]'
+                        : 'bg-[#F0F0ED] text-[#8B8B86] group-hover:bg-[#EBE9FC] group-hover:text-[#6057D7]'
+                        }`}>
+                        <span className="font-semibold text-lg">{profile.full_name?.charAt(0) || 'U'}</span>
+                      </div>
+                      <div className="overflow-hidden flex-1">
+                        <h4 className="font-bold text-[#1A1A19] truncate">{profile.full_name}</h4>
+                        <p className="text-sm text-[#8B8B86] truncate">@{profile.username}</p>
+                      </div>
+                      {isCurrentProfile && (
+                        <div className="text-xs font-semibold text-[#6057D7] bg-[#EBE9FC] px-2 py-1 rounded-md">
+                          Active
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AIReportModal
         isOpen={!!selectedAIReport}
         onClose={() => setSelectedAIReport(null)}

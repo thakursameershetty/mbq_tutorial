@@ -529,6 +529,26 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Get Users by Email Route (For Switch Accounts)
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/users/by-email/:email', async (req, res) => {
+  const email = req.params.email;
+  try {
+    const query = `
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
+             sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
+      FROM users WHERE LOWER(email) = LOWER($1)
+      ORDER BY id ASC
+    `;
+    const result = await pool.query(query, [email]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching users by email:', err);
+    res.status(500).json({ error: 'Failed to fetch users by email.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/admin/patients', async (req, res) => {
   try {
     const query = `

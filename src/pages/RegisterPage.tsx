@@ -348,6 +348,9 @@ export default function RegisterPage() {
   const [usernameExists, setUsernameExists] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
 
+  const [emailExists, setEmailExists] = useState<boolean | null>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [allowDuplicateEmail, setAllowDuplicateEmail] = useState(false);
 
   const [phoneExists, setPhoneExists] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
@@ -446,6 +449,31 @@ export default function RegisterPage() {
     const debounceTimer = setTimeout(checkUsername, 500);
     return () => clearTimeout(debounceTimer);
   }, [formData?.username]);
+
+  // Check Email existence
+  useEffect(() => {
+    const checkEmail = async () => {
+      const e = formData.email.trim();
+      if (!e || !e.includes('@')) {
+        setEmailExists(null);
+        setCheckingEmail(false);
+        setAllowDuplicateEmail(false);
+        return;
+      }
+      setCheckingEmail(true);
+      try {
+        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(e)}`);
+        const data = await response.json();
+        setEmailExists(data.exists);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setCheckingEmail(false);
+      }
+    };
+    const timer = setTimeout(checkEmail, 500);
+    return () => clearTimeout(timer);
+  }, [formData.email]);
 
 
 
@@ -634,6 +662,7 @@ export default function RegisterPage() {
     formData.username.trim().length >= 5 && !/[^a-zA-Z0-9._]/.test(formData.username) && !usernameExists && !checkingUsername &&
     formData.fullName.trim().length > 0 &&
     formData.email.trim().length > 0 && formData.email.includes('@') && !missingAtSymbol && !emailSuggestion &&
+    (emailExists === false || allowDuplicateEmail) && !checkingEmail &&
     formData.phone.trim().length > 4 && !phoneExists && !checkingPhone &&
     !dobError && !yearSuggestion &&
     formData.gender !== '' &&
@@ -1094,11 +1123,39 @@ export default function RegisterPage() {
                     </div>
                   </motion.div>
                 )}
-
+                {emailExists && !allowDuplicateEmail && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="text-sm text-[#1A1A19] bg-[#EBE9FC] px-4 py-3 rounded-xl border border-[#6057D7]/30 mt-2 flex flex-col gap-2.5 shadow-sm">
+                      <span className="flex items-center gap-2 font-semibold">
+                        <AlertCircle size={16} className="text-[#6057D7]" /> This email is already registered.
+                      </span>
+                      <p className="text-xs text-[#5A5A55] leading-relaxed">
+                        You can login to your existing account, or create an additional profile under this email.
+                      </p>
+                      <div className="flex gap-2 mt-1">
+                        <Link to="/login" className="flex-1 text-center py-2 bg-white rounded-lg border border-[#D0D0CE] text-sm font-semibold text-[#1A1A19] hover:bg-[#F7F7F5] transition-colors shadow-sm">
+                          Go to Login
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setAllowDuplicateEmail(true)}
+                          className="flex-1 text-center py-2 bg-gradient-to-r from-[#6057D7] to-[#4B44B3] rounded-lg text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"
+                        >
+                          Create New Profile
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </AnimatePresence>
 
               <AnimatePresence>
-                {!isEmailVerified && formData.email.length > 0 && !missingAtSymbol && !emailSuggestion && (
+                {!isEmailVerified && formData.email.length > 0 && !missingAtSymbol && !emailSuggestion && (emailExists === false || allowDuplicateEmail) && (
                   <motion.div
                     initial={{ opacity: 0, height: 0, marginTop: 0 }}
                     animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
