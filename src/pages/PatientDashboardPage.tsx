@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createPortal } from 'react-dom';
 import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles, Users, ArrowLeft } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate, Link } from 'react-router-dom';
@@ -22,7 +21,6 @@ export default function PatientDashboardPage() {
   const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
-  const [headerNode, setHeaderNode] = useState<HTMLElement | null>(null);
   const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
 
   // Switch Accounts state
@@ -70,15 +68,6 @@ export default function PatientDashboardPage() {
       const interval = setInterval(fetchLatestProfile, 5000);
       return () => clearInterval(interval);
     }
-  }, []);
-
-  useEffect(() => {
-    setHeaderNode(document.getElementById('header-actions'));
-    return () => {
-      // Cleanup portal contents when leaving dashboard
-      const node = document.getElementById('header-actions');
-      if (node) node.innerHTML = '';
-    };
   }, []);
 
   const handleFetchData = async (force = false) => {
@@ -150,9 +139,9 @@ export default function PatientDashboardPage() {
     }
 
     return (
-      <div className="text-sm flex flex-col sm:flex-row sm:items-center">
-        <span className="text-[#8B8B86] sm:w-20 flex-shrink-0">{label}:</span>
-        <span className="font-medium text-[#1A1A19] mt-1 sm:mt-0">{val || 'N/A'}</span>
+      <div className="text-sm flex flex-row items-start sm:items-center justify-between sm:justify-start gap-4">
+        <span className="text-[#8B8B86] w-auto sm:w-20 flex-shrink-0 pt-0.5 sm:pt-0">{label}:</span>
+        <span className="font-medium text-[#1A1A19] text-right sm:text-left break-all sm:break-normal">{val || 'N/A'}</span>
       </div>
     );
   };
@@ -189,8 +178,8 @@ export default function PatientDashboardPage() {
     );
   }
 
-  const headerActionsContent = user ? (
-    <>
+  const dashboardActions = user ? (
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-6">
       <button
         onClick={() => setShowTracking(true)}
         className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#6057D7] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#4B44B3] transition-colors shadow-sm cursor-pointer"
@@ -267,7 +256,7 @@ export default function PatientDashboardPage() {
         <LogOut size={16} />
         Logout
       </button>
-    </>
+    </div>
   ) : null;
 
   return (
@@ -277,12 +266,11 @@ export default function PatientDashboardPage() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="w-full max-w-4xl mx-auto mt-8 sm:mt-12 px-4 pb-12"
     >
-      {headerNode && createPortal(headerActionsContent, headerNode)}
-
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
         <div className="flex-1 w-full min-w-0">
-          <h1 className="text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 truncate">Hello, {user.full_name?.toUpperCase()}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
           <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
+          {dashboardActions}
         </div>
       </div>
 
