@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
-const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI } = require('./aiMapping');
+const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI, generateChatResponse } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
 const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
@@ -291,6 +291,18 @@ app.post('/api/auth/register', async (req, res) => {
 
   if (!otp) {
     return res.status(400).json({ error: 'OTP is required' });
+  }
+
+  if (dob) {
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regex.test(dob)) {
+      return res.status(400).json({ error: 'Invalid date of birth format, expected YYYY-MM-DD' });
+    }
+    const [y, m, d] = dob.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    if (dateObj.getFullYear() !== y || dateObj.getMonth() !== m - 1 || dateObj.getDate() !== d) {
+      return res.status(400).json({ error: 'Invalid date of birth' });
+    }
   }
 
   try {
@@ -827,9 +839,7 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
     const genotypeData = genotypes && geneName ? { genotype: genotypes[geneName] } : {};
 
     try {
-      // Call python backend
-      console.log(`Sending to python backend for gene ${geneName}...`);
-      const pythonRes = await fetch('http://localhost:8000/analyze-genomic', {
+      const pythonRes = await fetch(process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/analyze-genomic` : 'http://localhost:8080/analyze-genomic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1217,6 +1227,110 @@ app.delete('/api/users/bulk', async (req, res) => {
   } catch (error) {
     console.error('Bulk Delete Users Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat API
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/chat', express.json(), async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array is required' });
+    }
+
+    const reply = await generateChatResponse(messages);
+    res.json({ reply });
+  } catch (error) {
+    console.error('Chat API Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate chat response' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test API for Report Generation (Split Screen)
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/test/generate-report', async (req, res) => {
+  try {
+    const { answers, rawAnswers, email = 'test@example.com', phone = '1234567890', testName, geneVariants } = req.body;
+
+    if (!answers || Object.keys(answers).length === 0) {
+      return res.status(400).json({ error: 'Answers are required' });
+    }
+
+    // Map testName to category and get testId
+    let category = '';
+    let testId = 1;
+    if (testName.toLowerCase().includes('caffeine')) { category = 'caffeine'; testId = 1; }
+    else if (testName.toLowerCase().includes('muscle')) { category = 'muscle'; testId = 2; }
+    else if (testName.toLowerCase().includes('hair')) { category = 'hair'; testId = 3; }
+    else { category = 'caffeine'; testId = 1; }
+
+    const { QUESTION_ID_MAP } = require('./questionMapper');
+
+    // Map the answers: uniqueId (e.g. "1-1-0") -> optIdx (e.g. 0, 1, 2)
+    // to python key (e.g. "cyp1a2_duration_effect") -> score (e.g. 1, 0, -1)
+    const pythonResponses = {};
+    for (const [uniqueId, optIdx] of Object.entries(answers)) {
+      const parts = uniqueId.split('-');
+      if (parts.length === 3) {
+        const tId = parts[0];
+        const subId = parts[1];
+        const qIdx = parseInt(parts[2], 10);
+
+        // Map optIdx to score: 0 -> 1, 1 -> 0, 2 -> -1
+        let score = 0;
+        if (optIdx === 0) score = 1;
+        else if (optIdx === 1) score = 0;
+        else if (optIdx === 2) score = -1;
+        else score = parseInt(optIdx, 10); // fallback if they already sent score
+
+        if (QUESTION_ID_MAP[tId] && QUESTION_ID_MAP[tId][subId]) {
+          const pyKey = QUESTION_ID_MAP[tId][subId][qIdx];
+          if (pyKey) {
+            pythonResponses[pyKey] = score;
+          }
+        }
+      } else {
+        // Fallback if the frontend sends string keys directly
+        pythonResponses[uniqueId] = parseInt(optIdx, 10);
+      }
+    }
+
+    const payload = {
+      category,
+      genes: geneVariants,
+      phenotype_responses: pythonResponses,
+      lifestyle_context: {
+        user_type: "explorer",
+        raw_answers: rawAnswers || []
+      }
+    };
+
+    console.log(`Sending request to Python backend for category: ${category}`);
+
+    // Call Python backend
+    const url = process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/dynamic/analyze-category` : 'http://127.0.0.1:8080/dynamic/analyze-category';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Python backend error: ${response.status} ${errorText}`);
+    }
+
+    const analysisJSON = await response.json();
+
+    res.json({ success: true, report: analysisJSON });
+  } catch (error) {
+    console.error('Test Report Generation Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate test report' });
   }
 });
 

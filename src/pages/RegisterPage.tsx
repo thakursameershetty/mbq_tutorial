@@ -718,7 +718,7 @@ export default function RegisterPage() {
         email: formData.email,
         phone: `${formData.countryCode} ${formData.phone}`,
         age: formData.ageInputMode === 'age' ? parseInt(formData.age, 10) : (parseInt(calculateAge(formData.dobDay, formData.dobMonth, formData.dobYear), 10) || null),
-        dob: formData.ageInputMode === 'dob' ? `${formData.dobYear}-${formData.dobMonth}-${formData.dobDay}` : null,
+        dob: formData.ageInputMode === 'dob' ? `${formData.dobYear}-${String(parseInt(formData.dobMonth, 10) + 1).padStart(2, '0')}-${String(formData.dobDay).padStart(2, '0')}` : null,
         gender: formData.gender,
         geneType: selectedGenes.filter(Boolean).join(', '),
         otp: formData.otp

@@ -105,6 +105,67 @@ async function executeAzureOpenAI(prompt, requireJson = true) {
   }
 }
 
+/**
+ * Executes a freeform chat call to Azure OpenAI (does not require JSON).
+ *
+ * @param {Array} messages Conversation history
+ * @returns {Promise<string>} The AI's text response
+ */
+async function generateChatResponse(messages) {
+  const url = `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_OPENAI_API_VERSION}`;
+
+  const systemPrompt = {
+    role: "system",
+    content: "You are 'My Body Qode AI', a helpful and friendly personal health companion. You answer questions concisely about genomic profiles, fitness, sleep, and nutrition. Be conversational and approachable. Do not format your response as JSON, just use plain text."
+  };
+
+  // If the frontend didn't pass a system prompt, we prepend ours
+  const payloadMessages = messages[0]?.role === 'system' ? messages : [systemPrompt, ...messages];
+
+  const payload = {
+    messages: payloadMessages,
+    temperature: 0.7,
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": AZURE_OPENAI_API_KEY
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`⚠️ Azure OpenAI Chat API Error (Status ${response.status})`, errorData);
+      throw new Error(`Azure OpenAI Chat Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const messageContent = data.choices[0]?.message?.content;
+
+    if (!messageContent) {
+      throw new Error("No content returned from Azure OpenAI Chat");
+    }
+
+    return messageContent;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Azure OpenAI Chat request timed out after ${API_TIMEOUT_MS / 1000}s`);
+    }
+    throw error;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Smart trim: keep only identity fields for the matching step
 // ─────────────────────────────────────────────────────────────────────────────
@@ -185,14 +246,19 @@ async function attemptSmartMapWithAI(fullName, email, phone, sheetRecords) {
 // Public: Phenotypic analysis
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function generatePhenotypicAnalysis(rawSurveyData, userEmail, userPhone) {
+async function generatePhenotypicAnalysis(rawSurveyData, userEmail, userPhone, testName, geneVariants) {
   const prompt = `
     You are an expert genetic and lifestyle data analyst.
     Analyze the following raw survey data:
     ${JSON.stringify(rawSurveyData, null, 2)}
 
-    Convert answers into a highly structured JSON profile.
-    Extract the exact meaning from the user's answers.
+    The user has selected the following specific test: "${testName}"
+    And they have the following genetic variants for this test:
+    ${JSON.stringify(geneVariants, null, 2)}
+
+    Convert their answers into a highly structured JSON profile focused ONLY on this specific test.
+    Extract the exact meaning from the user's answers and correlate it with what their specific gene variants mean.
+    
     CRITICAL: The survey contains generic columns like "Any specific remarks" or "Please Mention here". These are now prepended with the question they belong to.
     If the user provided meaningful custom text in these remark columns for a topic, ALWAYS incorporate their custom text as the final answer instead of just returning the standard multiple-choice option. Do NOT output "No specific remarks provided" unless the field is genuinely empty.
 
@@ -227,6 +293,20 @@ async function generatePhenotypicAnalysis(rawSurveyData, userEmail, userPhone) {
         "muscleAdaptation": "Extract muscle performance preference",
         "recovery": "Extract recovery speed",
         "trainingPreference": "Extract response to progressive training load"
+      },
+      "test_analysis": {
+        "test_name": "${testName || 'General'}",
+        "gene_variants_analyzed": "List the gene variants provided (if any)",
+        "phenotypic_summary": "Summarize their physical answers to the questions",
+        "genetic_correlation": "Explain how their specific gene variants correlate (or don't correlate) with their physical answers",
+        "detailed_traits": {
+           "trait_1": "Extract trait from answers",
+           "trait_2": "Extract trait from answers"
+        },
+        "personalized_recommendations": [
+           "Actionable advice 1 based on genes and answers",
+           "Actionable advice 2 based on genes and answers"
+        ]
       }
     }
   `;
@@ -381,4 +461,5 @@ module.exports = {
   setCachedSheetData,
   invalidateSheetCache,
   attemptSmartBulkMatchWithAI,
+  generateChatResponse,
 };

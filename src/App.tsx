@@ -7,6 +7,7 @@ import PatientDashboardPage from './pages/PatientDashboardPage';
 import ReportPage from './pages/ReportPage';
 import VolunteerPage from './pages/VolunteerPage';
 import AdminVerifyPage from './pages/AdminVerifyPage';
+import TestReportPage from './pages/TestReportPage';
 import { GeminiStatusWidget } from './components/ui/gemini-status-widget';
 
 function Navigation() {
@@ -14,7 +15,7 @@ function Navigation() {
     <div className="w-full max-w-7xl flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 mt-6 px-4 sm:px-6 lg:px-8 mx-auto">
       <div className="flex items-center gap-3">
         <Link to="/">
-          <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" className="h-9 object-contain" />
+          <img src="/mbqlogo.png" alt="MyBodyQode Logo" className="h-9 object-contain" />
         </Link>
       </div>
     </div>
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/volunteer" element={<VolunteerPage />} />
           <Route path="/admin-verify" element={<AdminVerifyPage />} />
+          <Route path="/test-report-generation" element={<TestReportPage />} />
         </Routes>
         <AdminGeminiStatus />
       </div>

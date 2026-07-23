@@ -6,6 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
 import PatientSurveyModal from '@/components/PatientSurveyModal';
 import AIReportModal from '@/components/AIReportModal';
+import FloatingChatbot from '@/components/FloatingChatbot';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -373,7 +374,7 @@ export default function PatientDashboardPage() {
               <div className="space-y-3">
                 {renderField('Sleep Impact', ['phenotypic_analysis', 'caffeine_response', 'sleepImpact'], true)}
                 {renderField('Duration', ['phenotypic_analysis', 'caffeine_response', 'durationOfEffect'], true)}
-                {typeof user.phenotypic_analysis.caffeine_response.sensitivity === 'object' && user.phenotypic_analysis.caffeine_response.sensitivity !== null ? (
+                {typeof user.phenotypic_analysis.caffeine_response?.sensitivity === 'object' && user.phenotypic_analysis.caffeine_response?.sensitivity !== null ? (
                   <>
                     {renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physicalSensitivity'], true) ||
                       renderField('Physical Sensitivity', ['phenotypic_analysis', 'caffeine_response', 'sensitivity', 'physical'], true)}
@@ -686,6 +687,7 @@ export default function PatientDashboardPage() {
         markdownContent={selectedAIReport?.content || ''}
         geneName={selectedAIReport?.geneName || ''}
       />
+      <FloatingChatbot userName={user.full_name} />
     </motion.div>
   );
 }
