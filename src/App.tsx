@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { Settings } from 'lucide-react';
+
 import { theme } from './theme';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
