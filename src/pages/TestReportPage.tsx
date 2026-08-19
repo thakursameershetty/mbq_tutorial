@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ChevronDown, Activity, Sparkles, FileText, ArrowRight } from 'lucide-react';
+import { Loader2, ChevronDown, Activity, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import FloatingChatbot from '../components/FloatingChatbot';
 
 interface Question {
   question: string;
@@ -44,15 +45,32 @@ export default function TestReportPage() {
 
   const [generating, setGenerating] = useState(false);
   const [reportResult, setReportResult] = useState<any>(null);
+  const [reportHtml, setReportHtml] = useState<string | null>(null);
+
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [pageFeedbacks, setPageFeedbacks] = useState<Record<number, string>>({});
+  const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
+  const [currentFeedbackInput, setCurrentFeedbackInput] = useState('');
+  const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     fetchQuestions();
   }, []);
 
+  useEffect(() => {
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow && reportHtml) {
+      iframe.contentWindow.postMessage({ type: 'SET_PAGE', pageIndex: currentPageIndex }, '*');
+    }
+  }, [currentPageIndex, reportHtml]);
+
   const fetchQuestions = async () => {
     setLoadingQs(true);
     try {
       const res = await fetch('/api/admin/questions');
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
 
       const selectedQs: SelectedQuestion[] = [];
@@ -138,6 +156,7 @@ export default function TestReportPage() {
         }),
       });
 
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       if (data.success) {
         setReportResult(data.report);
@@ -420,9 +439,17 @@ export default function TestReportPage() {
                                 });
                             }
                             if (data.page_1.share_card) {
-                                setText('page1-share-title', data.page_1.share_card.title);
-                                setText('page1-share-highlight', data.page_1.share_card.highlight);
-                                setText('page1-share-quote', data.page_1.share_card.quote);
+                                const toSentenceCase = (str) => {
+                                    if (!str) return str;
+                                    return str.toLowerCase().replace(/(^\\s*\\w|[.!?]\\s*\\w)/g, c => c.toUpperCase());
+                                };
+                                const toTitleCase = (str) => {
+                                    if (!str) return str;
+                                    return str.toLowerCase().replace(/(^\\s*\\w|\\s+\\w)/g, c => c.toUpperCase());
+                                };
+                                setText('page1-share-title', toTitleCase(data.page_1.share_card.title));
+                                setText('page1-share-highlight', toSentenceCase(data.page_1.share_card.highlight));
+                                setText('page1-share-quote', toSentenceCase(data.page_1.share_card.quote));
                                 setText('page1-share-genotype', genesStr + ' Genotypes: ' + genotypeStr);
                             }
                         }
@@ -538,18 +565,153 @@ export default function TestReportPage() {
                         console.error("Injection error:", err);
                       }
                     </script>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+                    <script>
+                      window.downloadPDF = async function(filename) {
+                          const container = document.querySelector('body > div');
+                          if (!container) return;
+                          
+                          const originalStyles = {
+                              background: container.style.background,
+                              padding: container.style.padding,
+                              gap: container.style.gap
+                          };
+                          
+                          container.style.background = 'white';
+                          container.style.padding = '0';
+                          container.style.gap = '0';
+                          
+                          const pages = document.querySelectorAll('div[data-screen-label]');
+                          const originalPageStyles = [];
+                          pages.forEach(page => {
+                              originalPageStyles.push({
+                                  borderRadius: page.style.borderRadius,
+                                  boxShadow: page.style.boxShadow,
+                                  margin: page.style.margin
+                              });
+                              page.style.borderRadius = '0';
+                              page.style.boxShadow = 'none';
+                              page.style.margin = '0';
+                          });
+
+                          const opt = {
+                            margin:       0,
+                            filename:     filename || 'report.pdf',
+                            image:        { type: 'jpeg', quality: 1.0 },
+                            html2canvas:  { scale: 2, useCORS: true, windowWidth: 1024, scrollY: 0 },
+                            jsPDF:        { unit: 'px', format: [1024, 1449], orientation: 'portrait' }
+                          };
+                          
+                          try {
+                            if (pages.length > 0) {
+                              let worker = html2pdf().set(opt);
+                              
+                              for (let i = 0; i < pages.length; i++) {
+                                  worker = worker.then(() => {
+                                      pages.forEach((p, idx) => {
+                                          p.style.display = (idx === i) ? 'block' : 'none';
+                                      });
+                                      return new Promise(r => setTimeout(r, 100)); // allow DOM to settle
+                                  });
+                                  
+                                  if (i === 0) {
+                                      worker = worker.from(pages[i]).toPdf();
+                                  } else {
+                                      worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().toPdf();
+                                  }
+                              }
+                              
+                              await worker.save();
+                              
+                              pages.forEach(p => p.style.display = ''); // restore display
+                            } else {
+                              await html2pdf().set(opt).from(container).save();
+                            }
+                          } catch (e) {
+                            console.error("PDF generation failed", e);
+                          }
+                          
+                          container.style.background = originalStyles.background;
+                          container.style.padding = originalStyles.padding;
+                          container.style.gap = originalStyles.gap;
+                          
+                          pages.forEach((page, i) => {
+                              page.style.borderRadius = originalPageStyles[i].borderRadius;
+                              page.style.boxShadow = originalPageStyles[i].boxShadow;
+                              page.style.margin = originalPageStyles[i].margin;
+                          });
+                      };
+                    </script>
                   `;
 
-                  const finalHtml = html
-                    .replace('<head>', `<head><base href="${window.location.origin}/">`)
-                    .replace('src="./support.js"', 'src="/templates/support.js"')
-                    .replace('</body>', scriptString + '\n</body>');
+                  const now = new Date();
+                  const formattedDate = now.toLocaleString('en-US', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  });
 
-                  const newWin = window.open();
-                  if (newWin) {
-                    newWin.document.write(finalHtml);
-                    newWin.document.close();
+                  const pageCount = (html.match(/data-screen-label=/g) || []).length;
+                  setTotalPages(pageCount > 0 ? pageCount : 1);
+                  setCurrentPageIndex(0);
+
+                  const carouselScript = `
+                    <script>
+                      window.addEventListener('message', (e) => {
+                        if (e.data && e.data.type === 'SET_PAGE') {
+                          const pages = document.querySelectorAll('div[data-screen-label]');
+                          pages.forEach((p, idx) => {
+                            p.style.display = (idx === e.data.pageIndex) ? 'block' : 'none';
+                          });
+                        }
+                      });
+                    </script>
+                  `;
+
+                  const reportFont = localStorage.getItem('reportFont') || 'Google Sans';
+                  let fontCss = '';
+                  if (reportFont === 'Anthropic Serif') {
+                    fontCss = `
+                      <style>
+                        @font-face {
+                          font-family: 'Anthropic Serif';
+                          src: url('/fonts/AnthropicSerif-Text-Regular-Static.otf') format('opentype');
+                        }
+                        body, * {
+                          font-family: 'Anthropic Serif', serif !important;
+                        }
+                      </style>
+                    `;
+                  } else if (reportFont === 'Poppins') {
+                    fontCss = `
+                      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+                      <style>
+                        body, * {
+                          font-family: 'Poppins', sans-serif !important;
+                        }
+                      </style>
+                    `;
+                  } else {
+                    fontCss = `
+                      <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap" rel="stylesheet">
+                      <style>
+                        body, * {
+                          font-family: 'Google Sans', sans-serif !important;
+                        }
+                      </style>
+                    `;
                   }
+
+                  const finalHtml = html
+                    .replace('<head>', `<head><base href="${window.location.origin}/">\n${fontCss}`)
+                    .replace('src="./support.js"', 'src="/templates/support.js"')
+                    .replace(/dd mm yyyy/g, formattedDate)
+                    .replace('</body>', scriptString + '\n' + carouselScript + '\n</body>');
+
+                  setReportHtml(finalHtml);
                 } catch (err) {
                   console.error(err);
                   alert("Could not load the HTML template for this test.");
@@ -581,6 +743,159 @@ export default function TestReportPage() {
           )}
         </div>
       </div>
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {reportHtml && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full max-w-[1000px] h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
+                <h3 className="font-bold text-lg text-[#1A1A19]">Beautiful Report</h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const iframe = document.getElementById('report-iframe') as HTMLIFrameElement;
+                      if (iframe && iframe.contentWindow && (iframe.contentWindow as any).downloadPDF) {
+                        (iframe.contentWindow as any).downloadPDF(`${selectedTestName.toLowerCase().replace(/\s+/g, '-')}-report.pdf`);
+                      } else {
+                        alert("PDF generation is still loading, please try again in a few seconds.");
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#1A1A19] text-white rounded-lg text-sm font-bold hover:bg-black transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </button>
+                  <button
+                    onClick={() => setReportHtml(null)}
+                    className="p-2 hover:bg-[#E8E8E5] rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-[#5A5A55]" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 w-full bg-white relative">
+                <iframe
+                  id="report-iframe"
+                  srcDoc={reportHtml}
+                  className="absolute inset-0 w-full h-full border-0"
+                  title="Report Preview"
+                />
+
+                {/* Carousel Navigation */}
+                {totalPages > 1 && (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (currentPageIndex > 0) setCurrentPageIndex(currentPageIndex - 1);
+                      }}
+                      disabled={currentPageIndex === 0}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 shadow-lg rounded-full flex items-center justify-center text-[#1A1A19] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (currentPageIndex < totalPages - 1) {
+                          if (!pageFeedbacks[currentPageIndex]) {
+                            setPendingNextIndex(currentPageIndex + 1);
+                            setShowFeedbackPrompt(true);
+                          } else {
+                            setCurrentPageIndex(currentPageIndex + 1);
+                          }
+                        }
+                      }}
+                      disabled={currentPageIndex === totalPages - 1}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 shadow-lg rounded-full flex items-center justify-center text-[#1A1A19] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  </>
+                )}
+
+                {/* Feedback Prompt Overlay */}
+                <AnimatePresence>
+                  {showFeedbackPrompt && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                    >
+                      <motion.div
+                        initial={{ scale: 0.95 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0.95 }}
+                        className="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-[400px]"
+                      >
+                        <h4 className="text-lg font-bold text-[#1A1A19] mb-2">Before you continue...</h4>
+                        <p className="text-sm text-[#5c6473] mb-4">Please provide your feedback for Page {currentPageIndex + 1}.</p>
+                        <textarea
+                          value={currentFeedbackInput}
+                          onChange={(e) => setCurrentFeedbackInput(e.target.value)}
+                          placeholder="Your thoughts on this page..."
+                          className="w-full h-32 p-3 border border-[#E8E8E5] rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#6057D7] resize-none"
+                        />
+                        <div className="flex gap-3 justify-end">
+                          <button
+                            onClick={() => setShowFeedbackPrompt(false)}
+                            className="px-4 py-2 text-sm font-semibold text-[#5c6473] hover:text-[#1A1A19]"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            disabled={!currentFeedbackInput.trim() || submittingFeedback}
+                            onClick={async () => {
+                              if (!currentFeedbackInput.trim()) return;
+                              setSubmittingFeedback(true);
+                              try {
+                                await fetch('/api/test/feedback', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    test_name: selectedTestName,
+                                    page_index: currentPageIndex,
+                                    feedback: currentFeedbackInput
+                                  })
+                                });
+                              } catch (e) {
+                                console.error('Feedback save error', e);
+                              }
+                              setPageFeedbacks(prev => ({ ...prev, [currentPageIndex]: currentFeedbackInput }));
+                              setSubmittingFeedback(false);
+                              setShowFeedbackPrompt(false);
+                              setCurrentFeedbackInput('');
+                              if (pendingNextIndex !== null) {
+                                setCurrentPageIndex(pendingNextIndex);
+                                setPendingNextIndex(null);
+                              }
+                            }}
+                            className="px-6 py-2 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {submittingFeedback ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit & Continue'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <FloatingChatbot userName="Admin" contextData={reportResult} />
     </div>
   );
 }

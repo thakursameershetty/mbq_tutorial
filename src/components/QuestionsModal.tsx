@@ -115,29 +115,7 @@ export default function QuestionsModal({ isOpen, onClose }: QuestionsModalProps)
     }));
   };
 
-  const handleToggleSelect = (testId: number, subgeneIdx: 1 | 2, qIndex: number, currentVal: boolean) => {
-    setQuestionsData(prev => prev.map(test => {
-      if (test.id !== testId) return test;
 
-      const isSelecting = !currentVal;
-      if (isSelecting) {
-        const totalSelected = test.subgene1_questions.filter(q => q.isSelected).length +
-          test.subgene2_questions.filter(q => q.isSelected).length;
-        if (totalSelected >= 5) {
-          alert('You can only select up to 5 questions per test.');
-          return test;
-        }
-      }
-
-      const newTest = { ...test };
-      const subgeneKey = subgeneIdx === 1 ? 'subgene1_questions' : 'subgene2_questions';
-
-      newTest[subgeneKey] = [...newTest[subgeneKey]];
-      newTest[subgeneKey][qIndex] = { ...newTest[subgeneKey][qIndex], isSelected: isSelecting };
-
-      return newTest;
-    }));
-  };
 
   const scrollToSubgene = (testId: number, testName: string, subgeneIdx: 1 | 2) => {
     if (activeTab !== testName) {
@@ -290,7 +268,6 @@ export default function QuestionsModal({ isOpen, onClose }: QuestionsModalProps)
                               isAllExpanded={isAllExpanded}
                               onChange={(field, val) => updateQuestion(test.id, 1, idx, field, val)}
                               onOptionChange={(optIdx, field, val) => updateOption(test.id, 1, idx, optIdx, field, val)}
-                              onToggleSelect={() => handleToggleSelect(test.id, 1, idx, q.isSelected || false)}
                             />
                           ))}
                         </div>
@@ -315,7 +292,6 @@ export default function QuestionsModal({ isOpen, onClose }: QuestionsModalProps)
                               isAllExpanded={isAllExpanded}
                               onChange={(field, val) => updateQuestion(test.id, 2, idx, field, val)}
                               onOptionChange={(optIdx, field, val) => updateOption(test.id, 2, idx, optIdx, field, val)}
-                              onToggleSelect={() => handleToggleSelect(test.id, 2, idx, q.isSelected || false)}
                             />
                           ))}
                         </div>
@@ -350,12 +326,11 @@ export default function QuestionsModal({ isOpen, onClose }: QuestionsModalProps)
   );
 }
 
-function QuestionEditor({ q, index, onChange, onOptionChange, onToggleSelect, expandAllToggle, isAllExpanded }: {
+function QuestionEditor({ q, index, onChange, onOptionChange, expandAllToggle, isAllExpanded }: {
   q: Question,
   index: number,
   onChange: (field: keyof Question, value: any) => void,
   onOptionChange: (optIdx: number, field: 'text' | 'score', value: any) => void,
-  onToggleSelect: () => void,
   expandAllToggle: number,
   isAllExpanded: boolean
 }) {
@@ -368,7 +343,7 @@ function QuestionEditor({ q, index, onChange, onOptionChange, onToggleSelect, ex
   }, [expandAllToggle, isAllExpanded]);
 
   return (
-    <div className={`bg-[#F9F9F8] border ${q.isSelected ? 'border-[#6057D7] shadow-sm' : 'border-[#E8E8E5] opacity-60'} rounded-2xl transition-all overflow-hidden`}>
+    <div className={`bg-[#F9F9F8] border border-[#E8E8E5] rounded-2xl transition-all overflow-hidden`}>
       <div
         className="flex items-center justify-between p-5 cursor-pointer hover:bg-[#F2F2F0] transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -377,13 +352,7 @@ function QuestionEditor({ q, index, onChange, onOptionChange, onToggleSelect, ex
           className="flex items-center gap-3"
           onClick={(e) => e.stopPropagation()}
         >
-          <input
-            type="checkbox"
-            checked={!!q.isSelected}
-            onChange={onToggleSelect}
-            className="w-5 h-5 rounded border-[#D4D4CE] text-[#6057D7] focus:ring-[#6057D7]/20 cursor-pointer"
-          />
-          <span className={`text-sm font-bold ${q.isSelected ? 'text-[#6057D7]' : 'text-[#A0A09D]'} truncate max-w-[150px] sm:max-w-[250px] md:max-w-[350px] lg:max-w-[450px]`}>
+          <span className={`text-sm font-bold text-[#1A1A19] truncate max-w-[150px] sm:max-w-[250px] md:max-w-[350px] lg:max-w-[450px]`}>
             {q.question || `Question ${index + 1}`}
           </span>
         </div>

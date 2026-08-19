@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI, generateChatResponse } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
+const { sendWhatsAppSampleDispatched, sendWhatsAppReportGenerated, sendWhatsAppReportReady } = require('./whatsapp');
 const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
 const path = require('path');
@@ -727,7 +728,7 @@ app.put('/api/users/:id/sample-collected', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.put('/api/users/:id/sample-received', async (req, res) => {
   const userId = req.params.id;
-  const { sampleReceived } = req.body;
+  const { sampleReceived, sendWhatsApp } = req.body;
 
   try {
     const query = `
@@ -751,12 +752,68 @@ app.put('/api/users/:id/sample-received', async (req, res) => {
       FROM users WHERE id = $1
     `, [userId]);
 
+    const updatedUser = updatedUserRes.rows[0];
+
+    // Trigger WhatsApp if requested
+    if (sendWhatsApp) {
+      // Background async call
+      sendWhatsAppSampleDispatched(updatedUser).catch(e => console.error("Auto WhatsApp Error:", e));
+    }
+
     res.json({
       success: true,
-      user: updatedUserRes.rows[0]
+      user: updatedUser
     });
   } catch (error) {
     console.error('Update Sample Received Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Request AI Report Generation (Automated Pipeline)
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/users/:id/request-generation', async (req, res) => {
+  const userId = req.params.id;
+  const { geneName, variants } = req.body;
+
+  try {
+    const userRes = await pool.query('SELECT reports, report_answers FROM users WHERE id = $1', [userId]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    let reports = userRes.rows[0].reports || {};
+    if (!reports[geneName]) {
+      reports[geneName] = {};
+    }
+
+    // Save variants inside the reports JSON for the specific gene
+    reports[geneName].variants = variants;
+
+    // Reset AI report since we are requesting a new one
+    delete reports[geneName].ai_report;
+
+    // Update user to set survey_requested to true
+    const updateQuery = `
+      UPDATE users 
+      SET reports = $1, survey_requested = TRUE 
+      WHERE id = $2 
+      RETURNING *
+    `;
+    const updateRes = await pool.query(updateQuery, [reports, userId]);
+    const updatedUser = updateRes.rows[0];
+
+    // Trigger WhatsApp notification for Survey Request if needed (Optional)
+    // sendCollectAnswersEmail(updatedUser); // if we want to send an email
+
+    res.json({
+      success: true,
+      message: 'AI Report generation requested successfully.',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Request Generation Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -773,6 +830,7 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
   const reportUrl = req.file.path; // Cloudinary returns the full secure URL in path
   const genotypes = req.body.genotypes ? JSON.parse(req.body.genotypes) : null;
   const geneName = req.body.geneName;
+  const sendWhatsApp = req.body.sendWhatsApp === 'true';
 
   try {
     const userRes = await pool.query('SELECT reports, genotypes, phenotypic_analysis FROM users WHERE id = $1', [userId]);
@@ -889,10 +947,16 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
       FROM users WHERE id = $1
     `, [userId]);
 
+    const updatedUser = updatedUserRes.rows[0];
+
+    if (sendWhatsApp) {
+      sendWhatsAppReportReady(updatedUser).catch(e => console.error("Auto WhatsApp Error:", e));
+    }
+
     res.json({
       success: true,
       message: 'Report uploaded and generated successfully.',
-      user: updatedUserRes.rows[0]
+      user: updatedUser
     });
   } catch (error) {
     console.error('Upload Report Error:', error);
@@ -935,7 +999,7 @@ app.delete('/api/users/:id/delete-report', async (req, res) => {
     } else {
       const query = `
         UPDATE users 
-        SET report_uploaded = FALSE, report_url = NULL, report_generated = FALSE, reports = '{}'::jsonb
+        SET report_uploaded = FALSE, report_url = NULL, report_generated = FALSE, reports = '{}'::jsonb, survey_requested = FALSE, report_answers = '{}'::jsonb, genotypes = '{}'::jsonb
         WHERE id = $1
         RETURNING id;
       `;
@@ -1037,7 +1101,7 @@ app.post('/api/users/:id/request-survey', express.json(), async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
   const userId = req.params.id;
-  const { answers } = req.body; // e.g. { "1-1-0": 1, "2-2-1": 0 }
+  const { answers, rawAnswers, testName } = req.body; // e.g. { "1-1-0": 1, "2-2-1": 0 }
 
   try {
     // We need to map these answers to the actual python question IDs with their scores.
@@ -1066,21 +1130,95 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
     }
 
     // 2. Fetch current user to merge or replace report_answers
-    const userRes = await pool.query('SELECT report_answers FROM users WHERE id = $1', [userId]);
+    const userRes = await pool.query('SELECT full_name, email, phone, reports, report_answers FROM users WHERE id = $1', [userId]);
     if (userRes.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    let currentAnswers = userRes.rows[0].report_answers || {};
+    const user = userRes.rows[0];
+    let currentAnswers = user.report_answers || {};
     if (typeof currentAnswers === 'string') currentAnswers = JSON.parse(currentAnswers);
 
-    // Merge new mapped answers
-    const updatedAnswers = { ...currentAnswers, ...mappedAnswers };
+    // Merge new mapped answers grouped by testName
+    const updatedAnswers = {
+      ...currentAnswers,
+      [testName]: mappedAnswers
+    };
+    if (rawAnswers) {
+      updatedAnswers[`${testName}_custom`] = rawAnswers;
+    }
+
+    let reports = user.reports || {};
+    if (typeof reports === 'string') reports = JSON.parse(reports);
+
+    const panelData = reports[testName];
+
+    let anyGenerated = false;
+    if (panelData && panelData.variants && !panelData.ai_report) {
+      let category = '';
+      if (testName.toLowerCase().includes('caffeine')) category = 'caffeine';
+      else if (testName.toLowerCase().includes('muscle')) category = 'muscle';
+      else if (testName.toLowerCase().includes('hair')) category = 'hair';
+      else category = 'caffeine';
+
+      console.log(`Triggering AI generation for ${category}...`);
+
+      const payload = {
+        category,
+        genes: panelData.variants,
+        phenotype_responses: mappedAnswers, // Send ONLY the mapped answers for this specific test
+        lifestyle_context: {
+          user_type: "explorer",
+          raw_answers: rawAnswers || []
+        }
+      };
+      console.log('Sending payload to Python backend:', JSON.stringify(payload));
+
+      const url = process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/dynamic/analyze-category` : 'http://127.0.0.1:8000/dynamic/analyze-category';
+      try {
+        const aiResponse = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          reports[testName].ai_report = aiData.results || aiData;
+          console.log(`AI generation successful for ${category}.`);
+          anyGenerated = true;
+        } else {
+          const errorText = await aiResponse.text();
+          console.error(`AI generation failed for ${category}: ${aiResponse.status} ${aiResponse.statusText} - ${errorText}`);
+        }
+      } catch (err) {
+        console.error(`AI generation request failed for ${category}:`, err);
+      }
+    }
+
+    if (anyGenerated) {
+      try {
+        const { sendWhatsAppReportGenerated } = require('./whatsapp');
+        const { sendReportReadyEmail } = require('./mailer');
+
+        await sendWhatsAppReportGenerated({ ...user, id: userId });
+        await sendReportReadyEmail({ ...user, id: userId });
+      } catch (e) { console.error("Notification failed:", e); }
+    }
+
+    // Check if there are any other panels still pending AI report
+    let stillPending = false;
+    for (const pk of Object.keys(reports)) {
+      if (reports[pk] && reports[pk].variants && !reports[pk].ai_report) {
+        stillPending = true;
+        break;
+      }
+    }
 
     // 3. Update DB
     const updateRes = await pool.query(
-      `UPDATE users SET report_answers = $1, survey_requested = FALSE WHERE id = $2 RETURNING *`,
-      [JSON.stringify(updatedAnswers), userId]
+      `UPDATE users SET report_answers = $1, reports = $2, survey_requested = $3, report_generated = TRUE, report_url = $4, status_timestamps = jsonb_set(COALESCE(status_timestamps, '{}'::jsonb), '{generated}', to_jsonb(NOW()::text)) WHERE id = $5 RETURNING *`,
+      [JSON.stringify(updatedAnswers), JSON.stringify(reports), stillPending, 'generated', userId]
     );
 
     res.json({ success: true, user: updateRes.rows[0] });
@@ -1331,6 +1469,41 @@ app.post('/api/test/generate-report', async (req, res) => {
   } catch (error) {
     console.error('Test Report Generation Error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate test report' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin WhatsApp Notification Trigger Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/admin/patients/:id/notify-whatsapp', async (req, res) => {
+  const userId = req.params.id;
+  const { templateType } = req.body;
+
+  try {
+    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    const user = userRes.rows[0];
+
+    switch (templateType) {
+      case 'sample_collected':
+        await sendWhatsAppSampleDispatched(user);
+        break;
+      case 'report_generated':
+        await sendWhatsAppReportGenerated(user);
+        break;
+      case 'report_ready':
+        await sendWhatsAppReportReady(user);
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid template type' });
+    }
+
+    res.json({ success: true, message: `WhatsApp message (${templateType}) sent successfully!` });
+  } catch (error) {
+    console.error('Manual WhatsApp Trigger Error:', error);
+    res.status(500).json({ error: 'Failed to send WhatsApp message' });
   }
 });
 

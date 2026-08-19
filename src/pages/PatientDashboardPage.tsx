@@ -6,12 +6,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
 import PatientSurveyModal from '@/components/PatientSurveyModal';
 import AIReportModal from '@/components/AIReportModal';
+import ReportViewerModal from '@/components/ReportViewerModal';
 import FloatingChatbot from '@/components/FloatingChatbot';
 
-const formatUserId = (id: any) => {
+const formatUserId = (id: any, createdAt?: string | null) => {
   const num = parseInt(id, 10);
+  const year = createdAt ? new Date(createdAt).getFullYear() : new Date().getFullYear();
   if (isNaN(num)) return `MBQ${id}`;
-  return `MBQ${String(num).padStart(3, '0')}`;
+  return `MBQ${year}${String(num).padStart(3, '0')}`;
 };
 
 export default function PatientDashboardPage() {
@@ -20,6 +22,7 @@ export default function PatientDashboardPage() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
+  const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string } | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
@@ -28,6 +31,7 @@ export default function PatientDashboardPage() {
   const [showSwitchAccountsModal, setShowSwitchAccountsModal] = useState(false);
   const [switchAccountsProfiles, setSwitchAccountsProfiles] = useState<any[]>([]);
   const [switchingAccountsLoading, setSwitchingAccountsLoading] = useState(false);
+  const [surveyTestName, setSurveyTestName] = useState<string>('');
 
   const navigate = useNavigate();
 
@@ -209,22 +213,24 @@ export default function PatientDashboardPage() {
       {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
         Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
           <div key={geneName} className="flex gap-2">
-            <a
-              href={reportData.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#027A48] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
-            >
-              <FileText size={16} />
-              View {geneName} PDF
-            </a>
+            {reportData.url && (
+              <a
+                href={reportData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#027A48] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#026c3f] transition-colors shadow-sm"
+              >
+                <FileText size={16} />
+                Legacy {geneName} PDF
+              </a>
+            )}
             {reportData.ai_report && (
               <button
-                onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
-                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-100 text-amber-700 rounded-full text-xs sm:text-sm font-medium hover:bg-amber-200 transition-colors shadow-sm cursor-pointer"
+                onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at) })}
+                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#6057D7] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#4F46B8] transition-colors shadow-sm cursor-pointer"
               >
                 <Sparkles size={16} />
-                AI Insights
+                View {geneName} Report
               </button>
             )}
           </div>
@@ -270,7 +276,7 @@ export default function PatientDashboardPage() {
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
         <div className="flex-1 w-full min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
-          <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id)}</p>
+          <p className="text-[#8B8B86] text-sm">User ID: {formatUserId(user.id, user.created_at)}</p>
           {dashboardActions}
         </div>
       </div>
@@ -295,29 +301,38 @@ export default function PatientDashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Questionnaire Retake Banner */}
-      {user.survey_requested && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-amber-500 rounded-2xl p-6 sm:px-6 sm:py-4 w-full shadow-md"
-        >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-4 w-full text-left">
-            <span className="bg-amber-700 text-white text-xs font-semibold px-4 py-1.5 rounded-full whitespace-nowrap shadow-sm mb-1 sm:mb-0">
-              Action Required
-            </span>
-            <p className="text-sm font-medium text-white flex-1 mb-2 sm:mb-0">
-              Please submit your answers again so that you can get your report
-            </p>
-            <button
-              onClick={() => setShowSurveyModal(true)}
-              className="inline-flex items-center gap-1 font-bold text-amber-700 bg-white pl-5 pr-4 py-2.5 sm:py-2 rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap shrink-0 self-end sm:self-auto"
+      {/* Questionnaire Retake Banners */}
+      {user.reports && Object.entries(user.reports).map(([panelName, panelData]: [string, any]) => {
+        if (panelData && panelData.variants && !panelData.ai_report) {
+          return (
+            <motion.div
+              key={panelName}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-amber-500 rounded-2xl p-6 sm:px-6 sm:py-4 w-full shadow-md cursor-pointer hover:shadow-lg transition-all"
+              onClick={() => {
+                setSurveyTestName(panelName);
+                setShowSurveyModal(true);
+              }}
             >
-              Answer Now <span className="material-symbols-rounded text-[20px]" aria-hidden="true">chevron_right</span>
-            </button>
-          </div>
-        </motion.div>
-      )}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-4 w-full text-left">
+                <span className="bg-amber-700 text-white text-xs font-semibold px-4 py-1.5 rounded-full whitespace-nowrap shadow-sm mb-1 sm:mb-0">
+                  Action Required
+                </span>
+                <p className="text-sm font-medium text-white flex-1 mb-2 sm:mb-0">
+                  Please submit your Phenotypic Survey (10 questions) for {panelName} so that you can get your report
+                </p>
+                <button
+                  className="inline-flex items-center gap-1 font-bold text-amber-700 bg-white pl-5 pr-4 py-2.5 sm:py-2 rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap shrink-0 self-end sm:self-auto"
+                >
+                  Answer Now <span className="material-symbols-rounded text-[20px]" aria-hidden="true">chevron_right</span>
+                </button>
+              </div>
+            </motion.div>
+          );
+        }
+        return null;
+      })}
 
       {/* Null phenotypic data banner */}
       {!user.phenotypic_analysis && (
@@ -454,7 +469,7 @@ export default function PatientDashboardPage() {
               <div className="bg-[#F7F7F5] rounded-2xl p-4 mb-6 text-xs text-[#5A5A55] border border-[#E8E8E5]">
                 <div className="flex justify-between items-center mb-1">
                   <span>Participant ID:</span>
-                  <span className="font-mono font-bold text-[#1A1A19]">{formatUserId(user.id)}</span>
+                  <span className="font-mono font-bold text-[#1A1A19]">{formatUserId(user.id, user.created_at)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>Email Registered:</span>
@@ -512,22 +527,24 @@ export default function PatientDashboardPage() {
                 <div className="mt-6 pt-4 border-t border-[#E8E8E5] flex flex-col gap-3">
                   {Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
                     <div key={geneName} className="flex flex-col sm:flex-row gap-2">
-                      <a
-                        href={reportData.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
-                      >
-                        <FileText size={18} />
-                        View {geneName} PDF
-                      </a>
+                      {reportData.url && reportData.url !== '#' && (
+                        <a
+                          href={reportData.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-3.5 bg-[#027A48] hover:bg-[#026c3f] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 text-center no-underline"
+                        >
+                          <FileText size={18} />
+                          View {geneName} PDF
+                        </a>
+                      )}
                       {reportData.ai_report && (
                         <button
-                          onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                          onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at) })}
                           className="flex-1 py-3.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
                         >
                           <Sparkles size={18} />
-                          AI Insights
+                          View HTML Report
                         </button>
                       )}
                     </div>
@@ -600,10 +617,11 @@ export default function PatientDashboardPage() {
           isOpen={showSurveyModal}
           onClose={() => setShowSurveyModal(false)}
           userId={user.id}
-          geneType={user.gene_type}
+          testName={surveyTestName}
           onComplete={() => {
-            // Optimistically update the UI to remove the banner
-            setUser((prev: any) => ({ ...prev, survey_requested: false }));
+            // Optimistically update the UI to avoid showing the banner while fetching
+            // A real refresh will happen via useEffect pooling or next login
+            handleFetchData(true);
           }}
         />
       )}
@@ -681,14 +699,30 @@ export default function PatientDashboardPage() {
         )}
       </AnimatePresence>
 
-      <AIReportModal
-        isOpen={!!selectedAIReport}
-        onClose={() => setSelectedAIReport(null)}
-        markdownContent={selectedAIReport?.content || ''}
-        geneName={selectedAIReport?.geneName || ''}
-      />
-      <FloatingChatbot userName={user.full_name} />
+      {selectedAIReport && (
+        <AIReportModal
+          isOpen={!!selectedAIReport}
+          onClose={() => setSelectedAIReport(null)}
+          markdownContent={selectedAIReport.content}
+          geneName={selectedAIReport.geneName}
+        />
+      )}
+
+      {viewReportData && (
+        <ReportViewerModal
+          isOpen={!!viewReportData}
+          onClose={() => setViewReportData(null)}
+          reportData={viewReportData.reportData}
+          geneVariants={viewReportData.variants}
+          testName={viewReportData.testName}
+          mbqId={viewReportData.mbqId}
+        />
+      )}
+
+      {/* Floating Chatbot */}
+      {user && user.report_verified && user.reports && Object.keys(user.reports).length > 0 && (
+        <FloatingChatbot userName={user.name} contextData={user.reports} />
+      )}
     </motion.div>
   );
 }
-

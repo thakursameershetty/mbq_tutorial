@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2 } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2, MessageCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
-import AIReportModal from '../components/AIReportModal';
+import ReportViewerModal from '../components/ReportViewerModal';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
 
-const formatUserId = (id: any) => {
+const formatUserId = (id: any, createdAt?: string | null) => {
   const num = parseInt(id, 10);
+  const year = createdAt ? new Date(createdAt).getFullYear() : new Date().getFullYear();
   if (isNaN(num)) return `MBQ${id}`;
-  return `MBQ${String(num).padStart(3, '0')}`;
+  return `MBQ${year}${String(num).padStart(3, '0')}`;
 };
 
 const safeRender = (val: any) => {
@@ -48,7 +49,7 @@ export default function AdminVerifyPage() {
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
-  const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
@@ -57,6 +58,37 @@ export default function AdminVerifyPage() {
   const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [editedGeneType, setEditedGeneType] = useState<string>('');
   const [isUpdatingGene, setIsUpdatingGene] = useState(false);
+
+  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState(() => {
+    const saved = localStorage.getItem('autoSendWhatsApp');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('autoSendWhatsApp', String(autoSendWhatsApp));
+  }, [autoSendWhatsApp]);
+
+  const handleManualWhatsApp = async (patientId: string, templateType: string) => {
+    setActionLoading(parseInt(patientId));
+    try {
+      const response = await fetch(`/api/admin/patients/${patientId}/notify-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateType })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message);
+      } else {
+        alert(data.error || 'Failed to send WhatsApp message');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Connection failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleUpdateGene = async () => {
     if (!editingGenePatient) return;
@@ -248,7 +280,7 @@ export default function AdminVerifyPage() {
       const emailMatch = (p.email || '').toLowerCase().includes(term);
       const usernameMatch = (p.username || '').toLowerCase().includes(term);
       const phoneMatch = (p.phone || '').includes(term);
-      const idMatch = formatUserId(p.id).toLowerCase().includes(term) || p.id.toString().includes(term);
+      const idMatch = formatUserId(p.id, p.created_at).toLowerCase().includes(term) || p.id.toString().includes(term);
       return nameMatch || emailMatch || usernameMatch || phoneMatch || idMatch;
     });
 
@@ -441,7 +473,7 @@ export default function AdminVerifyPage() {
     const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
 
     const csvRows = patients.map(p => [
-      formatUserId(p.id),
+      formatUserId(p.id, p.created_at),
       p.username || '',
       p.full_name ? escapeCSV(p.full_name) : '',
       p.email || '',
@@ -679,6 +711,13 @@ export default function AdminVerifyPage() {
               <Edit className="w-4 h-4" />
               <span className="hidden sm:inline">Select Questions</span>
             </button>
+            <button
+              onClick={() => setAutoSendWhatsApp(!autoSendWhatsApp)}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 border rounded-2xl text-xs font-semibold transition-all shadow-sm shrink-0 h-[44px] ${autoSendWhatsApp ? 'bg-[#ECFDF3] text-[#027A48] border-[#027A48]/20' : 'bg-white text-[#8B8B86] border-[#E8E8E5] hover:bg-[#F9F9F8]'}`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Auto-WhatsApp {autoSendWhatsApp ? 'ON' : 'OFF'}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -736,7 +775,7 @@ export default function AdminVerifyPage() {
                         </div>
                         <div className="text-xs font-mono font-medium text-[#8B8B86] mt-0.5 flex items-center gap-1.5">
                           <User className="w-3 h-3" />
-                          ID: {formatUserId(patient.id)} ({patient.username})
+                          ID: {formatUserId(patient.id, patient.created_at)} ({patient.username})
                         </div>
                       </div>
                     </div>
@@ -1081,11 +1120,11 @@ export default function AdminVerifyPage() {
                                     </button>
                                     {reportData.ai_report && (
                                       <button
-                                        onClick={() => setSelectedAIReport({ geneName, content: reportData.ai_report })}
+                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at) })}
                                         className="flex items-center gap-2 px-4 py-2 bg-amber-100/80 hover:bg-amber-200 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                                       >
                                         <Sparkles size={14} />
-                                        View {geneName} AI Insights
+                                        View {geneName} HTML Report
                                       </button>
                                     )}
                                   </div>
@@ -1170,6 +1209,40 @@ export default function AdminVerifyPage() {
                                 <RefreshCw size={13} className={fetchDataLoading === patient.id ? 'animate-spin' : ''} />
                                 {fetchDataLoading === patient.id ? 'Fetching...' : 'Fetch Data'}
                               </button>
+                            )}
+                          </div>
+
+                          {/* Manual WhatsApp Notification Buttons */}
+                          <div className="flex flex-wrap items-center gap-3 pt-3">
+                            {patient.sample_received && (
+                              <button
+                                onClick={() => handleManualWhatsApp(patient.id, 'sample_collected')}
+                                disabled={actionLoading === patient.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                              >
+                                {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                Send WA: Sample Collected
+                              </button>
+                            )}
+                            {patient.report_uploaded && (
+                              <>
+                                <button
+                                  onClick={() => handleManualWhatsApp(patient.id, 'report_generated')}
+                                  disabled={actionLoading === patient.id}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                >
+                                  {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                  Send WA: Report Generated
+                                </button>
+                                <button
+                                  onClick={() => handleManualWhatsApp(patient.id, 'report_ready')}
+                                  disabled={actionLoading === patient.id}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                >
+                                  {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                  Send WA: Report Ready
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -1530,7 +1603,7 @@ export default function AdminVerifyPage() {
                     </div>
                     <div>
                       <h3 className="font-bold text-[#1A1A19]">{editingGenePatient.full_name}</h3>
-                      <div className="text-xs text-[#8B8B86]">{formatUserId(editingGenePatient.id)}</div>
+                      <div className="text-xs text-[#8B8B86]">{formatUserId(editingGenePatient.id, editingGenePatient.created_at)}</div>
                     </div>
                   </div>
                   <button
@@ -1756,13 +1829,15 @@ export default function AdminVerifyPage() {
         onClose={() => setIsQuestionsModalOpen(false)}
       />
 
-      {/* AI Report Modal */}
+      {/* HTML Report Modal */}
       {selectedAIReport && (
-        <AIReportModal
+        <ReportViewerModal
           isOpen={!!selectedAIReport}
           onClose={() => setSelectedAIReport(null)}
-          geneName={selectedAIReport.geneName}
-          markdownContent={selectedAIReport.content}
+          testName={selectedAIReport.testName}
+          reportData={selectedAIReport.reportData}
+          geneVariants={selectedAIReport.variants}
+          mbqId={selectedAIReport.mbqId}
         />
       )}
     </motion.div >

@@ -102,7 +102,6 @@ export default function LabDashboard() {
   }, []);
 
   const [sampleAction, setSampleAction] = useState<any>(null);
-  const [uploadAction, setUploadAction] = useState<{ patientId: string, file: File, patientName: string, geneName: string } | null>(null);
   const [deleteAction, setDeleteAction] = useState<{ patientId: string, patientName: string, geneName?: string } | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, Record<string, string>>>({});
 
@@ -142,34 +141,84 @@ export default function LabDashboard() {
     }
   };
 
-  const confirmUploadReport = async () => {
-    if (!uploadAction) return;
-    const { patientId, file, geneName } = uploadAction;
-    setActionLoading(patientId + '-upload');
-    const formData = new FormData();
-    formData.append('report', file);
-    formData.append('geneName', geneName);
-    const genotypes = selectedVariants[patientId] || {};
-    formData.append('genotypes', JSON.stringify(genotypes));
+  const handleSubmitAll = async (patient: any) => {
+    const requiredGenes = getRequiredGenes(patient.gene);
+    const patientVariants = selectedVariants[patient.id] || {};
+    
+    // Ensure all genes across all panels are selected
+    for (const rg of requiredGenes) {
+      if (!patientVariants[rg.name]) {
+        alert(`Please select the genotype for ${rg.name} before submitting.`);
+        return;
+      }
+    }
 
+    if (!window.confirm(`Are you sure you want to submit all variants for ${patient.name}?`)) {
+      return;
+    }
+
+    // Get unique panels
+    const panels = new Set(requiredGenes.map(rg => rg.panel));
+
+    setActionLoading(patient.id + '-generate');
     try {
-      const response = await fetch(`/api/users/${patientId}/upload-report`, {
-        method: 'POST',
-        body: formData,
+      await Promise.all(
+        Array.from(panels).map(panelName => {
+          const specificVariants: Record<string, string> = {};
+          requiredGenes
+            .filter(rg => rg.panel === panelName)
+            .forEach(rg => {
+              specificVariants[rg.name] = patientVariants[rg.name];
+            });
+
+          return fetch(`/api/users/${patient.id}/request-generation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ geneName: panelName, variants: specificVariants }),
+          }).then(res => {
+            if (!res.ok) throw new Error('Failed to request generation');
+            return res.json();
+          });
+        })
+      );
+      
+      alert('Surveys requested successfully! Phenotypic journey pending.');
+      fetchPatients();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to submit all variants');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUndoAll = async (patient: any) => {
+    if (!window.confirm(`Are you sure you want to undo the submission for ${patient.name}? This will clear all AI reports and survey status.`)) {
+      return;
+    }
+
+    setActionLoading(patient.id + '-undo');
+    try {
+      const response = await fetch(`/api/users/${patient.id}/delete-report`, {
+        method: 'DELETE',
       });
       const data = await response.json();
       if (data.success) {
-        alert('Genomic report uploaded and phenotypic journey generated successfully!');
+        alert('Submission undone successfully.');
+        setSelectedVariants(prev => {
+          const next = { ...prev };
+          delete next[patient.id];
+          return next;
+        });
         fetchPatients();
       } else {
-        alert(data.error || 'Failed to upload report');
+        alert(data.error || 'Failed to undo submission');
       }
     } catch (err) {
       console.error(err);
       alert('Connection failed');
     } finally {
       setActionLoading(null);
-      setUploadAction(null);
     }
   };
 
@@ -635,7 +684,7 @@ export default function LabDashboard() {
                                           disabled={!patient.sample_received}
                                           className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
                                           onClick={(e) => e.stopPropagation()}
-                                          value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                          value={selectedVariants[patient.id]?.[rg.name] || (patient.reports && (Object.values(patient.reports).find((r: any) => r.variants && r.variants[rg.name]) as any)?.variants[rg.name]) || ""}
                                           onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
                                           style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
                                         >
@@ -644,58 +693,6 @@ export default function LabDashboard() {
                                             <option key={i} value={v} className="truncate">{v}</option>
                                           ))}
                                         </select>
-
-                                        {patient.reports?.[rg.name] ? (
-                                          <div className="flex w-full mt-1 gap-1 h-[34px]">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setPreviewPdfUrl(patient.reports[rg.name].url);
-                                              }}
-                                              className="flex-1 bg-[#ECFDF3] text-[#027A48] border border-[#027A48]/20 hover:bg-[#D1FADF] rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1"
-                                            >
-                                              <FileText className="w-3 h-3" /> View
-                                            </button>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setDeleteAction({ patientId: patient.id, patientName: patient.name, geneName: rg.name });
-                                              }}
-                                              className="w-[28px] shrink-0 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-xl flex items-center justify-center transition-all shadow-sm"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <motion.label
-                                            whileHover={patient.sample_received ? { scale: 1.02 } : {}}
-                                            whileTap={patient.sample_received ? { scale: 0.98 } : {}}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className={`w-full h-[34px] px-2 rounded-xl text-[10px] font-semibold shadow-[0_4px_12px_rgb(0,0,0,0.15)] transition-all flex items-center justify-center gap-1 shrink-0 mt-1 ${!patient.sample_received ? 'bg-[#1A1A19] text-white opacity-50 cursor-not-allowed pointer-events-none' : 'bg-[#1A1A19] text-white hover:shadow-[0_6px_16px_rgb(0,0,0,0.25)] cursor-pointer'}`}
-                                          >
-                                            {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                                            Upload
-                                            <input
-                                              type="file"
-                                              className="hidden"
-                                              accept=".pdf"
-                                              disabled={!patient.sample_received}
-                                              onClick={(e) => {
-                                                const patientVariants = selectedVariants[patient.id] || {};
-                                                if (!patientVariants[rg.name]) {
-                                                  e.preventDefault();
-                                                  alert(`Please select the genotype for ${rg.name} before uploading the report.`);
-                                                }
-                                              }}
-                                              onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                  setUploadAction({ patientId: patient.id, file: e.target.files[0], patientName: patient.name, geneName: rg.name });
-                                                  e.target.value = '';
-                                                }
-                                              }}
-                                            />
-                                          </motion.label>
-                                        )}
                                       </div>
                                     ))}
                                   </div>
@@ -704,23 +701,36 @@ export default function LabDashboard() {
                             );
                           })()}
 
-                          {patient.status !== 'pending' && (
-                            <div className="flex gap-2">
-                              {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                          {patient.sample_received && (
+                            <div className="flex flex-col gap-2 w-full mt-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSubmitAll(patient);
+                                }}
+                                disabled={actionLoading === patient.id + '-generate'}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full justify-center uppercase tracking-wider"
+                              >
+                                {actionLoading === patient.id + '-generate' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                Submit All Variants
+                              </button>
+
+                              {patient.reports && Object.keys(patient.reports).length > 0 && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                                    handleUndoAll(patient);
                                   }}
-                                  disabled={actionLoading === patient.id + '-delete'}
+                                  disabled={actionLoading === patient.id + '-undo'}
                                   className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full justify-center"
                                 >
-                                  {actionLoading === patient.id + '-delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                  Delete Recent Upload
+                                  {actionLoading === patient.id + '-undo' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                  Undo Submission
                                 </button>
                               )}
                             </div>
                           )}
+
                         </div>
                       </div>
 
@@ -916,69 +926,14 @@ export default function LabDashboard() {
                                       <select
                                         disabled={!patient.sample_received}
                                         className={`w-full bg-white/80 border border-[#E8E8E5] text-[11px] font-semibold text-[#5A5A55] rounded-xl h-[36px] px-2 pr-6 outline-none focus:ring-2 focus:ring-[#6057D7]/20 appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'}`}
-                                        value={selectedVariants[patient.id]?.[rg.name] || ""}
+                                        onClick={(e) => e.stopPropagation()}
+                                        value={selectedVariants[patient.id]?.[rg.name] || (patient.reports && (Object.values(patient.reports).find((r: any) => r.variants && r.variants[rg.name]) as any)?.variants[rg.name]) || ""}
                                         onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
                                         style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
                                       >
                                         <option value="" disabled>Select {rg.name}</option>
                                         {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
                                       </select>
-                                      {patient.reports?.[rg.name] ? (
-                                        <div className="flex w-full mt-1 gap-1.5 h-[36px]">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setPreviewPdfUrl(patient.reports[rg.name].url);
-                                            }}
-                                            className="flex-1 bg-[#ECFDF3] text-[#027A48] border border-[#027A48]/20 hover:bg-[#D1FADF] rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5"
-                                          >
-                                            <FileText className="w-3 h-3" /> View
-                                          </button>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setDeleteAction({ patientId: patient.id, patientName: patient.name, geneName: rg.name });
-                                            }}
-                                            className="w-10 shrink-0 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-xl flex items-center justify-center transition-all shadow-sm"
-                                          >
-                                            <Trash2 className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <motion.label
-                                          whileHover={patient.sample_received ? { scale: 1.02 } : {}}
-                                          whileTap={patient.sample_received ? { scale: 0.98 } : {}}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className={`w-full mt-1 h-[36px] px-3 rounded-xl text-[11px] font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 ${!patient.sample_received ? 'bg-[#1A1A19] text-white opacity-50 cursor-not-allowed pointer-events-none' : 'bg-[#1A1A19] text-white hover:shadow-lg cursor-pointer'}`}
-                                        >
-                                          {actionLoading === patient.id + '-upload' ? <Loader2 className="animate-spin w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                                          Upload
-                                          <input
-                                            type="file"
-                                            className="hidden"
-                                            accept=".pdf"
-                                            disabled={!patient.sample_received}
-                                            onClick={(e) => {
-                                              const patientVariants = selectedVariants[patient.id] || {};
-                                              if (!patientVariants[rg.name]) {
-                                                e.preventDefault();
-                                                alert(`Please select the genotype for ${rg.name} before uploading the report.`);
-                                              }
-                                            }}
-                                            onChange={(e) => {
-                                              if (e.target.files && e.target.files[0]) {
-                                                setUploadAction({
-                                                  patientId: patient.id,
-                                                  file: e.target.files[0],
-                                                  patientName: patient.name,
-                                                  geneName: rg.name
-                                                });
-                                                e.target.value = '';
-                                              }
-                                            }}
-                                          />
-                                        </motion.label>
-                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -988,19 +943,31 @@ export default function LabDashboard() {
                         );
                       })()}
 
-                      {patient.status !== 'pending' && (
-                        <div className="flex gap-2 w-full mt-2">
-                          {patient.status_timestamps?.uploaded && (new Date().getTime() - new Date(patient.status_timestamps.uploaded).getTime() <= 10 * 60 * 1000) && (
+                      {patient.sample_received && (
+                        <div className="flex flex-col gap-2 w-full mt-4 border-t border-[#E8E8E5] pt-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSubmitAll(patient);
+                            }}
+                            disabled={actionLoading === patient.id + '-generate'}
+                            className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-2xl text-sm font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 uppercase tracking-wider"
+                          >
+                            {actionLoading === patient.id + '-generate' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            Submit All Variants
+                          </button>
+
+                          {patient.reports && Object.keys(patient.reports).length > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDeleteAction({ patientId: patient.id, patientName: patient.name });
+                                handleUndoAll(patient);
                               }}
-                              disabled={actionLoading === patient.id + '-delete'}
-                              className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                              disabled={actionLoading === patient.id + '-undo'}
+                              className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
                             >
-                              {actionLoading === patient.id + '-delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                              Delete Recent Upload
+                              {actionLoading === patient.id + '-undo' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                              Undo Submission
                             </button>
                           )}
                         </div>
@@ -1076,68 +1043,7 @@ export default function LabDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Upload Report Confirmation Modal */}
-      <AnimatePresence>
-        {uploadAction && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-              onClick={() => !actionLoading && setUploadAction(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#E8E8E5] overflow-hidden z-10"
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <button
-                    onClick={() => !actionLoading && setUploadAction(null)}
-                    className="p-2 text-[#8B8B86] hover:text-[#1A1A19] transition-colors rounded-full hover:bg-[#F4F4F2]"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
 
-                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Upload Genomic Report</h3>
-                <p className="text-[#5A5A55] text-sm mb-6">
-                  Are you sure you want to upload this report for <span className="font-bold text-[#1A1A19]">{uploadAction.patientName}</span>? <br /><br />
-                  <span className="font-semibold text-xs bg-[#F4F4F2] px-2 py-1 rounded-md">{uploadAction.file.name}</span>
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setUploadAction(null)}
-                    disabled={!!actionLoading}
-                    className="flex-1 px-4 py-2.5 bg-white border border-[#E8E8E5] text-[#1A1A19] font-bold text-sm rounded-xl hover:bg-[#F4F4F2] transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmUploadReport}
-                    disabled={!!actionLoading}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#6057D7] hover:bg-[#5149C0] text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm"
-                  >
-                    {actionLoading === uploadAction.patientId + '-upload' ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <FileText className="w-4 h-4" />
-                    )}
-                    {actionLoading === uploadAction.patientId + '-upload' ? 'Uploading...' : 'Upload'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* PDF Preview Modal */}
       <AnimatePresence>

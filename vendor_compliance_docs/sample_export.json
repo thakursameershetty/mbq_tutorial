@@ -1,0 +1,22 @@
+{
+  "user": {
+    "id": "user-uuid",
+    "created_at": "2024-01-01T00:00:00Z"
+  },
+  "kit": {
+    "barcode": "MBQ-12345678",
+    "status": "completed"
+  },
+  "genetic_results": [
+    {
+      "gene": "ACTN3",
+      "marker_rsid": "rs1815739",
+      "genotype": "RR"
+    },
+    {
+      "gene": "ACE",
+      "marker_rsid": "rs4646994",
+      "genotype": "DD"
+    }
+  ]
+}
