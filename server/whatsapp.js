@@ -82,27 +82,42 @@ const sendWhatsAppOtp = async (phone, otp) => {
   await sendWhatsAppTemplate(phone, 'order_status', [otp, 'dummy2', 'dummy3', 'dummy4']);
 };
 
+const getNameWithTests = (user) => {
+  const firstName = (user && user.full_name) ? String(user.full_name).split(' ')[0] : (user && user.username) ? String(user.username) : 'User';
+  const tests = (user && user.gene_type) ? String(user.gene_type) : 'Test';
+  return `${firstName} (${tests})`;
+};
+
 const sendWhatsAppSampleDispatched = async (user) => {
   if (!user || !user.phone) return;
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
   await sendWhatsAppTemplate(user.phone, 'mbq_sample_collected', [
-    { type: 'text', text: firstName, parameter_name: 'name' }
+    { type: 'text', text: getNameWithTests(user), parameter_name: 'name' }
   ]);
 };
 
 const sendWhatsAppReportGenerated = async (user) => {
   if (!user || !user.phone) return;
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
   await sendWhatsAppTemplate(user.phone, 'mbq_report_generated', [
-    { type: 'text', text: firstName, parameter_name: 'name' }
+    { type: 'text', text: getNameWithTests(user), parameter_name: 'name' }
   ]);
 };
 
 const sendWhatsAppReportReady = async (user) => {
   if (!user || !user.phone) return;
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
   await sendWhatsAppTemplate(user.phone, 'mbq_report_ready', [
-    { type: 'text', text: firstName, parameter_name: 'name' }
+    { type: 'text', text: getNameWithTests(user), parameter_name: 'name' }
+  ]);
+};
+
+const sendWhatsAppSurveyRequested = async (user, testName) => {
+  if (!user || !user.phone) return;
+  // If a specific testName is provided (e.g. they only submitted one panel), 
+  // but they requested all tests to be listed, user.gene_type has all tests.
+  const tests = (user && user.gene_type) ? String(user.gene_type) : (testName ? String(testName) : 'Test');
+  const firstName = (user && user.full_name) ? String(user.full_name).split(' ')[0] : (user && user.username) ? String(user.username) : 'User';
+  const nameWithTest = `${firstName} (${tests})`;
+  await sendWhatsAppTemplate(user.phone, 'mbq_survey_requested', [
+    { type: 'text', text: nameWithTest, parameter_name: 'name' }
   ]);
 };
 
@@ -110,5 +125,6 @@ module.exports = {
   sendWhatsAppOtp,
   sendWhatsAppSampleDispatched,
   sendWhatsAppReportGenerated,
-  sendWhatsAppReportReady
+  sendWhatsAppReportReady,
+  sendWhatsAppSurveyRequested
 };

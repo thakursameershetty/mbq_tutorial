@@ -8,13 +8,20 @@ const formatUserId = (id) => {
   return `MBQ${String(num).padStart(3, '0')}`;
 };
 
+const getNameWithTests = (user) => {
+  if (!user) return 'User';
+  const name = user.full_name ? String(user.full_name).split(' ')[0] : (user.username ? String(user.username) : 'User');
+  const tests = user.gene_type ? String(user.gene_type) : 'Test';
+  return `${name} (${tests})`;
+};
+
 const sendSampleDispatchedEmail = async (user) => {
   if (!process.env.RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not configured. Skipping email to', user.email);
     return;
   }
 
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
+  const firstName = getNameWithTests(user);
   const volunteerId = formatUserId(user.id);
   const selectedQode = user.gene_type || 'MyBodyQode Full Panel';
 
@@ -256,7 +263,7 @@ const sendSampleDispatchedEmail = async (user) => {
       </ul>
       
       <div class="button-container">
-        <a href="https://mbq-tutorial.vercel.app/login" class="button">Track My Progress</a>
+        <a href="https://mbq-tutorial.vercel.app/dashboard" class="button">Track My Progress</a>
       </div>
       
       <div class="quote">
@@ -306,7 +313,7 @@ const sendForgotCredentialsEmail = async (user) => {
     return;
   }
 
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
+  const firstName = getNameWithTests(user);
 
   const mailOptions = {
     from: `"MyBodyQode Team" <team@mybodyqode.com>`,
@@ -483,7 +490,7 @@ const sendForgotCredentialsEmail = async (user) => {
       <p>If you didn't request this, you can safely ignore this email.</p>
       
       <div class="button-container">
-        <a href="https://mbq-tutorial.vercel.app/login" class="button">Log In to My Account</a>
+        <a href="https://mbq-tutorial.vercel.app/dashboard" class="button">Log In to My Account</a>
       </div>
       
       <p style="margin-top: 40px; color: #1A1A19;">Warm Regards,<br><strong>Team MyBodyQode</strong></p>
@@ -652,7 +659,7 @@ const sendReportReadyEmail = async (user) => {
     return;
   }
 
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : 'User';
+  const firstName = getNameWithTests(user);
 
   const mailOptions = {
     from: `"MyBodyQode Team" <team@mybodyqode.com>`,
@@ -767,7 +774,7 @@ const sendReportReadyEmail = async (user) => {
       <p>Log in to your MyBodyQode dashboard to download and review your personalized report.</p>
       
       <div class="button-container">
-        <a href="https://mybodyqode.vercel.app/login" class="button">Go to Dashboard</a>
+        <a href="https://mbq-tutorial.vercel.app/dashboard" class="button">Go to Dashboard</a>
       </div>
       
       <p style="font-size: 14px;">If you have any questions, feel free to reply to this email.</p>
@@ -797,7 +804,7 @@ module.exports.sendReportReadyEmail = sendReportReadyEmail;
 
 const sendCollectAnswersEmail = async (user) => {
   if (!user || !user.email) return;
-  const firstName = user.full_name ? user.full_name.split(' ')[0] : user.username || 'User';
+  const firstName = getNameWithTests(user);
 
   const mailOptions = {
     from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',
@@ -876,7 +883,7 @@ const sendCollectAnswersEmail = async (user) => {
       <p>Please log in to your dashboard to answer them.</p>
       
       <div class="button-container">
-        <a href="https://mybodyqode.vercel.app/login" class="button">Answer Questions Now</a>
+        <a href="https://mbq-tutorial.vercel.app/dashboard" class="button">Answer Questions Now</a>
       </div>
       
       <p style="font-size: 14px;">If you have any questions, feel free to reply to this email.</p>

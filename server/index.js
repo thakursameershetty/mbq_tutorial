@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI, generateChatResponse } = require('./aiMapping');
 const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
-const { sendWhatsAppSampleDispatched, sendWhatsAppReportGenerated, sendWhatsAppReportReady } = require('./whatsapp');
+const { sendWhatsAppSampleDispatched, sendWhatsAppReportGenerated, sendWhatsAppReportReady, sendWhatsAppSurveyRequested } = require('./whatsapp');
 const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
 const path = require('path');
@@ -804,8 +804,9 @@ app.post('/api/users/:id/request-generation', async (req, res) => {
     const updateRes = await pool.query(updateQuery, [reports, userId]);
     const updatedUser = updateRes.rows[0];
 
-    // Trigger WhatsApp notification for Survey Request if needed (Optional)
-    // sendCollectAnswersEmail(updatedUser); // if we want to send an email
+    // Trigger WhatsApp notification for Survey Request if needed
+    sendCollectAnswersEmail(updatedUser);
+    sendWhatsAppSurveyRequested(updatedUser, geneName);
 
     res.json({
       success: true,
