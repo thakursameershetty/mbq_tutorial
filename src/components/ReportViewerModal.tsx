@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Loader2, MessageSquareHeart, CheckCircle2 } from 'lucide-react';
 
 interface ReportViewerModalProps {
   isOpen: boolean;
@@ -12,9 +12,64 @@ interface ReportViewerModalProps {
   generatedAt?: string | null;
 }
 
+// Every template page is laid out at a fixed intrinsic size (matches the
+// jsPDF page format used by downloadPDF below) — the report itself is never
+// responsive, so on a narrow viewport (e.g. mobile) we scale the whole page
+// down uniformly with a CSS transform rather than letting it overflow/crop.
+const DESIGN_WIDTH = 1024;
+const DESIGN_HEIGHT = 1449;
+
+// Tests for the "what's coming next" interest list shown during the download countdown.
+// `image` points at a placeholder SVG in /public/assets/upcoming-tests/ - swap those
+// files (keeping the same filenames, or update the paths here) for real artwork later.
+const UPCOMING_TESTS = [
+  { name: 'Body Fuel Qode', image: '/assets/upcoming-tests/body-fuel-qode.svg' },
+  { name: 'Metabolism Qode', image: '/assets/upcoming-tests/metabolism-qode.svg' },
+  { name: 'Collagen Qode Test', image: '/assets/upcoming-tests/collagen-qode-test.svg' },
+  { name: 'Hair Fall Qode Test', image: '/assets/upcoming-tests/hair-fall-qode-test.svg' },
+  { name: 'Grey Qode Test', image: '/assets/upcoming-tests/grey-qode-test.svg' },
+  { name: 'City Shield Qode Test', image: '/assets/upcoming-tests/city-shield-qode-test.svg' },
+  { name: 'Dairy Qode Test', image: '/assets/upcoming-tests/dairy-qode-test.svg' },
+  { name: 'Sleep Qode Test', image: '/assets/upcoming-tests/sleep-qode-test.svg' },
+  { name: 'Taste Qode Test', image: '/assets/upcoming-tests/taste-qode-test.svg' },
+];
+
+const DOWNLOAD_COUNTDOWN_SECONDS = 10;
+
+const LikeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="#664FC2" d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2M4 10h2v9H4zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7z" />
+  </svg>
+);
+
+const DislikeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="#664FC2" d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2 2 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.36l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2m-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638zM18 14V5h2l.001 9z" />
+  </svg>
+);
+
 export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, generatedAt }: ReportViewerModalProps) {
   const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const [scale, setScale] = useState(1);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const updateScale = () => {
+      const width = el.clientWidth;
+      // Fit the page to the viewport's width exactly (no side margins). The iframe's
+      // own scrolling is disabled (see fontCss below), so the outer viewport is the
+      // only scrollable region if a page ends up taller than the visible area.
+      if (width > 0) setScale(Math.min(1, width / DESIGN_WIDTH));
+    };
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [reportHtml]);
 
   // Feedback states
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -26,6 +81,22 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
   const [showTextarea, setShowTextarea] = useState(false);
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [iframeReady, setIframeReady] = useState(false);
+  // Pages aren't all a uniform 1449px tall (some grow with content) — track the
+  // currently-visible page's real rendered height so it's shown in full rather
+  // than clipped to (or padded out to) one fixed length for every page.
+  const [pageHeight, setPageHeight] = useState(DESIGN_HEIGHT);
+  // Guards against briefly re-prompting for a page's feedback while the fetch of
+  // previously-given feedback (below) is still in flight.
+  const [feedbackLoaded, setFeedbackLoaded] = useState(false);
+  const hasAllFeedback = totalPages > 0 && Object.keys(pageFeedbacks).length >= totalPages;
+
+  // Download countdown / "what's next" interest-collection flow.
+  const [showDownloadFlow, setShowDownloadFlow] = useState(false);
+  const [downloadCountdown, setDownloadCountdown] = useState(DOWNLOAD_COUNTDOWN_SECONDS);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [testInterests, setTestInterests] = useState<Record<string, boolean>>({});
+  const isDownloadDone = showDownloadFlow && downloadCountdown === 0 && !pdfGenerating;
 
   useEffect(() => {
     if (isOpen && reportData) {
@@ -34,6 +105,133 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
       setReportHtml(null);
     }
   }, [isOpen, reportData]);
+
+  // Load any feedback already given for this report (e.g. from a previous visit that
+  // was closed partway through) so those pages aren't asked again.
+  useEffect(() => {
+    if (!isOpen || !testName || !mbqId) return;
+    setFeedbackLoaded(false);
+    fetch(`/api/test/feedback?test_name=${encodeURIComponent(testName)}&mbq_id=${encodeURIComponent(mbqId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!Array.isArray(data.feedback) || data.feedback.length === 0) return;
+        setPageFeedbacks(prev => {
+          const next = { ...prev };
+          data.feedback.forEach((row: any) => {
+            if (typeof row.page_index === 'number') {
+              next[row.page_index] = { emoji: row.emoji, text: row.feedback };
+            }
+          });
+          return next;
+        });
+      })
+      .catch(err => console.error('Failed to load existing feedback:', err))
+      .finally(() => setFeedbackLoaded(true));
+  }, [isOpen, testName, mbqId]);
+
+  // Load any interest the user already recorded (in a previous report's download flow,
+  // possibly) for the upcoming tests, so the same choices don't need repeating.
+  useEffect(() => {
+    if (!isOpen || !mbqId) return;
+    fetch(`/api/test/interests?mbq_id=${encodeURIComponent(mbqId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!Array.isArray(data.interests) || data.interests.length === 0) return;
+        setTestInterests(prev => {
+          const next = { ...prev };
+          data.interests.forEach((row: any) => {
+            if (row.test_name) next[row.test_name] = !!row.interested;
+          });
+          return next;
+        });
+      })
+      .catch(err => console.error('Failed to load existing interests:', err));
+  }, [isOpen, mbqId]);
+
+  // Calls the iframe's own downloadPDF (unchanged pipeline) — used both to kick off
+  // generation when the flow opens and to let the user manually retry if their
+  // browser didn't actually save the file (e.g. a blocked auto-download).
+  const triggerDownload = () => {
+    setPdfGenerating(true);
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement | null;
+    const downloadFn = iframe?.contentWindow && (iframe.contentWindow as any).downloadPDF;
+    const genPromise = downloadFn
+      ? downloadFn(`${testName.toLowerCase().replace(/\s+/g, '-')}-report.pdf`)
+      : Promise.resolve();
+    Promise.resolve(genPromise)
+      .catch((e: any) => console.error('PDF generation failed:', e))
+      .finally(() => setPdfGenerating(false));
+  };
+
+  // Kick off the real PDF generation the moment the download flow opens, in parallel
+  // with the countdown/interest UI - "everything just like now", just started earlier
+  // instead of only once the counter hits zero.
+  useEffect(() => {
+    if (!showDownloadFlow) return;
+
+    setDownloadCountdown(DOWNLOAD_COUNTDOWN_SECONDS);
+    triggerDownload();
+
+    const interval = setInterval(() => {
+      setDownloadCountdown(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showDownloadFlow]);
+
+  const setTestInterest = (test: string, interested: boolean) => {
+    setTestInterests(prev => ({ ...prev, [test]: interested }));
+    fetch('/api/test/interest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mbq_id: mbqId, test_name: test, interested })
+    }).catch(err => console.error('Failed to save test interest:', err));
+  };
+
+  // The modal covers the whole viewport, but the page underneath is still the
+  // scroll container — without this, scrolling past the report also scrolls the
+  // dashboard behind it.
+  useEffect(() => {
+    if (isOpen) {
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previousOverflow;
+      };
+    }
+  }, [isOpen]);
+
+  // The report's own pages are all rendered in the iframe at once (stacked); we only
+  // ever want one visible so users step through it page-by-page and can't skim ahead
+  // without giving feedback. Reset readiness whenever a fresh document loads, then
+  // tell the iframe which page to show as soon as it (re)loads or the index changes.
+  useEffect(() => {
+    setIframeReady(false);
+    setPageHeight(DESIGN_HEIGHT);
+  }, [reportHtml]);
+
+  useEffect(() => {
+    if (!iframeReady) return;
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement | null;
+    iframe?.contentWindow?.postMessage({ type: 'SET_PAGE', pageIndex: currentPageIndex }, '*');
+
+    // Measure the now-visible page's real height once the display swap (and the
+    // resulting reflow) has settled — a single rAF isn't reliably after layout in
+    // every browser, so wait a frame, then measure on the one after that.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const doc = iframe?.contentDocument;
+        const pages = doc?.querySelectorAll('div[data-screen-label]');
+        const visible = pages?.[currentPageIndex] as HTMLElement | undefined;
+        const height = visible?.scrollHeight || doc?.body?.scrollHeight;
+        if (height && height > 0) setPageHeight(height);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [iframeReady, currentPageIndex]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -884,6 +1082,14 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                       pages.forEach((p, idx) => {
                                           p.style.display = (idx === i) ? 'block' : 'none';
                                       });
+                                      // The interactive viewer overrides a page's height to 'auto'
+                                      // while it's being viewed (see showOnlyPage below) so it can
+                                      // measure and display the page in full - restore its original
+                                      // fixed height here so the PDF capture matches the designed
+                                      // page size regardless of what was viewed beforehand.
+                                      if (window.__originalPageHeights && window.__originalPageHeights.has(pages[i])) {
+                                          pages[i].style.height = window.__originalPageHeights.get(pages[i]);
+                                      }
                                       // Only the page about to be captured is visible, so its zoomed
                                       // elements can only be measured (and thus wrapped) now.
                                       neutralizeZoom(pages[i]);
@@ -950,12 +1156,35 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
 
       const carouselScript = `
                     <script>
+                      // Snapshot each page's original (pre-viewer) height before showOnlyPage
+                      // ever touches it - window.downloadPDF restores these so the exported
+                      // PDF still matches the designed page size regardless of what the
+                      // interactive viewer below did to it.
+                      window.__originalPageHeights = new Map();
+                      document.querySelectorAll('div[data-screen-label]').forEach((p) => {
+                        window.__originalPageHeights.set(p, p.style.height);
+                      });
+
+                      const showOnlyPage = (pageIndex) => {
+                        const pages = document.querySelectorAll('div[data-screen-label]');
+                        pages.forEach((p, idx) => {
+                          const isVisible = idx === pageIndex;
+                          p.style.display = isVisible ? 'block' : 'none';
+                          // Most pages have a hardcoded height (matching the PDF page size),
+                          // which clips or pads content that doesn't match that height
+                          // exactly. Let the visible page size to its actual content so the
+                          // viewer can measure and show it in full.
+                          if (isVisible) p.style.height = 'auto';
+                        });
+                      };
+                      // Pages are stacked in the document by default - hide everything but the
+                      // first immediately so there's no flash of every page before the viewer's
+                      // first SET_PAGE message arrives.
+                      showOnlyPage(0);
+
                       window.addEventListener('message', (e) => {
                         if (e.data && e.data.type === 'SET_PAGE') {
-                          const pages = document.querySelectorAll('div[data-screen-label]');
-                          pages.forEach((p, idx) => {
-                            p.style.display = (idx === e.data.pageIndex) ? 'block' : 'none';
-                          });
+                          showOnlyPage(e.data.pageIndex);
                         }
                       });
 
@@ -973,6 +1202,12 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
 
       const fontCss = `
         <style>
+          html, body {
+            /* The viewer's own container is the single scroll region (fit-to-width,
+               scaled via CSS transform) — prevent this document from ever growing
+               its own scrollbar on top of that. */
+            overflow: hidden !important;
+          }
           body {
             font-family: 'Google Sans', system-ui, sans-serif !important;
           }
@@ -1023,22 +1258,34 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
             className="bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full max-w-[1000px] h-[90vh]"
           >
             <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
-              <h3 className="font-bold text-lg text-[#1A1A19]">{testName} Report</h3>
+              <h3 className="font-bold text-lg text-[#1A1A19]">
+                {showDownloadFlow ? 'Preparing Your Download' : `${testName} Report`}
+              </h3>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement;
-                    if (iframe && iframe.contentWindow && (iframe.contentWindow as any).downloadPDF) {
-                      (iframe.contentWindow as any).downloadPDF(`${testName.toLowerCase().replace(/\s+/g, '-')}-report.pdf`);
-                    } else {
-                      alert("PDF generation is still loading, please try again in a few seconds.");
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1A19] text-white rounded-lg text-sm font-bold hover:bg-black transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Download PDF
-                </button>
+                {!showDownloadFlow && (
+                  <button
+                    onClick={() => {
+                      if (!hasAllFeedback) {
+                        const missingIndex = Array.from({ length: totalPages }, (_, i) => i).find(i => !pageFeedbacks[i]);
+                        if (missingIndex !== undefined) {
+                          setCurrentPageIndex(missingIndex);
+                          setPendingNextIndex(null);
+                          setShowFeedbackPrompt(true);
+                        }
+                        return;
+                      }
+                      setShowDownloadFlow(true);
+                    }}
+                    title={hasAllFeedback ? undefined : 'Share your feedback on every page to unlock the download'}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${hasAllFeedback
+                      ? 'bg-[#1A1A19] text-white hover:bg-black'
+                      : 'bg-[#F0F0ED] text-[#8B8B86] cursor-not-allowed'
+                      }`}
+                  >
+                    <Download className="w-4 h-4" />
+                    {hasAllFeedback ? 'Download PDF' : 'Feedback Required'}
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="p-2 hover:bg-[#E8E8E5] rounded-full transition-colors"
@@ -1047,44 +1294,104 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                 </button>
               </div>
             </div>
-            <div className="flex-1 w-full bg-white relative">
-              <iframe
-                id="report-iframe"
-                srcDoc={reportHtml}
-                className="absolute inset-0 w-full h-full border-0"
-                title="Report Preview"
-              />
+            {/* This outer wrapper never scrolls — it's the positioning context for the
+                floating nav/feedback overlays below, so they stay fixed in place over
+                the visible frame instead of scrolling away with the report underneath.
+                It (and the iframe inside it) stays mounted even during the download flow
+                below - removing the iframe from the DOM mid-generation would kill its
+                in-progress PDF rendering. */}
+            <div className="flex-1 w-full bg-white relative overflow-hidden">
+              <div
+                ref={viewportRef}
+                className="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                // Reserve space below the page equal to the floating nav bar's footprint,
+                // so scrolling to the bottom of a page shows all of it instead of having
+                // the nav bar cover its last section.
+                style={{ paddingBottom: totalPages > 1 ? 88 : 0 }}
+              >
+                <div
+                  style={{
+                    width: DESIGN_WIDTH * scale,
+                    height: pageHeight * scale,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <iframe
+                    id="report-iframe"
+                    srcDoc={reportHtml}
+                    onLoad={() => setIframeReady(true)}
+                    scrolling="no"
+                    className="border-0"
+                    style={{
+                      width: DESIGN_WIDTH,
+                      height: pageHeight,
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top left',
+                    }}
+                    title="Report Preview"
+                  />
+                </div>
+              </div>
 
-              {/* Carousel Navigation */}
+              {/* Page Navigation */}
               {totalPages > 1 && (
-                <>
+                <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-3 z-10 max-w-[calc(100vw-1.5rem)] px-1">
                   <button
                     onClick={() => {
                       if (currentPageIndex > 0) setCurrentPageIndex(currentPageIndex - 1);
                     }}
                     disabled={currentPageIndex === 0}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 shadow-lg rounded-full flex items-center justify-center text-[#1A1A19] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    className="flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap pl-2.5 pr-3 py-2 sm:pl-3 sm:pr-4 sm:py-2.5 bg-[#6057D7] shadow-lg rounded-full text-xs sm:text-sm font-bold text-white hover:bg-[#4F46B8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
-                    <ChevronLeft className="w-6 h-6" />
+                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <span className="hidden sm:inline">Previous Page</span>
+                    <span className="sm:hidden">Previous</span>
                   </button>
 
-                  <button
-                    onClick={() => {
-                      if (currentPageIndex < totalPages - 1) {
-                        if (!pageFeedbacks[currentPageIndex]) {
-                          setPendingNextIndex(currentPageIndex + 1);
-                          setShowFeedbackPrompt(true);
-                        } else {
-                          setCurrentPageIndex(currentPageIndex + 1);
+                  <span className="shrink-0 whitespace-nowrap px-2 text-xs font-semibold text-white/90 bg-black/40 rounded-full py-1">
+                    {currentPageIndex + 1} / {totalPages}
+                  </span>
+
+                  {feedbackLoaded && currentPageIndex === totalPages - 1 && !pageFeedbacks[currentPageIndex] ? (
+                    <button
+                      onClick={() => {
+                        setPendingNextIndex(null);
+                        setShowFeedbackPrompt(true);
+                      }}
+                      className="flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap pl-3 pr-3 py-2 sm:pl-4 sm:pr-4 sm:py-2.5 bg-amber-500 shadow-lg rounded-full text-xs sm:text-sm font-bold text-white hover:bg-amber-600 transition-colors"
+                    >
+                      Give Feedback
+                      <MessageSquareHeart className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Previously-answered pages (loaded from an earlier visit) skip
+                        // straight ahead; only an unanswered page prompts for feedback.
+                        if (!feedbackLoaded) return;
+                        if (currentPageIndex < totalPages - 1) {
+                          if (!pageFeedbacks[currentPageIndex]) {
+                            setPendingNextIndex(currentPageIndex + 1);
+                            setShowFeedbackPrompt(true);
+                          } else {
+                            setCurrentPageIndex(currentPageIndex + 1);
+                          }
                         }
-                      }
-                    }}
-                    disabled={currentPageIndex === totalPages - 1}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 shadow-lg rounded-full flex items-center justify-center text-[#1A1A19] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed z-10"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </>
+                      }}
+                      disabled={currentPageIndex === totalPages - 1 || !feedbackLoaded}
+                      className="flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap pl-3 pr-2.5 py-2 sm:pl-4 sm:pr-3 sm:py-2.5 bg-[#6057D7] shadow-lg rounded-full text-xs sm:text-sm font-bold text-white hover:bg-[#4F46B8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {!feedbackLoaded ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          Next Page
+                          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Feedback Prompt Overlay */}
@@ -1155,9 +1462,12 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             <textarea
                               value={currentFeedbackInput}
                               onChange={(e) => setCurrentFeedbackInput(e.target.value)}
-                              placeholder="Any additional thoughts? (Optional)"
-                              className="w-full h-24 p-3 text-left border border-[#E8E8E5] rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#6057D7] resize-none"
+                              placeholder={selectedEmoji === 'sad' ? "Please tell us what went wrong (required)" : "Any additional thoughts? (Optional)"}
+                              className={`w-full h-24 p-3 text-left border rounded-xl focus:outline-none focus:ring-2 resize-none ${selectedEmoji === 'sad' ? 'border-red-200 focus:ring-red-400' : 'border-[#E8E8E5] focus:ring-[#6057D7]'}`}
                             />
+                            <p className="text-xs text-red-500 text-left mt-1.5 mb-2.5 h-4">
+                              {selectedEmoji === 'sad' && !currentFeedbackInput.trim() ? 'Please add a note so we know what to fix.' : ''}
+                            </p>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1175,9 +1485,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                           Cancel
                         </button>
                         <button
-                          disabled={!selectedEmoji || submittingFeedback}
+                          disabled={!selectedEmoji || submittingFeedback || (selectedEmoji === 'sad' && !currentFeedbackInput.trim())}
                           onClick={async () => {
                             if (!selectedEmoji) return;
+                            if (selectedEmoji === 'sad' && !currentFeedbackInput.trim()) return;
                             setSubmittingFeedback(true);
                             try {
                               await fetch('/api/test/feedback', {
@@ -1185,6 +1496,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                   test_name: testName,
+                                  mbq_id: mbqId,
                                   page_index: currentPageIndex,
                                   emoji: selectedEmoji,
                                   feedback: currentFeedbackInput
@@ -1213,6 +1525,106 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Download countdown / "what's next" interest overlay — layered on top of
+                  (not replacing) the report+iframe above, so the in-progress PDF
+                  generation running inside that iframe is never interrupted. */}
+              {showDownloadFlow && (
+                <div className="absolute inset-0 z-30 bg-[#F9F9F8] flex flex-col overflow-hidden">
+                  <div className="p-6 sm:p-8 text-center border-b border-[#E8E8E5] bg-white shrink-0">
+                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 transition-colors ${isDownloadDone ? 'bg-emerald-100 text-emerald-600' : 'bg-[#EDEBFB] text-[#6057D7]'}`}>
+                      {isDownloadDone ? <CheckCircle2 className="w-8 h-8" /> : <Download className="w-8 h-8" />}
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#1A1A19]">
+                      {isDownloadDone
+                        ? 'Downloaded!'
+                        : downloadCountdown > 0
+                          ? <>Your download starts in <span className="text-[#6057D7]">{downloadCountdown}s</span></>
+                          : 'Finishing up your report…'}
+                    </h2>
+                    <p className="text-sm text-[#8B8B86] mt-1.5 max-w-md mx-auto">
+                      {isDownloadDone ? (
+                        <>
+                          Your {testName} report has been saved to your device. If the download
+                          didn't start, please click{' '}
+                          <button
+                            onClick={triggerDownload}
+                            className="text-[#6057D7] font-semibold underline hover:text-[#4F46B8] cursor-pointer"
+                          >
+                            here
+                          </button>.
+                        </>
+                      ) : (
+                        "While we prepare your PDF, tell us which upcoming MyBodyQode tests interest you."
+                      )}
+                    </p>
+                    {!isDownloadDone && (
+                      <div className="w-full max-w-xs mx-auto h-1.5 bg-[#E8E8E5] rounded-full mt-4 overflow-hidden">
+                        <div
+                          className="h-full bg-[#6057D7] transition-all duration-1000 ease-linear"
+                          style={{ width: `${((DOWNLOAD_COUNTDOWN_SECONDS - downloadCountdown) / DOWNLOAD_COUNTDOWN_SECONDS) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto">
+                    {/* The sticky header owns its own top padding (rather than the
+                        scroll container) so its opaque background fully covers that
+                        space too - otherwise content peeks out above it while scrolling. */}
+                    <div className="sticky top-0 z-10 bg-[#F9F9F8] px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+                      <div className="max-w-xl mx-auto">
+                        <h3 className="text-sm font-bold text-[#1A1A19]">Upcoming MyBodyQode Tests</h3>
+                        <p className="text-xs text-[#8B8B86] mt-0.5">Let us know which ones you'd be interested in.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2.5 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
+                      {UPCOMING_TESTS.map(({ name, image }) => (
+                        <div
+                          key={name}
+                          className="flex items-center justify-between gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={image}
+                              alt=""
+                              className="w-12 h-12 rounded-xl object-cover shrink-0"
+                            />
+                            <span className="text-sm font-semibold text-[#1A1A19] truncate">{name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => setTestInterest(name, true)}
+                              aria-label={`Interested in ${name}`}
+                              className={`w-9 h-9 p-2 rounded-full flex items-center justify-center border transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7]' : 'border-[#E8E8E5] hover:bg-[#F7F7F5]'}`}
+                            >
+                              <LikeIcon className="w-full h-full" />
+                            </button>
+                            <button
+                              onClick={() => setTestInterest(name, false)}
+                              aria-label={`Not interested in ${name}`}
+                              className={`w-9 h-9 p-2 rounded-full flex items-center justify-center border transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7]' : 'border-[#E8E8E5] hover:bg-[#F7F7F5]'}`}
+                            >
+                              <DislikeIcon className="w-full h-full" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {isDownloadDone && (
+                    <div className="p-4 border-t border-[#E8E8E5] bg-white shrink-0 flex justify-center">
+                      <button
+                        onClick={onClose}
+                        className="px-8 py-3 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-full font-semibold transition-colors cursor-pointer"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>

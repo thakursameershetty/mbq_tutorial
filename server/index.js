@@ -54,6 +54,34 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle pg client', err);
 });
 
+// Ensure the per-page report feedback table (and its emoji column, added after the
+// table was first created by server/createFeedbackTable.js) exists on startup.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS report_feedback (
+    id SERIAL PRIMARY KEY,
+    test_name VARCHAR(255),
+    page_index INTEGER,
+    feedback TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+  ALTER TABLE report_feedback ADD COLUMN IF NOT EXISTS emoji VARCHAR(20);
+  ALTER TABLE report_feedback ADD COLUMN IF NOT EXISTS mbq_id VARCHAR(50);
+  CREATE UNIQUE INDEX IF NOT EXISTS report_feedback_unique_page ON report_feedback (mbq_id, test_name, page_index);
+`).catch(err => console.error('Failed to ensure report_feedback table:', err));
+
+// Tracks which upcoming tests a user is interested in, surfaced during the report
+// download countdown.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS test_interests (
+    id SERIAL PRIMARY KEY,
+    mbq_id VARCHAR(50) NOT NULL,
+    test_name VARCHAR(255) NOT NULL,
+    interested BOOLEAN NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS test_interests_unique ON test_interests (mbq_id, test_name);
+`).catch(err => console.error('Failed to ensure test_interests table:', err));
+
 /**
  * Fetches all rows from the configured Google Sheet.
  * Results are cached for SHEET_CACHE_TTL_MS (2 min) to reduce Sheets API load.
@@ -1426,6 +1454,86 @@ app.post('/api/chat', express.json(), async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Test API for Report Generation (Split Screen)
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Report Page Feedback Route
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/test/feedback', express.json(), async (req, res) => {
+  const { test_name, page_index, emoji, feedback, mbq_id } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO report_feedback (mbq_id, test_name, page_index, emoji, feedback)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (mbq_id, test_name, page_index)
+       DO UPDATE SET emoji = EXCLUDED.emoji, feedback = EXCLUDED.feedback, created_at = CURRENT_TIMESTAMP`,
+      [mbq_id || null, test_name || null, Number.isInteger(page_index) ? page_index : null, emoji || null, feedback || '']
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Report Feedback Error:', error);
+    res.status(500).json({ error: 'Failed to save feedback' });
+  }
+});
+
+// Lets the viewer know which pages of a given report already have feedback, so a
+// returning user (or a re-opened modal) isn't asked again for pages they already
+// answered.
+app.get('/api/test/feedback', async (req, res) => {
+  const { test_name, mbq_id } = req.query;
+  if (!test_name || !mbq_id) {
+    return res.json({ feedback: [] });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT page_index, emoji, feedback FROM report_feedback WHERE test_name = $1 AND mbq_id = $2`,
+      [test_name, mbq_id]
+    );
+    res.json({ feedback: result.rows });
+  } catch (error) {
+    console.error('Fetch Report Feedback Error:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Upcoming Test Interest Routes (shown during the report download countdown)
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/test/interest', express.json(), async (req, res) => {
+  const { mbq_id, test_name, interested } = req.body;
+  if (!mbq_id || !test_name) {
+    return res.status(400).json({ error: 'mbq_id and test_name are required.' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO test_interests (mbq_id, test_name, interested)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (mbq_id, test_name)
+       DO UPDATE SET interested = EXCLUDED.interested, created_at = CURRENT_TIMESTAMP`,
+      [mbq_id, test_name, !!interested]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save Test Interest Error:', error);
+    res.status(500).json({ error: 'Failed to save interest' });
+  }
+});
+
+app.get('/api/test/interests', async (req, res) => {
+  const { mbq_id } = req.query;
+  if (!mbq_id) {
+    return res.json({ interests: [] });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT test_name, interested FROM test_interests WHERE mbq_id = $1`,
+      [mbq_id]
+    );
+    res.json({ interests: result.rows });
+  } catch (error) {
+    console.error('Fetch Test Interests Error:', error);
+    res.status(500).json({ error: 'Failed to fetch interests' });
+  }
+});
+
 app.post('/api/test/generate-report', async (req, res) => {
   try {
     const { answers, rawAnswers, email = 'test@example.com', phone = '1234567890', testName, geneVariants } = req.body;
