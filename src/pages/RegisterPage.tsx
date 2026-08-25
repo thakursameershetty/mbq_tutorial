@@ -977,7 +977,7 @@ export default function RegisterPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4"
+        className="w-full max-w-lg mx-auto mt-8 sm:mt-12 px-4 pb-24 sm:pb-36"
       >
         <div className={theme.card}>
           <h2 className={theme.heading}>Create Profile</h2>
