@@ -1237,185 +1237,185 @@ export default function FloatingChatbot({
                   </p>
                 </div>
               ) : (
-              <div
-                className={`relative flex flex-col gap-0 p-1.5 rounded-[24px] mx-auto w-full ${isFullScreen ? "max-w-3xl bg-[#F0F4F9] shadow-none" : "max-w-4xl bg-white border border-[#E8E8E5] shadow-md"}`}
-              >
-                {selectedReports.length > 0 && (
-                  <div className="flex flex-wrap gap-2 px-2 pt-1.5 pb-2">
-                    {selectedReports.map((report) => (
-                      <div
-                        key={report.key}
-                        className="flex items-center gap-2 bg-[#F5F3FF] border border-[#DEDCFA] rounded-xl pl-2.5 pr-1.5 py-1.5 text-xs"
-                      >
-                        <FileCheck size={14} className="text-[#6057D7] shrink-0" />
-                        <span className="text-[#1A1A19] font-medium max-w-[140px] truncate">
-                          {report.label}
-                        </span>
-                        <button
-                          onClick={() =>
-                            setSelectedReports((prev) =>
-                              prev.filter((r) => r.key !== report.key),
-                            )
-                          }
-                          className="p-0.5 hover:bg-[#E8E5FB] rounded-full text-[#8B8B86] hover:text-[#1A1A19] transition-colors cursor-pointer"
+                <div
+                  className={`relative flex flex-col gap-0 p-1.5 rounded-[24px] mx-auto w-full ${isFullScreen ? "max-w-3xl bg-[#F0F4F9] shadow-none" : "max-w-4xl bg-white border border-[#E8E8E5] shadow-md"}`}
+                >
+                  {selectedReports.length > 0 && (
+                    <div className="flex flex-wrap gap-2 px-2 pt-1.5 pb-2">
+                      {selectedReports.map((report) => (
+                        <div
+                          key={report.key}
+                          className="flex items-center gap-2 bg-[#F5F3FF] border border-[#DEDCFA] rounded-xl pl-2.5 pr-1.5 py-1.5 text-xs"
                         >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex items-end gap-0">
-                  {/* Plus Button & Menu Container */}
-                  <div className="relative" ref={plusMenuRef}>
-                    <button
-                      onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
-                      className="w-9 h-9 flex items-center justify-center text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-full transition-colors shrink-0 cursor-pointer z-10 relative"
-                    >
-                      <Plus
-                        size={18}
-                        className={`transition-transform duration-200 ${isPlusMenuOpen ? "rotate-45" : ""}`}
-                      />
-                    </button>
-
-                    <AnimatePresence>
-                      {isPlusMenuOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute bottom-full left-0 mb-2 w-[300px] bg-white rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E8E8E5] py-2 z-50 flex flex-col max-h-[340px]"
-                        >
-                          <span className="px-4 pb-1.5 text-xs font-semibold text-[#8B8B86] uppercase tracking-wide">
-                            Attach a report
+                          <FileCheck size={14} className="text-[#6057D7] shrink-0" />
+                          <span className="text-[#1A1A19] font-medium max-w-[140px] truncate">
+                            {report.label}
                           </span>
-                          <div className="flex flex-col overflow-y-auto px-1.5">
-                            {getAvailableReports().length === 0 ? (
-                              <p className="px-3 py-3 text-sm text-[#8B8B86]">
-                                No AI reports available yet.
-                              </p>
-                            ) : (
-                              getAvailableReports().map((report) => {
-                                const isSelected = selectedReports.some(
-                                  (r) => r.key === report.key,
-                                );
-                                return (
-                                  <button
-                                    key={report.key}
-                                    onClick={() => toggleReportSelection(report)}
-                                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left"
-                                  >
-                                    <div
-                                      className={`w-[18px] h-[18px] rounded-md border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#6057D7] border-[#6057D7]" : "border-[#D9D9D6]"}`}
-                                    >
-                                      {isSelected && (
-                                        <Check size={12} className="text-white" />
-                                      )}
-                                    </div>
-                                    <span className="truncate">{report.label}</span>
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-                          <div className="border-t border-[#E8E8E5] mt-1.5 pt-1.5 flex flex-col">
-                            <button
-                              className="flex items-center gap-3 px-4 py-2 hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left"
-                              onClick={() => {
-                                setIsPlusMenuOpen(false);
-                                // TODO: Trigger file upload input
-                              }}
-                            >
-                              <FileUp size={18} className="text-[#8B8B86]" />
-                              <span>Upload PDF</span>
-                            </button>
-                          </div>
-                          {selectedReports.length > 0 && (
-                            <button
-                              onClick={() => setIsPlusMenuOpen(false)}
-                              className="mx-3 mt-1.5 px-3 py-2 rounded-full bg-[#6057D7] text-white text-sm font-semibold hover:bg-[#4B44B3] transition-colors cursor-pointer"
-                            >
-                              Done ({selectedReports.length} selected)
-                            </button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  <TextareaAutosize
-                    maxRows={5}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Ask me anything..."
-                    className="flex-1 bg-transparent border-none outline-none text-sm text-[#1A1A19] placeholder:text-[#8B8B86] pl-1 pr-2 py-2 resize-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        if (window.innerWidth < 768) {
-                          // On mobile, let default (new line) happen
-                          return;
-                        }
-                        if (e.shiftKey) {
-                          // Shift+Enter creates a new line
-                          return;
-                        }
-                        // Desktop, no shift: send
-                        e.preventDefault();
-                        handleSend(message);
-                      }
-                    }}
-                  />
-                  <div className="flex items-center gap-1">
-                    <div className="relative" ref={lengthMenuRef}>
+                          <button
+                            onClick={() =>
+                              setSelectedReports((prev) =>
+                                prev.filter((r) => r.key !== report.key),
+                              )
+                            }
+                            className="p-0.5 hover:bg-[#E8E5FB] rounded-full text-[#8B8B86] hover:text-[#1A1A19] transition-colors cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-end gap-0">
+                    {/* Plus Button & Menu Container */}
+                    <div className="relative" ref={plusMenuRef}>
                       <button
-                        onClick={() => setIsLengthMenuOpen(!isLengthMenuOpen)}
-                        className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 cursor-pointer z-10 relative ${isLengthMenuOpen ? "bg-[#F0F0ED] text-[#1A1A19]" : "text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5]"}`}
-                        title="Response Length"
+                        onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                        className="w-9 h-9 flex items-center justify-center text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5] rounded-full transition-colors shrink-0 cursor-pointer z-10 relative"
                       >
-                        <SlidersHorizontal size={16} />
+                        <Plus
+                          size={18}
+                          className={`transition-transform duration-200 ${isPlusMenuOpen ? "rotate-45" : ""}`}
+                        />
                       </button>
 
                       <AnimatePresence>
-                        {isLengthMenuOpen && (
+                        {isPlusMenuOpen && (
                           <motion.div
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
                             transition={{ duration: 0.15 }}
-                            className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E8E8E5] py-2 z-50 flex flex-col"
+                            className="absolute bottom-full left-0 mb-2 w-[300px] bg-white rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E8E8E5] py-2 z-50 flex flex-col max-h-[340px]"
                           >
-                            {(["short", "medium", "long"] as const).map((len) => (
+                            <span className="px-4 pb-1.5 text-xs font-semibold text-[#8B8B86] uppercase tracking-wide">
+                              Attach a report
+                            </span>
+                            <div className="flex flex-col overflow-y-auto px-1.5">
+                              {getAvailableReports().length === 0 ? (
+                                <p className="px-3 py-3 text-sm text-[#8B8B86]">
+                                  No AI reports available yet.
+                                </p>
+                              ) : (
+                                getAvailableReports().map((report) => {
+                                  const isSelected = selectedReports.some(
+                                    (r) => r.key === report.key,
+                                  );
+                                  return (
+                                    <button
+                                      key={report.key}
+                                      onClick={() => toggleReportSelection(report)}
+                                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left"
+                                    >
+                                      <div
+                                        className={`w-[18px] h-[18px] rounded-md border flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#6057D7] border-[#6057D7]" : "border-[#D9D9D6]"}`}
+                                      >
+                                        {isSelected && (
+                                          <Check size={12} className="text-white" />
+                                        )}
+                                      </div>
+                                      <span className="truncate">{report.label}</span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <div className="border-t border-[#E8E8E5] mt-1.5 pt-1.5 flex flex-col">
                               <button
-                                key={len}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left"
                                 onClick={() => {
-                                  setResponseLength(len);
-                                  setIsLengthMenuOpen(false);
+                                  setIsPlusMenuOpen(false);
+                                  // TODO: Trigger file upload input
                                 }}
-                                className="flex items-center justify-between px-4 py-2 hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left capitalize"
                               >
-                                <span>{len}</span>
-                                {responseLength === len && (
-                                  <Check size={14} className="text-[#6057D7]" />
-                                )}
+                                <FileUp size={18} className="text-[#8B8B86]" />
+                                <span>Upload PDF</span>
                               </button>
-                            ))}
+                            </div>
+                            {selectedReports.length > 0 && (
+                              <button
+                                onClick={() => setIsPlusMenuOpen(false)}
+                                className="mx-3 mt-1.5 px-3 py-2 rounded-full bg-[#6057D7] text-white text-sm font-semibold hover:bg-[#4B44B3] transition-colors cursor-pointer"
+                              >
+                                Done ({selectedReports.length} selected)
+                              </button>
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
+                    <TextareaAutosize
+                      maxRows={5}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Ask me anything..."
+                      className="flex-1 bg-transparent border-none outline-none text-sm text-[#1A1A19] placeholder:text-[#8B8B86] pl-1 pr-2 py-2 resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          if (window.innerWidth < 768) {
+                            // On mobile, let default (new line) happen
+                            return;
+                          }
+                          if (e.shiftKey) {
+                            // Shift+Enter creates a new line
+                            return;
+                          }
+                          // Desktop, no shift: send
+                          e.preventDefault();
+                          handleSend(message);
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-1">
+                      <div className="relative" ref={lengthMenuRef}>
+                        <button
+                          onClick={() => setIsLengthMenuOpen(!isLengthMenuOpen)}
+                          className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 cursor-pointer z-10 relative ${isLengthMenuOpen ? "bg-[#F0F0ED] text-[#1A1A19]" : "text-[#8B8B86] hover:text-[#1A1A19] hover:bg-[#E8E8E5]"}`}
+                          title="Response Length"
+                        >
+                          <SlidersHorizontal size={16} />
+                        </button>
 
-                    <button
-                      className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 cursor-pointer ${message.trim() ? "bg-[#6057D7] text-white shadow-md hover:bg-[#4B44B3]" : "bg-transparent text-[#8B8B86]"}`}
-                      onClick={() => handleSend(message)}
-                    >
-                      <Send
-                        size={16}
-                        className={message.trim() ? "" : "-ml-0.5"}
-                      />
-                    </button>
+                        <AnimatePresence>
+                          {isLengthMenuOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E8E8E5] py-2 z-50 flex flex-col"
+                            >
+                              {(["short", "medium", "long"] as const).map((len) => (
+                                <button
+                                  key={len}
+                                  onClick={() => {
+                                    setResponseLength(len);
+                                    setIsLengthMenuOpen(false);
+                                  }}
+                                  className="flex items-center justify-between px-4 py-2 hover:bg-[#F5F3FF] transition-colors text-sm text-[#1A1A19] w-full text-left capitalize"
+                                >
+                                  <span>{len}</span>
+                                  {responseLength === len && (
+                                    <Check size={14} className="text-[#6057D7]" />
+                                  )}
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      <button
+                        className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 cursor-pointer ${message.trim() ? "bg-[#6057D7] text-white shadow-md hover:bg-[#4B44B3]" : "bg-transparent text-[#8B8B86]"}`}
+                        onClick={() => handleSend(message)}
+                      >
+                        <Send
+                          size={16}
+                          className={message.trim() ? "" : "-ml-0.5"}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
               <p className="relative text-center text-[8px] tracking-wide text-[#8B8B86] mt-3 drop-shadow-sm opacity-80">
                 Powered by QODAi
