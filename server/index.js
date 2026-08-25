@@ -775,7 +775,11 @@ app.put('/api/users/:id/sample-received', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/users/:id/request-generation', async (req, res) => {
   const userId = req.params.id;
-  const { geneName, variants } = req.body;
+  const { panels } = req.body; // [{ geneName, variants }, ...]
+
+  if (!Array.isArray(panels) || panels.length === 0) {
+    return res.status(400).json({ error: 'panels array is required.' });
+  }
 
   try {
     const userRes = await pool.query('SELECT reports, report_answers FROM users WHERE id = $1', [userId]);
@@ -784,29 +788,35 @@ app.post('/api/users/:id/request-generation', async (req, res) => {
     }
 
     let reports = userRes.rows[0].reports || {};
-    if (!reports[geneName]) {
-      reports[geneName] = {};
+    const testNames = [];
+
+    for (const { geneName, variants } of panels) {
+      if (!reports[geneName]) {
+        reports[geneName] = {};
+      }
+
+      // Save variants inside the reports JSON for the specific gene
+      reports[geneName].variants = variants;
+
+      // Reset AI report since we are requesting a new one
+      delete reports[geneName].ai_report;
+
+      testNames.push(geneName);
     }
-
-    // Save variants inside the reports JSON for the specific gene
-    reports[geneName].variants = variants;
-
-    // Reset AI report since we are requesting a new one
-    delete reports[geneName].ai_report;
 
     // Update user to set survey_requested to true
     const updateQuery = `
-      UPDATE users 
-      SET reports = $1, survey_requested = TRUE 
-      WHERE id = $2 
+      UPDATE users
+      SET reports = $1, survey_requested = TRUE
+      WHERE id = $2
       RETURNING *
     `;
     const updateRes = await pool.query(updateQuery, [reports, userId]);
     const updatedUser = updateRes.rows[0];
 
-    // Trigger WhatsApp notification for Survey Request if needed
-    sendCollectAnswersEmail(updatedUser);
-    sendWhatsAppSurveyRequested(updatedUser, geneName);
+    // Trigger a single combined notification for every panel submitted in this batch
+    sendCollectAnswersEmail(updatedUser, testNames);
+    sendWhatsAppSurveyRequested(updatedUser, testNames);
 
     res.json({
       success: true,
@@ -925,7 +935,8 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
         // Save the generated report
         currentReports[geneName] = {
           ...currentReports[geneName],
-          ai_report: pythonData.result
+          ai_report: pythonData.result,
+          generated_at: new Date().toISOString()
         };
 
         // Update DB with the ai_report
@@ -1029,35 +1040,55 @@ app.delete('/api/users/:id/delete-report', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.put('/api/users/:id/verify-report', async (req, res) => {
   const userId = req.params.id;
-  const { reportVerified } = req.body;
+  const { testName, reportVerified } = req.body;
+
+  if (!testName) {
+    return res.status(400).json({ error: 'testName is required.' });
+  }
 
   try {
-    const query = `
-      UPDATE users 
-      SET report_verified = $1
-      WHERE id = $2
-      RETURNING id, report_verified;
-    `;
-    const result = await pool.query(query, [reportVerified, userId]);
-
-    if (result.rowCount === 0) {
+    const userRes = await pool.query('SELECT reports FROM users WHERE id = $1', [userId]);
+    if (userRes.rowCount === 0) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    await updateStatusTimestamp(userId, 'verified', reportVerified);
+    let reports = userRes.rows[0].reports || {};
+    if (!reports[testName]) {
+      return res.status(404).json({ error: `No report found for test "${testName}".` });
+    }
+
+    reports[testName].verified = !!reportVerified;
+    reports[testName].verified_at = reportVerified ? new Date().toISOString() : null;
+
+    // report_verified is an aggregate: true only once every generated panel is verified
+    const generatedPanels = Object.values(reports).filter(r => r && r.ai_report);
+    const allVerified = generatedPanels.length > 0 && generatedPanels.every(r => r.verified === true);
+
+    const query = `
+      UPDATE users
+      SET reports = $1, report_verified = $2
+      WHERE id = $3
+      RETURNING id, report_verified;
+    `;
+    await pool.query(query, [JSON.stringify(reports), allVerified, userId]);
+
+    if (allVerified) {
+      await updateStatusTimestamp(userId, 'verified', true);
+    }
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested,
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
 
     const updatedUser = updatedUserRes.rows[0];
 
-    // Send email if report is verified
+    // Send notifications for this specific test only when it's newly verified
     if (reportVerified) {
-      await sendReportReadyEmail(updatedUser);
+      await sendWhatsAppReportReady(updatedUser, testName);
+      await sendReportReadyEmail(updatedUser, testName);
     }
 
     res.json({
@@ -1186,6 +1217,7 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           reports[testName].ai_report = aiData.results || aiData;
+          reports[testName].generated_at = new Date().toISOString();
           console.log(`AI generation successful for ${category}.`);
           anyGenerated = true;
         } else {
@@ -1200,10 +1232,10 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
     if (anyGenerated) {
       try {
         const { sendWhatsAppReportGenerated } = require('./whatsapp');
-        const { sendReportReadyEmail } = require('./mailer');
+        const { sendReportGeneratedEmail } = require('./mailer');
 
-        await sendWhatsAppReportGenerated({ ...user, id: userId });
-        await sendReportReadyEmail({ ...user, id: userId });
+        await sendWhatsAppReportGenerated({ ...user, id: userId }, testName);
+        await sendReportGeneratedEmail({ ...user, id: userId }, testName);
       } catch (e) { console.error("Notification failed:", e); }
     }
 
@@ -1216,10 +1248,14 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
       }
     }
 
+    // report_generated is an aggregate: true only once every panel with variants has an ai_report
+    const panelsWithVariants = Object.values(reports).filter(r => r && r.variants);
+    const allGenerated = panelsWithVariants.length > 0 && panelsWithVariants.every(r => r.ai_report);
+
     // 3. Update DB
     const updateRes = await pool.query(
-      `UPDATE users SET report_answers = $1, reports = $2, survey_requested = $3, report_generated = TRUE, report_url = $4, status_timestamps = jsonb_set(COALESCE(status_timestamps, '{}'::jsonb), '{generated}', to_jsonb(NOW()::text)) WHERE id = $5 RETURNING *`,
-      [JSON.stringify(updatedAnswers), JSON.stringify(reports), stillPending, 'generated', userId]
+      `UPDATE users SET report_answers = $1, reports = $2, survey_requested = $3, report_generated = $4, report_url = $5, status_timestamps = jsonb_set(COALESCE(status_timestamps, '{}'::jsonb), '{generated}', to_jsonb(NOW()::text)) WHERE id = $6 RETURNING *`,
+      [JSON.stringify(updatedAnswers), JSON.stringify(reports), stillPending, allGenerated, 'generated', userId]
     );
 
     res.json({ success: true, user: updateRes.rows[0] });
@@ -1478,7 +1514,7 @@ app.post('/api/test/generate-report', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/admin/patients/:id/notify-whatsapp', async (req, res) => {
   const userId = req.params.id;
-  const { templateType } = req.body;
+  const { templateType, testName } = req.body;
 
   try {
     const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -1492,10 +1528,10 @@ app.post('/api/admin/patients/:id/notify-whatsapp', async (req, res) => {
         await sendWhatsAppSampleDispatched(user);
         break;
       case 'report_generated':
-        await sendWhatsAppReportGenerated(user);
+        await sendWhatsAppReportGenerated(user, testName);
         break;
       case 'report_ready':
-        await sendWhatsAppReportReady(user);
+        await sendWhatsAppReportReady(user, testName);
         break;
       default:
         return res.status(400).json({ error: 'Invalid template type' });

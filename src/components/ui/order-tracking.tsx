@@ -9,6 +9,8 @@ export interface OrderTrackingProps
     name: string;
     timestamp: string;
     isCompleted: boolean;
+    /** Generated but awaiting admin verification — shows a blinking amber dot instead of the check/circle. */
+    isPendingReview?: boolean;
   }[];
 }
 
@@ -62,6 +64,11 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
                   >
                     {step.isCompleted ? (
                       <CheckCircle2 className="h-6 w-6 shrink-0 text-[#3FC2AC]" />
+                    ) : step.isPendingReview ? (
+                      <span className="relative flex h-6 w-6 items-center justify-center shrink-0">
+                        <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-amber-400 opacity-75 animate-ping" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500" />
+                      </span>
                     ) : (
                       <Circle className="h-6 w-6 shrink-0 text-[#A0A09D]" />
                     )}
@@ -79,7 +86,7 @@ const OrderTracking = React.forwardRef<HTMLDivElement, OrderTrackingProps>(
                   )}
                 </div>
                 <div className="ml-4 pb-4 flex flex-col justify-start">
-                  <p className={cn("text-sm font-bold leading-tight", step.isCompleted ? "text-[#1A1A19]" : "text-[#8B8B86]")}>
+                  <p className={cn("text-sm font-bold leading-tight", (step.isCompleted || step.isPendingReview) ? "text-[#1A1A19]" : "text-[#8B8B86]")}>
                     {step.name}
                   </p>
                   <p className="text-xs text-[#8B8B86] mt-0.5 font-medium">

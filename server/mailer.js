@@ -1,4 +1,5 @@
 const { Resend } = require('resend');
+const { buildNameWithTests, firstNameOf } = require('./notifyUtils');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -8,20 +9,13 @@ const formatUserId = (id) => {
   return `MBQ${String(num).padStart(3, '0')}`;
 };
 
-const getNameWithTests = (user) => {
-  if (!user) return 'User';
-  const name = user.full_name ? String(user.full_name).split(' ')[0] : (user.username ? String(user.username) : 'User');
-  const tests = user.gene_type ? String(user.gene_type) : 'Test';
-  return `${name} (${tests})`;
-};
-
 const sendSampleDispatchedEmail = async (user) => {
   if (!process.env.RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not configured. Skipping email to', user.email);
     return;
   }
 
-  const firstName = getNameWithTests(user);
+  const firstName = buildNameWithTests(firstNameOf(user), user.gene_type);
   const volunteerId = formatUserId(user.id);
   const selectedQode = user.gene_type || 'MyBodyQode Full Panel';
 
@@ -313,7 +307,7 @@ const sendForgotCredentialsEmail = async (user) => {
     return;
   }
 
-  const firstName = getNameWithTests(user);
+  const firstName = buildNameWithTests(firstNameOf(user), user.gene_type);
 
   const mailOptions = {
     from: `"MyBodyQode Team" <team@mybodyqode.com>`,
@@ -653,13 +647,13 @@ module.exports = {
   sendOtpEmail
 };
 
-const sendReportReadyEmail = async (user) => {
+const sendReportReadyEmail = async (user, testName) => {
   if (!process.env.RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not configured. Skipping report ready email to', user.email);
     return;
   }
 
-  const firstName = getNameWithTests(user);
+  const firstName = buildNameWithTests(firstNameOf(user), testName);
 
   const mailOptions = {
     from: `"MyBodyQode Team" <team@mybodyqode.com>`,
@@ -802,9 +796,135 @@ const sendReportReadyEmail = async (user) => {
 
 module.exports.sendReportReadyEmail = sendReportReadyEmail;
 
-const sendCollectAnswersEmail = async (user) => {
+const sendReportGeneratedEmail = async (user, testName) => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured. Skipping report generated email to', user.email);
+    return;
+  }
+
+  const firstName = buildNameWithTests(firstNameOf(user), testName);
+
+  const mailOptions = {
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
+    to: user.email,
+    subject: "Your MyBodyQode Report Has Been Generated ✅",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    color-scheme: light dark;
+    supported-color-schemes: light dark;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F4F4F2;
+    color: #1A1A19;
+    margin: 0;
+    padding: 0;
+  }
+  .dark-img {
+    display: none !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .light-img {
+      display: none !important;
+    }
+    .dark-img {
+      display: block !important;
+      margin: 0 auto !important;
+      filter: brightness(0) invert(1);
+    }
+    .header-text {
+      color: #FFFFFF !important;
+    }
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 30px;
+    text-align: center;
+    border-bottom: 1px solid #F0F0ED;
+  }
+  .header img {
+    height: 48px;
+    width: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  .content {
+    padding: 40px 30px;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #5A5A55;
+    text-align: center;
+  }
+  .greeting {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1A1A19;
+    margin-bottom: 24px;
+    text-transform: capitalize;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo" class="light-img">
+      <img src="https://mybodyqode.vercel.app/assets/logo-CgtdQmKz.png" alt="MyBodyQode Logo Dark" class="dark-img">
+      <h1 class="header-text" style="color: #1A1A19; font-size: 20px; margin-top: 10px; font-weight: 800; letter-spacing: -0.5px;">MyBodyQode</h1>
+    </div>
+    <div class="content">
+      <div class="greeting">Hi ${firstName},</div>
+
+      <p style="font-size: 18px; color: #1A1A19; font-weight: 600;">Great news — your personalized MyBodyQode genetic report has been generated!</p>
+
+      <p>It's currently under final expert review. We'll notify you as soon as it's verified and ready to download.</p>
+    </div>
+    <div class="footer">
+      <p>Because your biology is one of a kind.</p>
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending report generated email:', error);
+      return;
+    }
+    console.log(`Report generated email sent to ${user.email}`, data);
+  } catch (error) {
+    console.error('Exception while sending report generated email:', error);
+  }
+};
+
+module.exports.sendReportGeneratedEmail = sendReportGeneratedEmail;
+
+const sendCollectAnswersEmail = async (user, testNames) => {
   if (!user || !user.email) return;
-  const firstName = getNameWithTests(user);
+  const firstName = buildNameWithTests(firstNameOf(user), testNames);
 
   const mailOptions = {
     from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',

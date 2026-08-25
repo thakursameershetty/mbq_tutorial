@@ -1,10 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2, MessageCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
 import ReportViewerModal from '../components/ReportViewerModal';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
+
+// Prefer the AI report's own merge timestamp (set per-report when the Python backend
+// generates it) over the shared status_timestamps.generated, which only reflects the
+// most recent report and is identical across all of a patient's reports.
+const getReportGeneratedAt = (reportData: any, fallback?: string | null) =>
+  reportData?.generated_at || reportData?.ai_report?._meta?.merged_at || fallback || null;
 
 const formatUserId = (id: any, createdAt?: string | null) => {
   const num = parseInt(id, 10);
@@ -49,7 +55,7 @@ export default function AdminVerifyPage() {
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
-  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string } | null>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string, generatedAt?: string | null } | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
@@ -68,13 +74,13 @@ export default function AdminVerifyPage() {
     localStorage.setItem('autoSendWhatsApp', String(autoSendWhatsApp));
   }, [autoSendWhatsApp]);
 
-  const handleManualWhatsApp = async (patientId: string, templateType: string) => {
+  const handleManualWhatsApp = async (patientId: string, templateType: string, testName?: string) => {
     setActionLoading(parseInt(patientId));
     try {
       const response = await fetch(`/api/admin/patients/${patientId}/notify-whatsapp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateType })
+        body: JSON.stringify({ templateType, testName })
       });
       const data = await response.json();
       if (data.success) {
@@ -175,19 +181,19 @@ export default function AdminVerifyPage() {
 
   const confirmVerifyReport = async () => {
     if (!verifyAction) return;
-    const { id, report_verified: currentStatus } = verifyAction;
-    const targetStatus = !currentStatus;
+    const { id, testName, currentlyVerified } = verifyAction;
+    const targetStatus = !currentlyVerified;
     setActionLoading(id);
     try {
       const response = await fetch(`/api/users/${id}/verify-report`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportVerified: targetStatus }),
+        body: JSON.stringify({ testName, reportVerified: targetStatus }),
       });
       const data = await response.json();
       if (data.success) {
         setPatients((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, report_verified: targetStatus, status_timestamps: data.user.status_timestamps } : p))
+          prev.map((p) => (p.id === id ? { ...p, reports: data.user.reports, report_verified: data.user.report_verified, status_timestamps: data.user.status_timestamps } : p))
         );
       } else {
         alert(data.error || 'Failed to verify report');
@@ -1111,20 +1117,40 @@ export default function AdminVerifyPage() {
                               <>
                                 {Object.entries(patient.reports).map(([geneName, reportData]: [string, any]) => (
                                   <div key={geneName} className="flex flex-col sm:flex-row gap-2">
-                                    <button
-                                      onClick={() => setPreviewPdfUrl(reportData.url)}
-                                      className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                                    >
-                                      <FileText size={14} className="text-[#6057D7]" />
-                                      View {geneName} Report
-                                    </button>
+                                    {reportData.url && reportData.url !== '#' && (
+                                      <button
+                                        onClick={() => setPreviewPdfUrl(reportData.url)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white/85 hover:bg-white border border-[#E8E8E5] text-[#1A1A19] rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                      >
+                                        <FileText size={14} className="text-[#6057D7]" />
+                                        View {geneName} Report
+                                      </button>
+                                    )}
                                     {reportData.ai_report && (
                                       <button
-                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at) })}
+                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at), generatedAt: getReportGeneratedAt(reportData, patient.status_timestamps?.generated) })}
                                         className="flex items-center gap-2 px-4 py-2 bg-amber-100/80 hover:bg-amber-200 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                                       >
                                         <Sparkles size={14} />
                                         View {geneName} HTML Report
+                                      </button>
+                                    )}
+                                    {reportData.ai_report && (
+                                      <button
+                                        onClick={() => setVerifyAction({ ...patient, testName: geneName, currentlyVerified: !!reportData.verified })}
+                                        disabled={actionLoading === patient.id}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${reportData.verified
+                                          ? 'bg-[#027A48] hover:bg-[#026c3f] text-white'
+                                          : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
+                                          }`}
+                                      >
+                                        {actionLoading === patient.id ? (
+                                          <Loader2 className="animate-spin w-3.5 h-3.5" />
+                                        ) : reportData.verified ? (
+                                          `✓ ${geneName} Verified`
+                                        ) : (
+                                          `Verify ${geneName} Report`
+                                        )}
                                       </button>
                                     )}
                                   </div>
@@ -1170,24 +1196,7 @@ export default function AdminVerifyPage() {
                               </button>
                             )}
 
-                            {/* We removed the old generic 'View Generated Report' button as we now use specific AI Insight buttons above */}
-
-                            <button
-                              onClick={() => setVerifyAction(patient)}
-                              disabled={actionLoading === patient.id}
-                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${patient.report_verified
-                                ? 'bg-[#027A48] hover:bg-[#026c3f] text-white font-bold'
-                                : 'bg-gradient-to-r from-[#6057D7] to-[#3FC2AC] hover:opacity-90 text-white'
-                                }`}
-                            >
-                              {actionLoading === patient.id ? (
-                                <Loader2 className="animate-spin w-3.5 h-3.5" />
-                              ) : patient.report_verified ? (
-                                '\u2713 Report Verified'
-                              ) : (
-                                'Verify Report'
-                              )}
-                            </button>
+                            {/* Verification is now per test — see the "Verify {test} Report" buttons above, one per entry in patient.reports */}
 
                             {/* Resync Data button — always visible to pull latest from sheets */}
                             <button
@@ -1224,26 +1233,51 @@ export default function AdminVerifyPage() {
                                 Send WA: Sample Collected
                               </button>
                             )}
-                            {patient.report_uploaded && (
-                              <>
-                                <button
-                                  onClick={() => handleManualWhatsApp(patient.id, 'report_generated')}
-                                  disabled={actionLoading === patient.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
-                                >
-                                  {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
-                                  Send WA: Report Generated
-                                </button>
-                                <button
-                                  onClick={() => handleManualWhatsApp(patient.id, 'report_ready')}
-                                  disabled={actionLoading === patient.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
-                                >
-                                  {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
-                                  Send WA: Report Ready
-                                </button>
-                              </>
-                            )}
+                            {patient.reports && Object.keys(patient.reports).length > 0
+                              ? Object.entries(patient.reports).map(([geneName, reportData]: [string, any]) => (
+                                reportData.ai_report && (
+                                  <Fragment key={geneName}>
+                                    <button
+                                      onClick={() => handleManualWhatsApp(patient.id, 'report_generated', geneName)}
+                                      disabled={actionLoading === patient.id}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                    >
+                                      {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                      Send WA: {geneName} Generated
+                                    </button>
+                                    {reportData.verified && (
+                                      <button
+                                        onClick={() => handleManualWhatsApp(patient.id, 'report_ready', geneName)}
+                                        disabled={actionLoading === patient.id}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                      >
+                                        {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                        Send WA: {geneName} Ready
+                                      </button>
+                                    )}
+                                  </Fragment>
+                                )
+                              ))
+                              : patient.report_uploaded && (
+                                <>
+                                  <button
+                                    onClick={() => handleManualWhatsApp(patient.id, 'report_generated')}
+                                    disabled={actionLoading === patient.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                  >
+                                    {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                    Send WA: Report Generated
+                                  </button>
+                                  <button
+                                    onClick={() => handleManualWhatsApp(patient.id, 'report_ready')}
+                                    disabled={actionLoading === patient.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF] rounded-lg text-xs font-bold border border-[#027A48]/20 transition-colors disabled:opacity-50"
+                                  >
+                                    {actionLoading === patient.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                    Send WA: Report Ready
+                                  </button>
+                                </>
+                              )}
                           </div>
                         </div>
                       </motion.div>
@@ -1336,7 +1370,7 @@ export default function AdminVerifyPage() {
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyAction.report_verified ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${verifyAction.currentlyVerified ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
                     <ShieldAlert className="w-5 h-5" />
                   </div>
                   <button
@@ -1347,9 +1381,9 @@ export default function AdminVerifyPage() {
                   </button>
                 </div>
 
-                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{verifyAction.report_verified ? 'Unverify' : 'Verify'} Report</h3>
+                <h3 className="text-xl font-bold text-[#1A1A19] mb-2">{verifyAction.currentlyVerified ? 'Unverify' : 'Verify'} {verifyAction.testName} Report</h3>
                 <p className="text-[#5A5A55] text-sm mb-6">
-                  Are you sure you want to {verifyAction.report_verified ? 'unverify' : 'verify'} the report for <span className="font-bold text-[#1A1A19]">{verifyAction.full_name}</span>?
+                  Are you sure you want to {verifyAction.currentlyVerified ? 'unverify' : 'verify'} the <span className="font-bold text-[#1A1A19]">{verifyAction.testName}</span> report for <span className="font-bold text-[#1A1A19]">{verifyAction.full_name}</span>?
                 </p>
 
                 <div className="flex gap-3">
@@ -1363,7 +1397,7 @@ export default function AdminVerifyPage() {
                   <button
                     onClick={confirmVerifyReport}
                     disabled={actionLoading === verifyAction.id}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${verifyAction.report_verified ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 shadow-sm ${verifyAction.currentlyVerified ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
                   >
                     {actionLoading === verifyAction.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1838,6 +1872,7 @@ export default function AdminVerifyPage() {
           reportData={selectedAIReport.reportData}
           geneVariants={selectedAIReport.variants}
           mbqId={selectedAIReport.mbqId}
+          generatedAt={selectedAIReport.generatedAt}
         />
       )}
     </motion.div >

@@ -162,26 +162,24 @@ export default function LabDashboard() {
 
     setActionLoading(patient.id + '-generate');
     try {
-      await Promise.all(
-        Array.from(panels).map(panelName => {
-          const specificVariants: Record<string, string> = {};
-          requiredGenes
-            .filter(rg => rg.panel === panelName)
-            .forEach(rg => {
-              specificVariants[rg.name] = patientVariants[rg.name];
-            });
-
-          return fetch(`/api/users/${patient.id}/request-generation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ geneName: panelName, variants: specificVariants }),
-          }).then(res => {
-            if (!res.ok) throw new Error('Failed to request generation');
-            return res.json();
+      const panelsPayload = Array.from(panels).map(panelName => {
+        const specificVariants: Record<string, string> = {};
+        requiredGenes
+          .filter(rg => rg.panel === panelName)
+          .forEach(rg => {
+            specificVariants[rg.name] = patientVariants[rg.name];
           });
-        })
-      );
-      
+        return { geneName: panelName, variants: specificVariants };
+      });
+
+      const res = await fetch(`/api/users/${patient.id}/request-generation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panels: panelsPayload }),
+      });
+      if (!res.ok) throw new Error('Failed to request generation');
+      await res.json();
+
       alert('Surveys requested successfully! Phenotypic journey pending.');
       fetchPatients();
     } catch (err) {

@@ -16,13 +16,40 @@ const formatUserId = (id: any, createdAt?: string | null) => {
   return `MBQ${year}${String(num).padStart(3, '0')}`;
 };
 
+// Timestamps without an explicit UTC/offset marker (e.g. Python's `datetime.utcnow().isoformat()`)
+// get parsed as local time by the JS Date constructor. Since these are always produced in UTC
+// on the backend, force that interpretation so IST conversion is correct for every viewer.
+const normalizeTimestamp = (dateInput?: string | number | Date | null) => {
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(dateInput)) {
+    return `${dateInput}Z`;
+  }
+  return dateInput;
+};
+
+const formatIST = (dateInput?: string | number | Date | null, fallback: string = 'Pending') => {
+  if (!dateInput) return fallback;
+  const date = new Date(normalizeTimestamp(dateInput) as string | number | Date);
+  if (isNaN(date.getTime())) return fallback;
+  const formatted = date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+  }).replace(',', '');
+  return `${formatted} IST`;
+};
+
+// Prefer the AI report's own merge timestamp (set per-report when the Python backend
+// generates it) over the shared status_timestamps.generated, which only reflects the
+// most recent report and is identical across all of a user's reports.
+const getReportGeneratedAt = (reportData: any, fallback?: string | null) =>
+  reportData?.generated_at || reportData?.ai_report?._meta?.merged_at || fallback || null;
+
 export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
-  const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string } | null>(null);
+  const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string; generatedAt?: string | null } | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
@@ -183,6 +210,16 @@ export default function PatientDashboardPage() {
     );
   }
 
+  // Oldest report generated first, so the tracking pipeline and button lists read
+  // chronologically rather than in whatever order the keys happen to sit in the JSON.
+  const sortedReportEntries: [string, any][] = user.reports
+    ? Object.entries(user.reports).sort(([, a]: [string, any], [, b]: [string, any]) => {
+      const timeA = new Date(normalizeTimestamp(getReportGeneratedAt(a, user.status_timestamps?.generated)) as any).getTime();
+      const timeB = new Date(normalizeTimestamp(getReportGeneratedAt(b, user.status_timestamps?.generated)) as any).getTime();
+      return (isNaN(timeA) ? 0 : timeA) - (isNaN(timeB) ? 0 : timeB);
+    })
+    : [];
+
   const dashboardActions = user ? (
     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-6">
       <button
@@ -210,8 +247,10 @@ export default function PatientDashboardPage() {
           {fetchDataLoading ? 'Fetching...' : 'Fetch Data'}
         </button>
       )}
-      {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
-        Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
+      {user.reports && Object.keys(user.reports).length > 0 ? (
+        sortedReportEntries
+          .filter(([, reportData]: [string, any]) => reportData.verified)
+          .map(([geneName, reportData]: [string, any]) => (
           <div key={geneName} className="flex gap-2">
             {reportData.url && (
               <a
@@ -226,7 +265,7 @@ export default function PatientDashboardPage() {
             )}
             {reportData.ai_report && (
               <button
-                onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at) })}
+                onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated) })}
                 className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#6057D7] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#4F46B8] transition-colors shadow-sm cursor-pointer"
               >
                 <Sparkles size={16} />
@@ -482,50 +521,49 @@ export default function PatientDashboardPage() {
                   steps={[
                     {
                       name: "User Registered",
-                      timestamp: (() => {
-                        const date = new Date(user.created_at || (user.status_timestamps?.registered));
-                        return isNaN(date.getTime()) ? 'Completed' : date.toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '');
-                      })(),
+                      timestamp: formatIST(user.created_at || user.status_timestamps?.registered, 'Completed'),
                       isCompleted: true
                     },
                     {
                       name: "Sample Collected",
-                      timestamp: user.status_timestamps?.collected
-                        ? new Date(user.status_timestamps.collected).toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '')
-                        : "Pending",
+                      timestamp: formatIST(user.status_timestamps?.collected),
                       isCompleted: !!user.sample_collected
                     },
                     {
                       name: "Sample Received",
-                      timestamp: user.status_timestamps?.received
-                        ? new Date(user.status_timestamps.received).toLocaleString('en-US', {
-                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).replace(',', '')
-                        : "Pending",
+                      timestamp: formatIST(user.status_timestamps?.received),
                       isCompleted: !!user.sample_received
                     },
-                    {
-                      name: "Report Generated",
-                      timestamp: user.status_timestamps?.generated
-                        ? (user.report_verified
-                          ? new Date(user.status_timestamps.generated).toLocaleString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
-                          }).replace(',', '')
-                          : "(Waiting for Admin Approval)")
-                        : "Pending",
-                      isCompleted: !!user.report_generated
-                    }
+                    ...(user.reports && Object.keys(user.reports).length > 0
+                      ? sortedReportEntries.map(([geneName, reportData]: [string, any]) => ({
+                        name: `Report Generated — ${geneName}`,
+                        timestamp: reportData?.ai_report
+                          ? (reportData.verified
+                            ? formatIST(getReportGeneratedAt(reportData, user.status_timestamps?.generated))
+                            : "(Waiting for Admin Approval)")
+                          : "Pending",
+                        isCompleted: !!reportData?.verified,
+                        isPendingReview: !!reportData?.ai_report && !reportData?.verified
+                      }))
+                      : [{
+                        name: "Report Generated",
+                        timestamp: user.status_timestamps?.generated
+                          ? (user.report_verified
+                            ? formatIST(user.status_timestamps.generated)
+                            : "(Waiting for Admin Approval)")
+                          : "Pending",
+                        isCompleted: !!user.report_verified,
+                        isPendingReview: !!user.report_generated && !user.report_verified
+                      }])
                   ]}
                 />
               </div>
 
-              {user.report_verified && user.reports && Object.keys(user.reports).length > 0 ? (
+              {user.reports && Object.keys(user.reports).length > 0 && sortedReportEntries.some(([, r]: [string, any]) => r.verified) ? (
                 <div className="mt-6 pt-4 border-t border-[#E8E8E5] flex flex-col gap-3">
-                  {Object.entries(user.reports).map(([geneName, reportData]: [string, any]) => (
+                  {sortedReportEntries
+                    .filter(([, reportData]: [string, any]) => reportData.verified)
+                    .map(([geneName, reportData]: [string, any]) => (
                     <div key={geneName} className="flex flex-col sm:flex-row gap-2">
                       {reportData.url && reportData.url !== '#' && (
                         <a
@@ -540,17 +578,17 @@ export default function PatientDashboardPage() {
                       )}
                       {reportData.ai_report && (
                         <button
-                          onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at) })}
+                          onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated) })}
                           className="flex-1 py-3.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
                         >
                           <Sparkles size={18} />
-                          View HTML Report
+                          View {geneName} Report
                         </button>
                       )}
                     </div>
                   ))}
                 </div>
-              ) : user.report_verified && user.report_url ? (
+              ) : (!user.reports || Object.keys(user.reports).length === 0) && user.report_verified && user.report_url ? (
                 <div className="mt-6 pt-4 border-t border-[#E8E8E5]">
                   <a
                     href={user.report_url}
@@ -716,12 +754,13 @@ export default function PatientDashboardPage() {
           geneVariants={viewReportData.variants}
           testName={viewReportData.testName}
           mbqId={viewReportData.mbqId}
+          generatedAt={viewReportData.generatedAt}
         />
       )}
 
       {/* Floating Chatbot */}
-      {user && user.report_verified && user.reports && Object.keys(user.reports).length > 0 && (
-        <FloatingChatbot userName={user.name} contextData={user.reports} />
+      {user && user.reports && Object.values(user.reports).some((r: any) => r.verified) && (
+        <FloatingChatbot userName={user.full_name} contextData={user.reports} />
       )}
     </motion.div>
   );

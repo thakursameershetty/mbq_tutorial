@@ -66,6 +66,17 @@ export default function TestReportPage() {
     }
   }, [currentPageIndex, reportHtml]);
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'OPEN_QODAI_CHAT') {
+        // Keep the report open — the chat panel floats on top of it (higher z-index).
+        window.dispatchEvent(new CustomEvent('open-qodai-chat'));
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const fetchQuestions = async () => {
     setLoadingQs(true);
     try {
@@ -366,29 +377,40 @@ export default function TestReportPage() {
                     const color = el.getAttribute('data-color') || 'currentColor';
                     let size = el.getAttribute('data-size') || '24';
 
+                    // Include the description alongside the (often generic, e.g. "Pace Yourself") title so
+                    // icon matching has real content to key off of, not just a short heading.
+                    const withDescription = (item: { title?: string; description?: string } | null | undefined) =>
+                      item ? `${item.title || ''} ${item.description || ''}`.trim() : null;
+
                     const getDynamicTitleFromAI = (id: string, data: any): string | null => {
                       if (!data || !id) return null;
                       try {
                         const idx = () => parseInt(id.split('-').pop() as string) - 1;
-                        if (id.startsWith('page1-wtm-card-title-')) return data.page_1?.what_this_means_for_you_cards?.[idx()]?.title;
-                        if (id.startsWith('page3-research-title-')) return data.page_3?.what_research_observes?.[idx()]?.title;
+                        if (id.startsWith('page1-wtm-card-title-')) return withDescription(data.page_1?.what_this_means_for_you_cards?.[idx()]);
+                        if (id.startsWith('page3-research-title-')) return withDescription(data.page_3?.what_research_observes?.[idx()]);
                         if (id.startsWith('page3-told-us-')) return data.page_3?.what_you_told_us?.[idx()];
                         if (id.startsWith('page2-what-this-means-')) return data.page_2?.what_this_means?.[idx()];
                         if (id.startsWith('page2-what-you-may-notice-')) return data.page_2?.what_you_may_notice?.[idx()];
                         if (id.startsWith('page2-what-this-explains-')) return data.page_2?.what_this_explains?.[idx()];
                         if (id.startsWith('page4-train-title-')) {
-                          return data.page_4?.train_like_this?.[idx()]?.title ||
-                            data.page_4?.consume_like_this?.[idx()]?.title ||
-                            data.page_4?.wash_like_this?.[idx()]?.title;
+                          return withDescription(
+                            data.page_4?.train_like_this?.[idx()] ||
+                            data.page_4?.consume_like_this?.[idx()] ||
+                            data.page_4?.wash_like_this?.[idx()]
+                          );
                         }
                         if (id.startsWith('page4-recover-title-')) {
-                          return data.page_4?.recover_like_this?.[idx()]?.title ||
-                            data.page_4?.treat_like_this?.[idx()]?.title;
+                          return withDescription(
+                            data.page_4?.recover_like_this?.[idx()] ||
+                            data.page_4?.treat_like_this?.[idx()]
+                          );
                         }
                         if (id.startsWith('page4-fuel-title-')) {
-                          return data.page_4?.fuel_like_this?.[idx()]?.title ||
-                            data.page_4?.nourish_like_this?.[idx()]?.title ||
-                            data.page_4?.protect_like_this?.[idx()]?.title;
+                          return withDescription(
+                            data.page_4?.fuel_like_this?.[idx()] ||
+                            data.page_4?.nourish_like_this?.[idx()] ||
+                            data.page_4?.protect_like_this?.[idx()]
+                          );
                         }
                       } catch (e) { /* ignore malformed id */ }
                       return null;
@@ -397,16 +419,24 @@ export default function TestReportPage() {
                     const getDynamicIcon = (title: string | null, defaultIcon: string | null): string | null => {
                       const t = (title || '').toLowerCase();
                       if (!t) return defaultIcon;
-                      const has = (...words: string[]) => words.some(w => new RegExp(`\\b${w}\\b`, 'i').test(t));
+                      // Anchor at the start of a word only (no trailing \b) so plural/suffixed forms like
+                      // "Balanced", "Hydrated", "Recovery", "Snacks" still match their root keyword,
+                      // while "brunch" etc. still won't falsely match "run" (no boundary before it there).
+                      const has = (...words: string[]) => words.some(w => new RegExp(`\\b${w}`, 'i').test(t));
 
-                      if (has('sleep', 'rest', 'evening', 'late', 'night', 'rested')) return 'bedtime';
-                      if (has('time', 'hour', 'hours', 'duration', 'schedule', 'timing', 'fast', 'rapid', 'quick')) return 'schedule';
-                      if (has('anxiety', 'jitter', 'jittery', 'mindful', 'relax', 'calm')) return 'spa';
+                      if (has('sleep', 'rest', 'evening', 'late', 'night')) return 'bedtime';
+                      if (has('time', 'hour', 'duration', 'schedule', 'timing', 'fast', 'rapid', 'quick')) return 'schedule';
+                      if (has('anxiety', 'jitter', 'mindful', 'relax', 'calm', 'meditat')) return 'spa';
                       if (has('lot', 'amount', 'much', 'high', 'heavy', 'volume')) return 'battery_charging_full';
                       if (has('focus', 'clearance', 'alert', 'brain', 'mental')) return 'neurology';
-                      if (has('hydrate', 'water', 'drink', 'fluid')) return 'water_drop';
+                      if (has('hydrat', 'water', 'drink', 'fluid')) return 'water_drop';
+                      if (has('massage', 'therapy', 'tension')) return 'spa';
+                      if (has('protein', 'nutrition', 'vitamin')) return 'nutrition';
                       if (has('snack', 'diet', 'nourish', 'meal', 'food')) return 'restaurant';
-                      if (has('strength', 'weight', 'weights')) return 'exercise';
+                      if (has('track', 'progress', 'monitor', 'log')) return 'monitoring';
+                      if (has('pace', 'gradual', 'adapt', 'overload')) return 'trending_up';
+                      if (has('mix', 'variety', 'cross-train', 'cross train')) return 'layers';
+                      if (has('strength', 'weight')) return 'exercise';
                       if (has('speed', 'sprint')) return 'speed';
                       if (has('stamina', 'endurance', 'run', 'prolong')) return 'directions_run';
                       if (has('growth', 'muscle', 'hypertrophy', 'build')) return 'fitness_center';
@@ -424,11 +454,11 @@ export default function TestReportPage() {
                       if (has('balance', 'steady', 'moderate')) return 'tune';
                       if (has('system', 'process')) return 'hub';
                       if (has('multiple', 'several', 'many')) return 'layers';
-                      if (has('issue', 'issues', 'side effect', 'side effects')) return 'report_problem';
+                      if (has('issue', 'side effect')) return 'report_problem';
                       if (has('quality', 'good', 'well')) return 'verified';
-                      if (has('taper', 'tapers', 'wear off', 'wears off', 'decrease', 'drop')) return 'trending_down';
-                      if (has('energy', 'boost', 'coffee', 'caffeine', 'cup', 'cups', 'dose')) return 'local_cafe';
-                      if (has('gene', 'dna', 'variant', 'variants')) return 'biotech';
+                      if (has('taper', 'wear off', 'decrease', 'drop')) return 'trending_down';
+                      if (has('energy', 'boost', 'coffee', 'caffeine', 'cup', 'dose')) return 'local_cafe';
+                      if (has('gene', 'dna', 'variant')) return 'biotech';
                       return defaultIcon;
                     };
 
@@ -598,23 +628,55 @@ export default function TestReportPage() {
                             }
                         };
                         
-                        // Combined "GENE (Genotype)" string, e.g. "ACTN3 (RR), ACE (II)"
-                        const geneGtStr = genes.map(g => g + ' (' + (genesObj[g] || '') + ')').join(', ');
+                        // Genotype -> plain-language trait, per gene. Genotypes are stored in
+                        // whichever allele order the lab reported them in, so both orderings of
+                        // each heterozygous pair are included (e.g. AC and CA resolve the same).
+                        const genotypeTraitMap = {
+                            CYP1A2: { AA: 'Fast caffeine metabolizer', AC: 'Intermediate caffeine metabolizer', CA: 'Intermediate caffeine metabolizer', CC: 'Slow caffeine metabolizer' },
+                            ADORA2A: { TT: 'High caffeine sensitivity', TC: 'Intermediate caffeine sensitivity', CT: 'Intermediate caffeine sensitivity', CC: 'Low caffeine sensitivity' },
+                            ACTN3: { RR: 'Power & sprint oriented', RX: 'Balanced muscle performance', XR: 'Balanced muscle performance', XX: 'Endurance oriented' },
+                            ACE: { DD: 'Strength & power oriented', ID: 'Balanced / mixed performance', DI: 'Balanced / mixed performance', II: 'Endurance oriented' },
+                            EDAR: { GG: 'High hair thickness', AG: 'Moderate hair thickness', GA: 'Moderate hair thickness', AA: 'Fine hair' },
+                            FGFR2: { TT: 'Thicker hair', GT: 'Intermediate hair thickness', TG: 'Intermediate hair thickness', GG: 'Finer hair' }
+                        };
+                        const getGenotypeTrait = (gene, gt) => (genotypeTraitMap[gene] && genotypeTraitMap[gene][gt]) || null;
+
+                        // Combined "GENE (Genotype)" string, one gene per line with its trait,
+                        // e.g. "CYP1A2 (AC) - Intermediate caffeine metabolizer"
+                        const geneGtStr = genes.map(g => {
+                            const gt = genesObj[g] || '';
+                            const trait = getGenotypeTrait(g, gt);
+                            return g + ' (' + gt + ')' + (trait ? ' - ' + trait : '');
+                        }).join('\\n');
+                        // Compact single-line version (no trait text) for tight spaces like the
+                        // small share-card badge, which can't fit multi-line content.
+                        const geneGtStrShort = genes.map(g => g + ' (' + (genesObj[g] || '') + ')').join(', ');
 
                         // Reduces a gene card down to just "GENE (Genotype)" - hides the separate
                         // rsID/marker and genotype/method columns since geneGtStr already carries
                         // that info, and shrinks the card to fit the shorter content.
-                        const simplifyGeneCard = (geneId, markerId, genotypeId) => {
+                        const simplifyGeneCard = (geneId, markerId, genotypeId, cardMaxWidth, fontSize) => {
                             const geneEl = document.getElementById(geneId);
                             if (geneEl) {
                                 geneEl.textContent = geneGtStr;
+                                geneEl.style.whiteSpace = 'pre-line';
+                                geneEl.style.lineHeight = '1.6';
+                                // html2canvas measures text with its own layout engine, which can come
+                                // out slightly wider than the real browser's - shrink the font a touch
+                                // vs. the live-preview size so a line that fits on-screen doesn't wrap
+                                // (and get clipped by the card's frozen zoom footprint) only in the PDF.
+                                if (fontSize) geneEl.style.fontSize = fontSize + 'px';
                                 if (geneEl.previousElementSibling) {
                                     geneEl.previousElementSibling.textContent = 'GENE (Genotype)';
                                 }
                                 const card = geneEl.parentElement?.parentElement?.parentElement?.parentElement;
                                 if (card) {
-                                    card.style.width = 'max-content';
+                                    // A fixed width (vs. max-content) keeps the card the same size
+                                    // across report types regardless of how long each gene's trait
+                                    // text happens to be.
+                                    card.style.width = cardMaxWidth ? cardMaxWidth + 'px' : 'max-content';
                                     card.style.minWidth = '280px';
+                                    card.style.maxWidth = (cardMaxWidth || 420) + 'px';
                                     card.style.paddingRight = '32px';
                                 }
                             }
@@ -651,7 +713,7 @@ export default function TestReportPage() {
                         };
 
                         // Set top header and appendix dynamic fields
-                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype'); // Page 1 card
+                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 600, 13); // Page 1 card
                         setText('header-gene', genesStr);
                         setText('appendix-marker', markersStr);
                         setText('appendix-genotype', genotypeStr);
@@ -769,7 +831,7 @@ export default function TestReportPage() {
                                 }
 
                                 setText('page1-share-quote', toSentenceCase(data.page_1.share_card.quote));
-                                setText('page1-share-genotype', geneGtStr);
+                                setText('page1-share-genotype', geneGtStrShort);
                             }
 
                             // "BUILT FOR ..." summary in the share card, derived from key traits
@@ -860,7 +922,7 @@ export default function TestReportPage() {
                                 let a1 = genotype.length > 0 ? genotype[0] : "";
                                 let a2 = genotype.length > 1 ? genotype[1] : a1;
                                 
-                                let gtStr = genotype + " (" + a1 + " / " + a2 + ")";
+                                let gtStr = genotype;
                                 
                                 const genotypeEl = document.getElementById('page3-' + g + '-genotype');
                                 if (genotypeEl) genotypeEl.textContent = gtStr;
@@ -1040,6 +1102,74 @@ export default function TestReportPage() {
                               page.style.margin = '0';
                           });
 
+                          // html2canvas (used internally by html2pdf) doesn't understand the
+                          // non-standard CSS "zoom" property these templates use throughout for
+                          // fine layout scaling: it measures elements at their zoomed footprint
+                          // but paints their contents at native size, which is what makes text
+                          // and images come out mis-sized/overlapping in the PDF.
+                          //
+                          // Simply setting zoom to 1 "fixes" the painting but changes the
+                          // element's footprint too, which reflows everything after it - on the
+                          // page that uses zoom<1 to fit extra content, that reflow pushes the
+                          // footer off the fixed-height page entirely.
+                          //
+                          // So instead: freeze the element's current (zoomed) footprint in a
+                          // same-sized wrapper, then replace zoom with an equivalent
+                          // transform: scale(), which html2canvas paints correctly and which
+                          // doesn't affect layout - the wrapper keeps everything after it exactly
+                          // where zoom would have put it.
+                          const zoomCleanupFns = [];
+                          const neutralizeZoom = (scope) => {
+                              const zoomedEls = Array.from(scope.querySelectorAll('[style*="zoom"]'));
+                              zoomedEls.forEach(el => {
+                                  const zoomValue = parseFloat(el.style.zoom);
+                                  if (!zoomValue || zoomValue === 1 || isNaN(zoomValue)) return;
+
+                                  const rect = el.getBoundingClientRect();
+                                  if (rect.width === 0 && rect.height === 0) return; // not actually visible
+
+                                  const cs = window.getComputedStyle(el);
+                                  const wrapper = document.createElement('div');
+                                  wrapper.style.width = rect.width + 'px';
+                                  wrapper.style.height = rect.height + 'px';
+                                  wrapper.style.overflow = 'hidden';
+                                  wrapper.style.position = 'relative';
+                                  wrapper.style.marginTop = cs.marginTop;
+                                  wrapper.style.marginRight = cs.marginRight;
+                                  wrapper.style.marginBottom = cs.marginBottom;
+                                  wrapper.style.marginLeft = cs.marginLeft;
+
+                                  const originalStyleAttr = el.getAttribute('style');
+                                  el.parentNode.insertBefore(wrapper, el);
+                                  wrapper.appendChild(el);
+
+                                  el.style.zoom = '1';
+                                  el.style.margin = '0';
+                                  el.style.position = 'absolute';
+                                  el.style.top = '0';
+                                  el.style.left = '0';
+                                  // Taking el out of flow for the transform also strips whatever
+                                  // flex/grid rule (e.g. flex:1) used to size it - pin its natural
+                                  // (pre-scale) box explicitly so scale() lands it exactly on the
+                                  // wrapper's bounds instead of sizing to its own content and
+                                  // overflowing past the wrapper's clipped edge.
+                                  el.style.boxSizing = 'border-box';
+                                  el.style.width = (rect.width / zoomValue) + 'px';
+                                  el.style.height = (rect.height / zoomValue) + 'px';
+                                  el.style.transform = 'scale(' + zoomValue + ')';
+                                  el.style.transformOrigin = 'top left';
+
+                                  zoomCleanupFns.push(() => {
+                                      wrapper.parentNode.insertBefore(el, wrapper);
+                                      wrapper.remove();
+                                      el.setAttribute('style', originalStyleAttr);
+                                  });
+                              });
+                          };
+                          const restoreZoom = () => {
+                              while (zoomCleanupFns.length) zoomCleanupFns.pop()();
+                          };
+
                           const opt = {
                             margin:       0,
                             filename:     filename || 'report.pdf',
@@ -1047,7 +1177,7 @@ export default function TestReportPage() {
                             html2canvas:  { scale: 2, useCORS: true, windowWidth: 1024, scrollY: 0 },
                             jsPDF:        { unit: 'px', format: [1024, 1449], orientation: 'portrait' }
                           };
-                          
+
                           try {
                             if (pages.length > 0) {
                               let worker = html2pdf().set(opt);
@@ -1057,30 +1187,39 @@ export default function TestReportPage() {
                                       pages.forEach((p, idx) => {
                                           p.style.display = (idx === i) ? 'block' : 'none';
                                       });
+                                      // Only the page about to be captured is visible, so its zoomed
+                                      // elements can only be measured (and thus wrapped) now.
+                                      neutralizeZoom(pages[i]);
                                       return new Promise(r => setTimeout(r, 100)); // allow DOM to settle
                                   });
-                                  
+
                                   if (i === 0) {
                                       worker = worker.from(pages[i]).toPdf();
                                   } else {
                                       worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().toPdf();
                                   }
+
+                                  worker = worker.then(() => { restoreZoom(); });
                               }
-                              
+
                               await worker.save();
-                              
+
                               pages.forEach(p => p.style.display = ''); // restore display
                             } else {
+                              neutralizeZoom(container);
                               await html2pdf().set(opt).from(container).save();
+                              restoreZoom();
                             }
                           } catch (e) {
                             console.error("PDF generation failed", e);
                           }
-                          
+
+                          restoreZoom(); // safety net in case anything above threw mid-page
+
                           container.style.background = originalStyles.background;
                           container.style.padding = originalStyles.padding;
                           container.style.gap = originalStyles.gap;
-                          
+
                           pages.forEach((page, i) => {
                               page.style.borderRadius = originalPageStyles[i].borderRadius;
                               page.style.boxShadow = originalPageStyles[i].boxShadow;
@@ -1112,6 +1251,16 @@ export default function TestReportPage() {
                           pages.forEach((p, idx) => {
                             p.style.display = (idx === e.data.pageIndex) ? 'block' : 'none';
                           });
+                        }
+                      });
+
+                      // Delegated on document (not the buttons themselves): the template's own
+                      // renderer (support.js) rebuilds the DOM on DOMContentLoaded, which would
+                      // silently orphan a listener attached directly to these button nodes.
+                      document.addEventListener('click', (e) => {
+                        const btn = e.target && e.target.closest && e.target.closest('#chat-with-qodai-btn');
+                        if (btn) {
+                          window.parent.postMessage({ type: 'OPEN_QODAI_CHAT' }, '*');
                         }
                       });
                     </script>
@@ -1156,6 +1305,9 @@ export default function TestReportPage() {
                       img[alt="MBQ Logo"], img[alt="CQ Logo"], img[alt="HQ Logo"] {
                         height: 60px !important;
                         width: auto !important;
+                      }
+                      #chat-with-qodai-btn {
+                        cursor: pointer;
                       }
                     </style>
                   `;
@@ -1215,7 +1367,7 @@ export default function TestReportPage() {
               className="bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full max-w-[1000px] h-[90vh]"
             >
               <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
-                <h3 className="font-bold text-lg text-[#1A1A19]">Beautiful Report</h3>
+                <h3 className="font-bold text-lg text-[#1A1A19]">{selectedTestName} Report</h3>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
