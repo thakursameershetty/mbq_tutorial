@@ -149,7 +149,7 @@
 <div id="share-card-container" style="zoom:0.8;flex-shrink:0;margin-top:24px;border-radius:20px;overflow:hidden;background:radial-gradient(130% 130% at 78% 0%, #3D2B1F 0%, #291a10 48%, #140d08 100%);color:#fff;padding:30px 34px;display:flex;">
 <div style="flex:1.18;padding-right:30px;">
 <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:#E7A867;">SHARE YOUR CAFFEINE QODE</div>
-<div style="font-size:26px;font-weight:800;margin-top:12px;color:#fff;">My Qode <span id="page1-share-title">Balanced Caffeine</span></div>
+<div style="font-size:26px;font-weight:800;margin-top:12px;color:#fff;">My Caffeine Qode is<br/><span id="page1-share-title">Balanced Caffeine</span></div>
 <div id="page1-share-highlight" style="margin-top:16px;display:flex;flex-direction:column;gap:7px;font-size:16px;line-height:1.4;color:#f0dcc2;font-weight:500;"></div>
 <div style="margin-top:20px;border-left:3px solid #C67C3D;padding-left:16px;">
 <p id="page1-share-quote" style="font-size:16px;line-height:1.5;font-weight:500;font-style:italic;margin:0;color:#FFF7F0;">My genetics suggest I
@@ -1182,28 +1182,14 @@
 </div>
 <div style="width:430px;flex:none;background:#fff;border:1px solid #ececf5;border-radius:16px;box-shadow:0 8px 24px rgba(40,40,90,.06);padding:16px 20px;display:flex;align-items:center;gap:18px;">
 <div class="dynamic-icon" data-icon="docs" data-color="#C67C3D" data-size="44" style="display:inline-block; width:44px; height:44px;"></div>
-<div style="flex:1;">
-<div style="display:flex;border-bottom:1px solid #eef0f5;padding-bottom:9px;margin-bottom:9px;">
+<div style="flex:1;display:flex;">
 <div style="flex:1;border-right:1px solid #eef0f5;">
-<div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENE</div>
-<div id="header-gene" style="font-size:18px;font-weight:700;color:#1b2240;">CYP1A2, ADORA2A</div>
+<div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENE (Genotype)</div>
+<div id="header-gene" style="font-size:18px;font-weight:700;color:#1b2240;">CYP1A2 (AA), ADORA2A (TT)</div>
 </div>
-<div style="flex:1.2;padding-left:14px;">
-<div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">MARKER (rsID)</div>
-<div id="appendix-marker" style="font-size:18px;font-weight:700;color:#1b2240;">rs762551, rs5751876
-                  </div>
-</div>
-</div>
-<div style="display:flex;">
-<div style="flex:1;border-right:1px solid #eef0f5;">
-<div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENOTYPE</div>
-<div id="appendix-genotype" style="font-size:18px;font-weight:700;color:#1b2240;">AA (A / A), TT (T /
-                    T)</div>
-</div>
-<div style="flex:1.2;padding-left:14px;">
+<div style="flex:1;padding-left:14px;">
 <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">METHOD</div>
 <div style="font-size:16px;font-weight:700;color:#1b2240;">Sanger Sequencing</div>
-</div>
 </div>
 </div>
 </div>
@@ -1239,7 +1225,7 @@
               </div>
 </div>
 <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">The chromatogram below shows
-              your DNA sequence around the rs762551 position.</div>
+              your DNA sequence at this position in the CYP1A2 gene.</div>
 <img src="assets/p5-chromatogram.png" style="width:85%;display:block;margin:10px auto 0;border-radius:8px;">
 </div>
 <!-- 2 -->
@@ -1251,7 +1237,7 @@
               </div>
 </div>
 <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">The chromatogram below shows
-              your DNA sequence around the rs5751876 position.</div>
+              your DNA sequence at this position in the ADORA2A gene.</div>
 <img src="assets/ACE-chromatogram.png" style="width:85%;display:block;margin:10px auto 0;border-radius:8px;">
 </div>
 <!-- 3 -->
@@ -1279,8 +1265,8 @@
 </div>
 </div>
 <div style="flex:1;">
-<div id="page3-CYP1A2-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “A” bases at the
-                  rs762551 position. This is called the <b style="color:#1b2240;">AA genotype.</b></div>
+<div id="page3-CYP1A2-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “A” bases at
+                  this position in the CYP1A2 gene. This is called the <b style="color:#1b2240;">AA genotype.</b></div>
 <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;"><div class="dynamic-icon" data-icon="bolt_boost" data-color="#1f9d63" data-size="18" style="display:inline-block; width:18px; height:18px;"></div><span id="page3-CYP1A2-effect" style="font-size:12px;line-height:1.45;color:#5c6473;">AA is
                     associated with rapid
                     metabolism of caffeine, meaning you clear it quickly from your system.</span>
@@ -1314,8 +1300,7 @@
 </div>
 <div style="flex:1;">
 <div id="page3-ADORA2A-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “T” alleles at
-                  the
-                  rs5751876 position. This is called the <b style="color:#1b2240;">TT genotype.</b></div>
+                  this position in the ADORA2A gene. This is called the <b style="color:#1b2240;">TT genotype.</b></div>
 <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;"><div class="dynamic-icon" data-icon="bedtime" data-color="#1f9d63" data-size="18" style="display:inline-block; width:18px; height:18px;"></div><span id="page3-ADORA2A-effect" style="font-size:12px;line-height:1.45;color:#5c6473;">The TT
                     genotype is associated with
                     lower caffeine sensitivity, meaning you are less prone to jitters and sleep disruption.</span>
@@ -1330,7 +1315,7 @@
                 4</div>
 <div style="font-size:15.5px;font-weight:700;color:#1b2240;">WHERE IS THIS VARIANT LOCATED? - CYP1A2</div>
 </div>
-<div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">rs762551 is a well-studied
+<div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">This is a well-studied
               variant in the CYP1A2 gene on chromosome 15.</div>
 <img src="assets/p5-chromosome.png" style="width:85%;display:block;margin:8px auto 0;">
 <div style="font-size:12px;line-height:1.45;color:#5c6473;margin-top:8px;">This gene provides instructions
@@ -1344,7 +1329,7 @@
 <div style="font-size:15.5px;font-weight:700;color:#1b2240;">WHERE IS THIS VARIANT LOCATED? - ADORA2A
               </div>
 </div>
-<div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">rs5751876 is a well-studied
+<div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">This is a well-studied
               variant in the ADORA2A gene on chromosome 22.</div>
 <img src="assets/ACE-chromosome.png" style="width:85%;display:block;margin:8px auto 0;">
 <div style="font-size:12px;line-height:1.45;color:#5c6473;margin-top:8px;">This gene provides instructions

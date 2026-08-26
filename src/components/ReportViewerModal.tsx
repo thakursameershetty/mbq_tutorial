@@ -491,19 +491,6 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         let genesObj = window.GENE_VARIANTS || {};
                         let genes = Object.keys(genesObj);
                         
-                        const rsidMap = {
-                            "ACTN3": "rs1815739",
-                            "ACE": "rs4646994",
-                            "CYP1A2": "rs762551",
-                            "ADORA2A": "rs5751876",
-                            "EDAR": "rs3827760",
-                            "FGFR2": "rs4752566"
-                        };
-                        
-                        const markersStr = genes.map(g => rsidMap[g] || "").join(', ');
-                        const genotypeStr = Object.values(genesObj).join(', ');
-                        const genesStr = genes.join(', ');
-                        
                         let allLinks = [];
                         if (data.per_gene_appendix) {
                             genes.forEach(g => {
@@ -606,9 +593,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
 
                         // Set top header and appendix dynamic fields
                         simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 600, 13); // Page 1 card
-                        setText('header-gene', genesStr);
-                        setText('appendix-marker', markersStr);
-                        setText('appendix-genotype', genotypeStr);
+                        setText('header-gene', geneGtStrShort); // Page 5 card: "GENE (Genotype)"
                         
                         // Set combined Page 3 blocks (mostly used in hair template)
                         simplifyGeneCard('page3-combined-gene', 'page3-combined-marker', 'page3-combined-genotype');
@@ -713,7 +698,8 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                     if (!str) return str;
                                     return str.toLowerCase().replace(/(^\\s*\\w|\\s+\\w)/g, c => c.toUpperCase());
                                 };
-                                setText('page1-share-title', toTitleCase(data.page_1.share_card.title));
+                                const shareTitle = (data.page_1.share_card.title || '').replace(/^my qode\\s+/i, '');
+                                setText('page1-share-title', toTitleCase(shareTitle));
 
                                 const highlightEl = document.getElementById('page1-share-highlight');
                                 if (highlightEl) {
@@ -824,12 +810,11 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                 
                                 const descEl = document.getElementById('page3-' + g + '-desc');
                                 if (descEl) {
-                                    const rsid = rsidMap[g] || "";
                                     let descText = "";
                                     if (a1 === a2) {
-                                        descText = 'You have two "' + a1 + '" bases at the ' + rsid + ' position. This is called the <b style="color:#1b2240;">' + genotype + ' genotype.</b>';
+                                        descText = 'You have two "' + a1 + '" bases at this position in the ' + g + ' gene. This is called the <b style="color:#1b2240;">' + genotype + ' genotype.</b>';
                                     } else {
-                                        descText = 'You have the "' + a1 + '" and "' + a2 + '" bases at the ' + rsid + ' position. This is called the <b style="color:#1b2240;">' + genotype + ' genotype.</b>';
+                                        descText = 'You have the "' + a1 + '" and "' + a2 + '" bases at this position in the ' + g + ' gene. This is called the <b style="color:#1b2240;">' + genotype + ' genotype.</b>';
                                     }
                                     descEl.innerHTML = descText;
                                 }

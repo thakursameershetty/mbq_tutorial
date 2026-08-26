@@ -82,6 +82,24 @@ pool.query(`
   CREATE UNIQUE INDEX IF NOT EXISTS test_interests_unique ON test_interests (mbq_id, test_name);
 `).catch(err => console.error('Failed to ensure test_interests table:', err));
 
+// QODAi chatbot state, keyed by user_id so it syncs across every device a user
+// logs in on instead of living in a single browser's localStorage.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS chat_sessions (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id VARCHAR(255) NOT NULL,
+    title VARCHAR(255),
+    messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, session_id)
+  );
+  CREATE TABLE IF NOT EXISTS chat_usage (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    prompt_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+`).catch(err => console.error('Failed to ensure chat_sessions/chat_usage tables:', err));
+
 /**
  * Fetches all rows from the configured Google Sheet.
  * Results are cached for SHEET_CACHE_TTL_MS (2 min) to reduce Sheets API load.
@@ -1436,18 +1454,97 @@ app.delete('/api/users/bulk', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat API
 // ─────────────────────────────────────────────────────────────────────────────
+const CHAT_PROMPT_LIMIT = 10;
+
 app.post('/api/chat', express.json(), async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, userId } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
+    if (userId) {
+      const usageResult = await pool.query('SELECT prompt_count FROM chat_usage WHERE user_id = $1', [userId]);
+      const currentCount = usageResult.rows[0]?.prompt_count || 0;
+      if (currentCount >= CHAT_PROMPT_LIMIT) {
+        return res.status(403).json({ error: 'limit_reached', promptCount: currentCount });
+      }
+    }
+
     const reply = await generateChatResponse(messages);
-    res.json({ reply });
+
+    let promptCount = null;
+    if (userId) {
+      const incrementResult = await pool.query(
+        `INSERT INTO chat_usage (user_id, prompt_count, updated_at) VALUES ($1, 1, CURRENT_TIMESTAMP)
+         ON CONFLICT (user_id) DO UPDATE SET prompt_count = chat_usage.prompt_count + 1, updated_at = CURRENT_TIMESTAMP
+         RETURNING prompt_count`,
+        [userId]
+      );
+      promptCount = incrementResult.rows[0].prompt_count;
+    }
+
+    res.json({ reply, promptCount });
   } catch (error) {
     console.error('Chat API Error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate chat response' });
+  }
+});
+
+// Per-user chat usage and history, so both sync across every device the user logs into.
+app.get('/api/chat/usage/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query('SELECT prompt_count FROM chat_usage WHERE user_id = $1', [userId]);
+    res.json({ promptCount: result.rows[0]?.prompt_count || 0 });
+  } catch (error) {
+    console.error('Chat Usage Fetch Error:', error);
+    res.status(500).json({ error: 'Failed to fetch chat usage' });
+  }
+});
+
+app.get('/api/chat/sessions/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query(
+      'SELECT session_id AS id, title, messages, updated_at AS "updatedAt" FROM chat_sessions WHERE user_id = $1 ORDER BY updated_at DESC',
+      [userId]
+    );
+    res.json({ sessions: result.rows });
+  } catch (error) {
+    console.error('Chat Sessions Fetch Error:', error);
+    res.status(500).json({ error: 'Failed to fetch chat sessions' });
+  }
+});
+
+app.put('/api/chat/sessions/:userId/:sessionId', express.json(), async (req, res) => {
+  try {
+    const { userId, sessionId } = req.params;
+    const { title, messages } = req.body;
+    if (!Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array is required' });
+    }
+    await pool.query(
+      `INSERT INTO chat_sessions (user_id, session_id, title, messages, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, session_id) DO UPDATE SET title = EXCLUDED.title, messages = EXCLUDED.messages, updated_at = CURRENT_TIMESTAMP`,
+      [userId, sessionId, title || 'New chat', JSON.stringify(messages)]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Chat Session Save Error:', error);
+    res.status(500).json({ error: 'Failed to save chat session' });
+  }
+});
+
+app.delete('/api/chat/sessions/:userId/:sessionId', async (req, res) => {
+  try {
+    const { userId, sessionId } = req.params;
+    await pool.query('DELETE FROM chat_sessions WHERE user_id = $1 AND session_id = $2', [userId, sessionId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Chat Session Delete Error:', error);
+    res.status(500).json({ error: 'Failed to delete chat session' });
   }
 });
 

@@ -145,7 +145,7 @@
           <div id="share-card-container" style="zoom:0.8;flex-shrink:0;margin-top:24px;border-radius:20px;overflow:hidden;background:radial-gradient(130% 130% at 78% 0%, #3a2470 0%, #1c1652 48%, #0e122e 100%);color:#fff;padding:30px 34px;display:flex;">
             <div style="flex:1.18;padding-right:30px;">
               <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:#a98bff;">SHARE YOUR MUSCLE QODE</div>
-              <div style="font-size:26px;font-weight:800;margin-top:12px;color:#fff;">My Qode <span id="page1-share-title">Power Performance</span></div>
+              <div style="font-size:26px;font-weight:800;margin-top:12px;color:#fff;">My Muscle Qode is<br/><span id="page1-share-title">Power Performance</span></div>
               <div id="page1-share-highlight" style="margin-top:16px;display:flex;flex-direction:column;gap:7px;font-size:16px;line-height:1.4;color:#d8d3f4;font-weight:500;"></div>
               <div style="margin-top:20px;border-left:3px solid #6a3df0;padding-left:16px;">
                 <p id="page1-share-quote" style="font-size:16px;line-height:1.5;font-weight:500;font-style:italic;margin:0;color:#eef0ff;">My body is built for
@@ -1210,28 +1210,14 @@
           </div>
           <div style="width:430px;flex:none;background:#fff;border:1px solid #ececf5;border-radius:16px;box-shadow:0 8px 24px rgba(40,40,90,.06);padding:16px 20px;display:flex;align-items:center;gap:18px;">
             <div class="dynamic-icon" data-icon="docs" data-color="#6a3bd6" data-size="44" style="display:inline-block; width:44px; height:44px;"></div>
-            <div style="flex:1;">
-              <div style="display:flex;border-bottom:1px solid #eef0f5;padding-bottom:9px;margin-bottom:9px;">
-                <div style="flex:1;border-right:1px solid #eef0f5;">
-                  <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENE</div>
-                  <div id="header-gene" style="font-size:18px;font-weight:700;color:#1b2240;">ACTN3, ACE</div>
-                </div>
-                <div style="flex:1.2;padding-left:14px;">
-                  <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">MARKER (rsID)</div>
-                  <div id="appendix-marker" style="font-size:18px;font-weight:700;color:#1b2240;">rs1815739, rs4646994
-                  </div>
-                </div>
+            <div style="flex:1;display:flex;">
+              <div style="flex:1;border-right:1px solid #eef0f5;">
+                <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENE (Genotype)</div>
+                <div id="header-gene" style="font-size:18px;font-weight:700;color:#1b2240;">ACTN3 (RR), ACE (II)</div>
               </div>
-              <div style="display:flex;">
-                <div style="flex:1;border-right:1px solid #eef0f5;">
-                  <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">GENOTYPE</div>
-                  <div id="appendix-genotype" style="font-size:18px;font-weight:700;color:#1b2240;">RR (G / G), DD (G /
-                    G)</div>
-                </div>
-                <div style="flex:1.2;padding-left:14px;">
-                  <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">METHOD</div>
-                  <div style="font-size:16px;font-weight:700;color:#1b2240;">Sanger Sequencing</div>
-                </div>
+              <div style="flex:1;padding-left:14px;">
+                <div style="font-size:10.5px;font-weight:600;color:#97a0b0;letter-spacing:.3px;">METHOD</div>
+                <div style="font-size:16px;font-weight:700;color:#1b2240;">Sanger Sequencing</div>
               </div>
             </div>
           </div>
@@ -1266,7 +1252,7 @@
               <div style="font-size:15.5px;font-weight:700;color:#1b2240;">UNDERSTANDING YOUR CHROMATOGRAM - ACTN3</div>
             </div>
             <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">The chromatogram below shows
-              your DNA sequence around the rs1815739 position.</div>
+              your DNA sequence at this position in the ACTN3 gene.</div>
             <img src="assets/p5-chromatogram.png" style="width:85%;display:block;margin:10px auto 0;border-radius:8px;">
           </div>
           <!-- 2 -->
@@ -1277,7 +1263,7 @@
               <div style="font-size:15.5px;font-weight:700;color:#1b2240;">UNDERSTANDING YOUR CHROMATOGRAM - ACE</div>
             </div>
             <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">The chromatogram below shows
-              your DNA sequence around the rs4646994 position.</div>
+              your DNA sequence at this position in the ACE gene.</div>
             <img src="assets/ACE-chromatogram.png" style="width:85%;display:block;margin:10px auto 0;border-radius:8px;">
           </div>
           <!-- 3 -->
@@ -1305,8 +1291,8 @@
                 </div>
               </div>
               <div style="flex:1;">
-                <div id="page3-ACTN3-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “G” bases at the
-                  rs1815739 position. This is called the <b style="color:#1b2240;">RR genotype.</b></div>
+                <div id="page3-ACTN3-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “G” bases at
+                  this position in the ACTN3 gene. This is called the <b style="color:#1b2240;">RR genotype.</b></div>
                 <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;"><div class="dynamic-icon" data-icon="exercise" data-color="#1f9d63" data-size="18" style="display:inline-block; width:18px; height:18px;"></div><span id="page3-ACTN3-effect" style="font-size:12px;line-height:1.45;color:#5c6473;">RR is
                     associated with the
                     production of functional alpha-actinin-3 protein, which supports power, speed and strength.</span>
@@ -1340,8 +1326,7 @@
               </div>
               <div style="flex:1;">
                 <div id="page3-ACE-desc" style="font-size:12.5px;line-height:1.45;color:#5c6473;">You have two “G” alleles at
-                  the
-                  rs4646994 position. This is called the <b style="color:#1b2240;">DD genotype.</b></div>
+                  this position in the ACE gene. This is called the <b style="color:#1b2240;">DD genotype.</b></div>
                 <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;"><div class="dynamic-icon" data-icon="exercise" data-color="#1f9d63" data-size="18" style="display:inline-block; width:18px; height:18px;"></div><span id="page3-ACE-effect" style="font-size:12px;line-height:1.45;color:#5c6473;">The DD
                     genotype is associated with
                     higher ACE levels, which may support power and strength-oriented athletic performance.</span>
@@ -1356,7 +1341,7 @@
                 4</div>
               <div style="font-size:15.5px;font-weight:700;color:#1b2240;">WHERE IS THIS VARIANT LOCATED? - ACTN3</div>
             </div>
-            <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">rs1815739 is a well-studied
+            <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">This is a well-studied
               variant in the ACTN3 gene on chromosome 11.</div>
             <img src="assets/p5-chromosome.png" style="width:85%;display:block;margin:8px auto 0;">
             <div style="font-size:12px;line-height:1.45;color:#5c6473;margin-top:8px;">This gene provides instructions
@@ -1369,7 +1354,7 @@
                 4</div>
               <div style="font-size:15.5px;font-weight:700;color:#1b2240;">WHERE IS THIS VARIANT LOCATED? - ACE</div>
             </div>
-            <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">rs4646994 is a well-studied
+            <div style="font-size:12.5px;line-height:1.5;color:#5c6473;margin-top:10px;">This is a well-studied
               variant in the ACE gene on chromosome 17.</div>
             <img src="assets/ACE-chromosome.png" style="width:85%;display:block;margin:8px auto 0;">
             <div style="font-size:12px;line-height:1.45;color:#5c6473;margin-top:8px;">This gene provides instructions

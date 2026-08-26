@@ -61,6 +61,20 @@ const MAX_USER_PROMPTS = 10;
 const PROMPT_LIMIT_MESSAGE =
   "This is an early access. Thank you! You are one of the first members to contribute in this program. We are soon releasing our final product";
 
+// Logged-in users get their prompt count and chat history synced to the backend
+// (keyed by user id) so both stay consistent across every device they log into.
+// Without a profile (e.g. not logged in), everything falls back to localStorage.
+function getCurrentUserId(): string | null {
+  try {
+    const raw = localStorage.getItem("userProfile");
+    if (!raw) return null;
+    const profile = JSON.parse(raw);
+    return profile?.id != null ? String(profile.id) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 const CustomCodeBlock = ({
   node,
   inline,
@@ -137,7 +151,10 @@ export default function FloatingChatbot({
 
   // Early-access prompt cap: counts real user-initiated sends (not retries), persists across
   // sessions/reloads/new chats so it can't be bypassed by starting a fresh conversation.
+  // Logged-in users get this from the backend (synced across devices); guests fall back
+  // to a per-browser localStorage count.
   const [promptCount, setPromptCount] = useState<number>(() => {
+    if (getCurrentUserId()) return 0;
     try {
       const raw = localStorage.getItem(PROMPT_COUNT_STORAGE_KEY);
       const parsed = raw ? parseInt(raw, 10) : 0;
@@ -147,6 +164,19 @@ export default function FloatingChatbot({
     }
   });
   const isPromptLimitReached = promptCount >= MAX_USER_PROMPTS;
+
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    fetch(`/api/chat/usage/${userId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.promptCount === "number") {
+          setPromptCount(data.promptCount);
+        }
+      })
+      .catch((e) => console.error("Failed to load chat usage", e));
+  }, []);
 
   // App/Chat feedback states
   const [showAppFeedbackPrompt, setShowAppFeedbackPrompt] = useState(false);
@@ -200,7 +230,28 @@ export default function FloatingChatbot({
   // null while the current conversation hasn't been saved yet (fresh chat, no messages sent).
   const sessionIdRef = useRef<string | null>(null);
 
+  // Logged-in users load their chat history from the backend (synced across devices);
+  // guests fall back to a per-browser localStorage list.
   useEffect(() => {
+    const userId = getCurrentUserId();
+    if (userId) {
+      fetch(`/api/chat/sessions/${userId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.sessions) {
+            setChatSessions(
+              data.sessions.map((s: any) => ({
+                id: s.id,
+                title: s.title,
+                messages: s.messages,
+                updatedAt: new Date(s.updatedAt).getTime(),
+              })),
+            );
+          }
+        })
+        .catch((e) => console.error("Failed to load chat history", e));
+      return;
+    }
     try {
       const raw = localStorage.getItem(CHAT_SESSIONS_STORAGE_KEY);
       if (raw) setChatSessions(JSON.parse(raw));
@@ -243,10 +294,20 @@ export default function FloatingChatbot({
         existingIdx >= 0
           ? prev.map((s, i) => (i === existingIdx ? updatedSession : s))
           : [updatedSession, ...prev];
-      try {
-        localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.error("Failed to save chat history", e);
+
+      const userId = getCurrentUserId();
+      if (userId) {
+        fetch(`/api/chat/sessions/${userId}/${sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, messages: storedMessages }),
+        }).catch((e) => console.error("Failed to save chat history", e));
+      } else {
+        try {
+          localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(next));
+        } catch (e) {
+          console.error("Failed to save chat history", e);
+        }
       }
       return next;
     });
@@ -294,10 +355,17 @@ export default function FloatingChatbot({
 
     setChatSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
-      try {
-        localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(next));
-      } catch (err) {
-        console.error("Failed to save chat history", err);
+      const userId = getCurrentUserId();
+      if (userId) {
+        fetch(`/api/chat/sessions/${userId}/${id}`, { method: "DELETE" }).catch((err) =>
+          console.error("Failed to delete chat session", err),
+        );
+      } else {
+        try {
+          localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(next));
+        } catch (err) {
+          console.error("Failed to save chat history", err);
+        }
       }
       return next;
     });
@@ -466,13 +534,19 @@ export default function FloatingChatbot({
     if (!text.trim()) return;
     if (isPromptLimitReached) return;
 
+    // Decrement immediately so the UI doesn't sit on the stale count while the request
+    // is in flight; the /api/chat response below then reconciles with the backend's
+    // authoritative count for logged-in users.
+    const userId = getCurrentUserId();
     if (!isRetry) {
       setPromptCount((prev) => {
         const next = prev + 1;
-        try {
-          localStorage.setItem(PROMPT_COUNT_STORAGE_KEY, next.toString());
-        } catch (e) {
-          console.error("Failed to save prompt count", e);
+        if (!userId) {
+          try {
+            localStorage.setItem(PROMPT_COUNT_STORAGE_KEY, next.toString());
+          } catch (e) {
+            console.error("Failed to save prompt count", e);
+          }
         }
         return next;
       });
@@ -614,7 +688,7 @@ export default function FloatingChatbot({
 
       const systemPrompt = {
         role: "system",
-        content: `You are QODAi, a helpful personal health companion for the My Body Qode (MBQ) app. ${lengthInstruction}\\n\\nCRITICAL RULES:\\n1. NEVER mention a "knowledge cutoff" date (e.g. October 2023).\\n2. If the user asks about their "MBQ report", "report", or health data, YOU MUST use the 'User Context' provided below.\\n3. If the 'User Context' says "No reports are available", tell the user: "I don't see your genomic report in your profile yet. Your report is currently being processed by our team. Please check your email daily for the latest updates." AND explicitly mention their latest completed sample status from the 'Profile Journey Statuses' (e.g. "Based on your profile journey, your sample was received on [Date]").\\n4. The 'Available Report Topics' line lists the ONLY genomic reports the user currently has. If the user asks about a topic that is NOT in that list, do NOT give generic advice or fabricate insights. Instead check which of these applies: (a) if the topic appears in 'Opted-In Tests (Report Pending)', the user IS enrolled for that test — tell them the report is still being generated/processed, referencing their 'Profile Journey Statuses'; (b) if the topic appears in 'Tests NOT Opted-In', the user was never enrolled for that test — do NOT imply a report is coming, instead tell them this test isn't part of their current genomic profile and they would need to opt into/order that specific test to get insights on it; (c) if neither list is present at all, fall back to the general "report isn't available yet" messaging from rule 3. Only discuss a topic in depth when a matching report is actually listed in 'Available Report Topics'.\\n${userContext}`,
+        content: `You are QODAi, a helpful personal health companion for the My Body Qode (MBQ) app. ${lengthInstruction}\\n\\nCRITICAL RULES:\\n1. NEVER mention a "knowledge cutoff" date (e.g. October 2023).\\n2. If the user asks about their "MBQ report", "report", or health data, YOU MUST use the 'User Context' provided below.\\n3. If the 'User Context' says "No reports are available", tell the user: "I don't see your genomic report in your profile yet. Your report is currently being processed by our team. Please check your email daily for the latest updates." AND explicitly mention their latest completed sample status from the 'Profile Journey Statuses' (e.g. "Based on your profile journey, your sample was received on [Date]").\\n4. The 'Available Report Topics' line lists the ONLY genomic reports the user currently has. If the user asks about a topic that is NOT in that list, do NOT give generic advice or fabricate insights. Instead check which of these applies: (a) if the topic appears in 'Opted-In Tests (Report Pending)', the user IS enrolled for that test — tell them the report is still being generated/processed, referencing their 'Profile Journey Statuses'; (b) if the topic appears in 'Tests NOT Opted-In', the user was never enrolled for that test — do NOT imply a report is coming, instead tell them this test isn't part of their current genomic profile and they would need to opt into/order that specific test to get insights on it; (c) if neither list is present at all, fall back to the general "report isn't available yet" messaging from rule 3. Only discuss a topic in depth when a matching report is actually listed in 'Available Report Topics'.\\n5. NEVER mention rsIDs (e.g. "rs1815739", "rs4646994") or any SNP/marker/variant ID under any circumstances, even if the user directly asks for it, asks you to "look it up", or insists. Do not name, confirm, deny, or hint at what a gene's rsID is. If asked, politely say that level of technical detail isn't something you share, and redirect to what the result actually means for them (e.g. "I don't share specific marker IDs, but I can tell you what your ACTN3 result means for you — want me to?"). Always refer to findings by gene name and genotype only (e.g. "ACTN3 (RR)"), never by rsID.\\n${userContext}`,
       };
 
       const chatHistory = [
@@ -630,11 +704,25 @@ export default function FloatingChatbot({
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: chatHistory }),
+        body: JSON.stringify({ messages: chatHistory, userId }),
       });
+
+      if (response.status === 403) {
+        const limitData = await response.json();
+        if (typeof limitData.promptCount === "number") setPromptCount(limitData.promptCount);
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 1).toString(), role: "bot", content: PROMPT_LIMIT_MESSAGE },
+        ]);
+        return;
+      }
 
       if (!response.ok) throw new Error("Network response was not ok");
       const data = await response.json();
+
+      if (userId && typeof data.promptCount === "number") {
+        setPromptCount(data.promptCount);
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -1426,17 +1514,19 @@ export default function FloatingChatbot({
       </AnimatePresence>
 
       {/* FAB */}
-      <motion.button
-        className="fixed bottom-6 right-6 w-14 h-14 bg-[#6057D7] rounded-full shadow-[0_8px_20px_rgba(96,87,215,0.3)] flex items-center justify-center text-white hover:bg-[#4B44B3] transition-colors z-[60] cursor-pointer"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Sparkles size={24} />
-        {!isOpen && (
-          <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
-        )}
-      </motion.button>
+      {(!isOpen || !isFullScreen) && (
+        <motion.button
+          className="fixed bottom-6 right-6 w-14 h-14 bg-[#6057D7] rounded-full shadow-[0_8px_20px_rgba(96,87,215,0.3)] flex items-center justify-center text-white hover:bg-[#4B44B3] transition-colors z-[60] cursor-pointer"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <Sparkles size={24} />
+          {!isOpen && (
+            <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+          )}
+        </motion.button>
+      )}
     </>
   );
 }
