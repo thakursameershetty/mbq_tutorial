@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ChevronDown, Activity, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronDown, Activity, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
 import FloatingChatbot from '../components/FloatingChatbot';
 
 interface Question {
@@ -32,10 +32,19 @@ interface SelectedQuestion extends Question {
   uniqueId: string;
 }
 
+// Every template page is laid out at a fixed intrinsic size (matches the
+// jsPDF page format used by downloadPDF) - the report itself is never
+// responsive, so on a narrow viewport we scale the whole page down
+// uniformly with a CSS transform rather than letting it overflow/crop.
+// Mirrors ReportViewerModal.tsx so both viewers render identically.
+const DESIGN_WIDTH = 1024;
+const DESIGN_HEIGHT = 1449;
+
 export default function TestReportPage() {
   const [allQuestions, setAllQuestions] = useState<SelectedQuestion[]>([]);
   const [tests, setTests] = useState<TestData[]>([]);
   const [selectedTestName, setSelectedTestName] = useState<string>('');
+  const [selectedGender, setSelectedGender] = useState<string>('Male');
   const [geneVariants, setGeneVariants] = useState<Record<string, string>>({});
 
   const [loadingQs, setLoadingQs] = useState(true);
@@ -55,16 +64,64 @@ export default function TestReportPage() {
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
+  const [scale, setScale] = useState(1);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [iframeReady, setIframeReady] = useState(false);
+  // Pages aren't all a uniform 1449px tall (some grow with content) - track the
+  // currently-visible page's real rendered height so it's shown in full rather
+  // than clipped to (or padded out to) one fixed length for every page.
+  const [pageHeight, setPageHeight] = useState(DESIGN_HEIGHT);
+
   useEffect(() => {
     fetchQuestions();
   }, []);
 
   useEffect(() => {
-    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow && reportHtml) {
-      iframe.contentWindow.postMessage({ type: 'SET_PAGE', pageIndex: currentPageIndex }, '*');
-    }
-  }, [currentPageIndex, reportHtml]);
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const updateScale = () => {
+      const width = el.clientWidth;
+      // Fit the page to the viewport's width exactly (no side margins). The iframe's
+      // own scrolling is disabled, so the outer viewport is the only scrollable
+      // region if a page ends up taller than the visible area.
+      if (width > 0) setScale(Math.min(1, width / DESIGN_WIDTH));
+    };
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [reportHtml]);
+
+  useEffect(() => {
+    setIframeReady(false);
+    setPageHeight(DESIGN_HEIGHT);
+  }, [reportHtml]);
+
+  useEffect(() => {
+    if (!iframeReady) return;
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement | null;
+    iframe?.contentWindow?.postMessage({ type: 'SET_PAGE', pageIndex: currentPageIndex }, '*');
+
+    // Measure the now-visible page's real height once the display swap (and the
+    // resulting reflow) has settled - a single rAF isn't reliably after layout in
+    // every browser, so wait a frame, then measure on the one after that.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const doc = iframe?.contentDocument;
+        const pages = doc?.querySelectorAll('div[data-screen-label]');
+        const visible = pages?.[currentPageIndex] as HTMLElement | undefined;
+        const height = visible?.scrollHeight || doc?.body?.scrollHeight;
+        if (height && height > 0) setPageHeight(height);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [iframeReady, currentPageIndex]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -116,6 +173,31 @@ export default function TestReportPage() {
       console.error("Failed to load questions", err);
     } finally {
       setLoadingQs(false);
+    }
+  };
+
+  const handleRandomize = () => {
+    if (questions.length > 0) {
+      setAnswers(prev => {
+        const next = { ...prev };
+        questions.forEach(q => {
+          next[q.uniqueId] = Math.floor(Math.random() * q.options.length);
+        });
+        return next;
+      });
+    }
+
+    if (currentTest) {
+      setGeneVariants(prev => {
+        const next = { ...prev };
+        [currentTest.subgene1_name, currentTest.subgene2_name].forEach(gene => {
+          const opts = VARIANT_OPTIONS[gene];
+          if (opts && opts.length > 0) {
+            next[gene] = opts[Math.floor(Math.random() * opts.length)];
+          }
+        });
+        return next;
+      });
     }
   };
 
@@ -202,18 +284,29 @@ export default function TestReportPage() {
               <p className="text-sm text-[#8B8B86]">Select test and variants to generate report</p>
             </div>
 
-            <select
-              value={selectedTestName}
-              onChange={(e) => {
-                setSelectedTestName(e.target.value);
-                setAnswers({});
-              }}
-              className="px-4 py-2 bg-white border border-[#E8E8E5] rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#6057D7] min-w-[150px]"
-            >
-              {tests.map(t => (
-                <option key={t.id} value={t.test_name}>{t.test_name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+                className="px-4 py-2 bg-white border border-[#E8E8E5] rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#6057D7] min-w-[110px]"
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+
+              <select
+                value={selectedTestName}
+                onChange={(e) => {
+                  setSelectedTestName(e.target.value);
+                  setAnswers({});
+                }}
+                className="px-4 py-2 bg-white border border-[#E8E8E5] rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#6057D7] min-w-[150px]"
+              >
+                {tests.map(t => (
+                  <option key={t.id} value={t.test_name}>{t.test_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -331,18 +424,28 @@ export default function TestReportPage() {
           <span className="text-sm text-[#8B8B86]">
             Answered: <span className="font-bold text-[#1A1A19]">{answeredQuestionIds.size}</span> / {questions.length}
           </span>
-          <button
-            onClick={handleGenerate}
-            disabled={!allAnswered || generating}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
-              ${allAnswered
-                ? 'bg-[#1A1A19] text-white hover:bg-black'
-                : 'bg-[#F0F0ED] text-[#A0A09D] cursor-not-allowed'
-              }`}
-          >
-            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {generating ? 'Generating...' : 'Generate AI Report'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRandomize}
+              disabled={questions.length === 0}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border border-[#E8E8E5] text-[#1A1A19] hover:bg-[#F0F0ED] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Shuffle className="w-4 h-4" />
+              Randomize
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={!allAnswered || generating}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
+                ${allAnswered
+                  ? 'bg-[#1A1A19] text-white hover:bg-black'
+                  : 'bg-[#F0F0ED] text-[#A0A09D] cursor-not-allowed'
+                }`}
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {generating ? 'Generating...' : 'Generate AI Report'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -592,13 +695,35 @@ export default function TestReportPage() {
                     <script>
                       window.REPORT_DATA = ${JSON.stringify(reportResult)};
                       window.GENE_VARIANTS = ${JSON.stringify(geneVariants)};
+                      window.USER_GENDER = ${JSON.stringify(selectedGender || '')};
                       console.log("Report Data loaded:", window.REPORT_DATA);
-                      
+
                       try {
                         let data = window.REPORT_DATA;
                         let genesObj = window.GENE_VARIANTS || {};
                         let genes = Object.keys(genesObj);
-                        
+
+                        // Page 1 hero image: swaps in a gender + genotype specific portrait.
+                        // Mirrors the logic in ReportViewerModal.tsx.
+                        (function() {
+                            const heroConfigs = {
+                                caffeine: { dir: 'CYP1A2', gene: 'CYP1A2', normalize: gt => gt === 'CA' ? 'AC' : gt, fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png') },
+                                muscle: { dir: 'ACTN3', gene: 'ACTN3', normalize: gt => gt === 'XR' ? 'RX' : gt, fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png' },
+                                hair: { dir: 'EDAR:FGFR2', gene: 'EDAR', normalize: gt => gt === 'GA' ? 'AG' : gt, fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png' }
+                            };
+                            const testKey = ${JSON.stringify(testId)};
+                            const config = heroConfigs[testKey];
+                            const heroEl = document.getElementById('page1-hero-image');
+                            if (config && heroEl) {
+                                const rawGender = (window.USER_GENDER || '').toLowerCase();
+                                const genderKey = rawGender.startsWith('m') ? 'male' : rawGender.startsWith('f') ? 'female' : null;
+                                const genotype = config.normalize(genesObj[config.gene] || '');
+                                if (genderKey && genotype) {
+                                    heroEl.src = 'assets/mbq-page1/' + encodeURIComponent(config.dir) + '/' + encodeURIComponent(config.fileName(genotype, genderKey));
+                                }
+                            }
+                        })();
+
                         let allLinks = [];
                         if (data.per_gene_appendix) {
                             genes.forEach(g => {
@@ -700,7 +825,7 @@ export default function TestReportPage() {
                         };
 
                         // Set top header and appendix dynamic fields
-                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 600, 13); // Page 1 card
+                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 450, 13); // Page 1 card
                         setText('header-gene', geneGtStrShort); // Page 5 card: "GENE (Genotype)"
                         
                         // Set combined Page 3 blocks (mostly used in hair template)
@@ -1172,6 +1297,21 @@ export default function TestReportPage() {
                                       pages.forEach((p, idx) => {
                                           p.style.display = (idx === i) ? 'block' : 'none';
                                       });
+                                      // The interactive viewer overrides a page's height to 'auto'
+                                      // (with its designed height as a floor) while it's being viewed
+                                      // (see showOnlyPage above) so it can measure and display the
+                                      // page in full - restore its original fixed height/min-height
+                                      // here so the PDF capture matches the designed page size
+                                      // regardless of what was viewed beforehand.
+                                      if (window.__originalPageHeights && window.__originalPageHeights.has(pages[i])) {
+                                          pages[i].style.height = window.__originalPageHeights.get(pages[i]);
+                                          pages[i].style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(pages[i])) || '';
+                                      }
+                                      const innerRestore = Array.from(pages[i].children).find((c) => window.__originalPageHeights && window.__originalPageHeights.has(c));
+                                      if (innerRestore) {
+                                          innerRestore.style.height = window.__originalPageHeights.get(innerRestore);
+                                          innerRestore.style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
+                                      }
                                       // Only the page about to be captured is visible, so its zoomed
                                       // elements can only be measured (and thus wrapped) now.
                                       neutralizeZoom(pages[i]);
@@ -1230,12 +1370,65 @@ export default function TestReportPage() {
 
                   const carouselScript = `
                     <script>
+                      // Snapshot each page's original (pre-viewer) height/min-height before
+                      // showOnlyPage ever touches it - window.downloadPDF restores these so the
+                      // exported PDF still matches the designed page size regardless of what the
+                      // interactive viewer below did to it. Page 1 additionally nests an inner
+                      // wrapper (height:100%) that actually holds its flex column (the footer
+                      // and the WHAT-THIS-MEANS/share cards are pinned/pushed down within THAT
+                      // element) - pages 2+ don't have this extra layer, their own page div IS
+                      // the flex column. A percentage height never resolves against an ancestor
+                      // whose own height is 'auto' (even with min-height as a floor), so that
+                      // inner wrapper needs the same min-height/height:auto treatment directly,
+                      // or its flex children get zero free space and the push-down collapses.
+                      window.__originalPageHeights = new Map();
+                      window.__originalPageMinHeights = new Map();
+                      document.querySelectorAll('div[data-screen-label]').forEach((p) => {
+                        window.__originalPageHeights.set(p, p.style.height);
+                        window.__originalPageMinHeights.set(p, p.style.minHeight);
+                        const inner = Array.from(p.children).find((c) => c.tagName === 'DIV' && c.style.height === '100%');
+                        if (inner) {
+                          window.__originalPageHeights.set(inner, inner.style.height);
+                          window.__originalPageMinHeights.set(inner, inner.style.minHeight);
+                        }
+                      });
+
+                      const showOnlyPage = (pageIndex) => {
+                        const pages = document.querySelectorAll('div[data-screen-label]');
+                        pages.forEach((p, idx) => {
+                          const isVisible = idx === pageIndex;
+                          p.style.display = isVisible ? 'block' : 'none';
+                          // Most pages have a hardcoded height (matching the PDF page size),
+                          // which clips content that doesn't fit that height exactly. Let the
+                          // visible page grow past its designed height if content demands it -
+                          // but keep that designed height as a floor (min-height), not just
+                          // dropped, so pages whose layout relies on filling their full height
+                          // (e.g. page 1's footer/cards pinned to the bottom via margin-top:auto)
+                          // still render the same as the un-touched template.
+                          if (isVisible) {
+                            const original = window.__originalPageHeights.get(p) || '';
+                            if (!p.style.minHeight) {
+                              p.style.minHeight = original;
+                            }
+                            p.style.height = 'auto';
+                            const inner = Array.from(p.children).find((c) => c.tagName === 'DIV' && window.__originalPageHeights.has(c));
+                            if (inner) {
+                              if (!inner.style.minHeight) {
+                                inner.style.minHeight = original;
+                              }
+                              inner.style.height = 'auto';
+                            }
+                          }
+                        });
+                      };
+                      // Pages are stacked in the document by default - hide everything but the
+                      // first immediately so there's no flash of every page before the viewer's
+                      // first SET_PAGE message arrives.
+                      showOnlyPage(0);
+
                       window.addEventListener('message', (e) => {
                         if (e.data && e.data.type === 'SET_PAGE') {
-                          const pages = document.querySelectorAll('div[data-screen-label]');
-                          pages.forEach((p, idx) => {
-                            p.style.display = (idx === e.data.pageIndex) ? 'block' : 'none';
-                          });
+                          showOnlyPage(e.data.pageIndex);
                         }
                       });
 
@@ -1287,6 +1480,12 @@ export default function TestReportPage() {
 
                   fontCss += `
                     <style>
+                      html, body {
+                        /* The viewer's own container is the single scroll region (fit-to-width,
+                           scaled via CSS transform) - prevent this document from ever growing
+                           its own scrollbar on top of that. */
+                        overflow: hidden !important;
+                      }
                       img[alt="MBQ Logo"], img[alt="CQ Logo"], img[alt="HQ Logo"] {
                         height: 60px !important;
                         width: auto !important;
@@ -1376,13 +1575,35 @@ export default function TestReportPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 w-full bg-white relative">
-                <iframe
-                  id="report-iframe"
-                  srcDoc={reportHtml}
-                  className="absolute inset-0 w-full h-full border-0"
-                  title="Report Preview"
-                />
+              <div className="flex-1 w-full bg-white relative overflow-hidden">
+                <div
+                  ref={viewportRef}
+                  className="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                  style={{ paddingBottom: totalPages > 1 ? 88 : 0 }}
+                >
+                  <div
+                    style={{
+                      width: DESIGN_WIDTH * scale,
+                      height: pageHeight * scale,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <iframe
+                      id="report-iframe"
+                      srcDoc={reportHtml}
+                      onLoad={() => setIframeReady(true)}
+                      scrolling="no"
+                      className="border-0"
+                      style={{
+                        width: DESIGN_WIDTH,
+                        height: pageHeight,
+                        transform: `scale(${scale})`,
+                        transformOrigin: 'top left',
+                      }}
+                      title="Report Preview"
+                    />
+                  </div>
+                </div>
 
                 {/* Carousel Navigation */}
                 {totalPages > 1 && (

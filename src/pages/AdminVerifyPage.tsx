@@ -55,7 +55,7 @@ export default function AdminVerifyPage() {
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
-  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string, generatedAt?: string | null } | null>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string, generatedAt?: string | null, gender?: string | null } | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
@@ -1128,7 +1128,7 @@ export default function AdminVerifyPage() {
                                     )}
                                     {reportData.ai_report && (
                                       <button
-                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at), generatedAt: getReportGeneratedAt(reportData, patient.status_timestamps?.generated) })}
+                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at), generatedAt: getReportGeneratedAt(reportData, patient.status_timestamps?.generated), gender: patient.gender })}
                                         className="flex items-center gap-2 px-4 py-2 bg-amber-100/80 hover:bg-amber-200 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                                       >
                                         <Sparkles size={14} />
@@ -1873,6 +1873,7 @@ export default function AdminVerifyPage() {
           geneVariants={selectedAIReport.variants}
           mbqId={selectedAIReport.mbqId}
           generatedAt={selectedAIReport.generatedAt}
+          gender={selectedAIReport.gender}
         />
       )}
     </motion.div >

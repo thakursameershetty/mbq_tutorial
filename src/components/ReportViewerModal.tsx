@@ -10,6 +10,7 @@ interface ReportViewerModalProps {
   testName: string;
   mbqId?: string;
   generatedAt?: string | null;
+  gender?: string | null;
 }
 
 // Every template page is laid out at a fixed intrinsic size (matches the
@@ -48,7 +49,7 @@ const DislikeIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, generatedAt }: ReportViewerModalProps) {
+export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, generatedAt, gender }: ReportViewerModalProps) {
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -484,13 +485,38 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                     <script>
                       window.REPORT_DATA = ${JSON.stringify(reportData)};
                       window.GENE_VARIANTS = ${JSON.stringify(geneVariants)};
+                      window.USER_GENDER = ${JSON.stringify(gender || '')};
                       console.log("Report Data loaded:", window.REPORT_DATA);
-                      
+
                       try {
                         let data = window.REPORT_DATA;
                         let genesObj = window.GENE_VARIANTS || {};
                         let genes = Object.keys(genesObj);
-                        
+
+                        // Page 1 hero image: swaps in a gender + genotype specific portrait.
+                        // Each test's headline gene (the one classic RR/RX/XX-style trait is
+                        // built from) drives which of the 6 pre-rendered images shows -
+                        // 3 genotypes x male/female. Falls back to the template's default
+                        // hero image if gender or a matching asset isn't available.
+                        (function() {
+                            const heroConfigs = {
+                                caffeine: { dir: 'CYP1A2', gene: 'CYP1A2', normalize: gt => gt === 'CA' ? 'AC' : gt, fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png') },
+                                muscle: { dir: 'ACTN3', gene: 'ACTN3', normalize: gt => gt === 'XR' ? 'RX' : gt, fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png' },
+                                hair: { dir: 'EDAR:FGFR2', gene: 'EDAR', normalize: gt => gt === 'GA' ? 'AG' : gt, fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png' }
+                            };
+                            const testKey = ${JSON.stringify(templateName)};
+                            const config = heroConfigs[testKey];
+                            const heroEl = document.getElementById('page1-hero-image');
+                            if (config && heroEl) {
+                                const rawGender = (window.USER_GENDER || '').toLowerCase();
+                                const genderKey = rawGender.startsWith('m') ? 'male' : rawGender.startsWith('f') ? 'female' : null;
+                                const genotype = config.normalize(genesObj[config.gene] || '');
+                                if (genderKey && genotype) {
+                                    heroEl.src = 'assets/mbq-page1/' + encodeURIComponent(config.dir) + '/' + encodeURIComponent(config.fileName(genotype, genderKey));
+                                }
+                            }
+                        })();
+
                         let allLinks = [];
                         if (data.per_gene_appendix) {
                             genes.forEach(g => {
@@ -592,7 +618,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         };
 
                         // Set top header and appendix dynamic fields
-                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 600, 13); // Page 1 card
+                        simplifyGeneCard('appendix-gene', 'header-marker', 'header-genotype', 450, 13); // Page 1 card
                         setText('header-gene', geneGtStrShort); // Page 5 card: "GENE (Genotype)"
                         
                         // Set combined Page 3 blocks (mostly used in hair template)
@@ -1074,6 +1100,12 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                       // page size regardless of what was viewed beforehand.
                                       if (window.__originalPageHeights && window.__originalPageHeights.has(pages[i])) {
                                           pages[i].style.height = window.__originalPageHeights.get(pages[i]);
+                                          pages[i].style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(pages[i])) || '';
+                                      }
+                                      const innerRestore = Array.from(pages[i].children).find((c) => window.__originalPageHeights && window.__originalPageHeights.has(c));
+                                      if (innerRestore) {
+                                          innerRestore.style.height = window.__originalPageHeights.get(innerRestore);
+                                          innerRestore.style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
                                       }
                                       // Only the page about to be captured is visible, so its zoomed
                                       // elements can only be measured (and thus wrapped) now.
@@ -1144,10 +1176,25 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                       // Snapshot each page's original (pre-viewer) height before showOnlyPage
                       // ever touches it - window.downloadPDF restores these so the exported
                       // PDF still matches the designed page size regardless of what the
-                      // interactive viewer below did to it.
+                      // interactive viewer below did to it. Page 1 additionally nests an inner
+                      // wrapper (height:100%) that actually holds its flex column (the footer
+                      // and the WHAT-THIS-MEANS/share cards are pinned/pushed down within THAT
+                      // element, via margin-top:auto / flex-grow spacers) - pages 2+ don't have
+                      // this extra layer, their own page div IS the flex column. A percentage
+                      // height never resolves against an ancestor whose own height is 'auto'
+                      // (even with min-height as a floor), so that inner wrapper needs the same
+                      // min-height/height:auto treatment directly, or its flex children get zero
+                      // free space to distribute and the whole push-down effect silently collapses.
                       window.__originalPageHeights = new Map();
+                      window.__originalPageMinHeights = new Map();
                       document.querySelectorAll('div[data-screen-label]').forEach((p) => {
                         window.__originalPageHeights.set(p, p.style.height);
+                        window.__originalPageMinHeights.set(p, p.style.minHeight);
+                        const inner = Array.from(p.children).find((c) => c.tagName === 'DIV' && c.style.height === '100%');
+                        if (inner) {
+                          window.__originalPageHeights.set(inner, inner.style.height);
+                          window.__originalPageMinHeights.set(inner, inner.style.minHeight);
+                        }
                       });
 
                       const showOnlyPage = (pageIndex) => {
@@ -1156,10 +1203,26 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                           const isVisible = idx === pageIndex;
                           p.style.display = isVisible ? 'block' : 'none';
                           // Most pages have a hardcoded height (matching the PDF page size),
-                          // which clips or pads content that doesn't match that height
-                          // exactly. Let the visible page size to its actual content so the
-                          // viewer can measure and show it in full.
-                          if (isVisible) p.style.height = 'auto';
+                          // which clips content that doesn't fit that height exactly. Let the
+                          // visible page grow past its designed height if content demands it -
+                          // but keep that designed height as a floor (min-height), not just
+                          // dropped, so pages whose layout relies on filling their full height
+                          // (e.g. page 1's footer/cards pinned to the bottom via margin-top:auto)
+                          // still render the same as the un-touched template.
+                          if (isVisible) {
+                            const original = window.__originalPageHeights.get(p) || '';
+                            if (!p.style.minHeight) {
+                              p.style.minHeight = original;
+                            }
+                            p.style.height = 'auto';
+                            const inner = Array.from(p.children).find((c) => c.tagName === 'DIV' && window.__originalPageHeights.has(c));
+                            if (inner) {
+                              if (!inner.style.minHeight) {
+                                inner.style.minHeight = original;
+                              }
+                              inner.style.height = 'auto';
+                            }
+                          }
                         });
                       };
                       // Pages are stacked in the document by default - hide everything but the
