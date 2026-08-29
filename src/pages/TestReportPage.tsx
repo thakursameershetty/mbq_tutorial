@@ -46,6 +46,8 @@ export default function TestReportPage() {
   const [selectedTestName, setSelectedTestName] = useState<string>('');
   const [selectedGender, setSelectedGender] = useState<string>('Male');
   const [geneVariants, setGeneVariants] = useState<Record<string, string>>({});
+  const [testMode, setTestMode] = useState<'both' | 'single'>('both');
+  const [singleGene, setSingleGene] = useState<string>('');
 
   const [loadingQs, setLoadingQs] = useState(true);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -53,16 +55,20 @@ export default function TestReportPage() {
   const [expandedQs, setExpandedQs] = useState<Record<string, boolean>>({});
 
   const [generating, setGenerating] = useState(false);
+  // Simulated 0-100 progress for the (single, un-instrumented) generate-report call -
+  // there's no real progress stream from the backend, so this eases toward 90% while
+  // waiting and is snapped to 100% right before the result is shown.
+  const [genProgress, setGenProgress] = useState(0);
+  const progressIntervalRef = useRef<number | null>(null);
   const [reportResult, setReportResult] = useState<any>(null);
+  // The exact gene(s) actually sent to the backend for the current reportResult -
+  // may be a single-gene subset of `geneVariants`, which can still hold a stale
+  // second entry left over from switching modes.
+  const [reportGenes, setReportGenes] = useState<Record<string, string>>({});
   const [reportHtml, setReportHtml] = useState<string | null>(null);
 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [pageFeedbacks, setPageFeedbacks] = useState<Record<number, string>>({});
-  const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
-  const [currentFeedbackInput, setCurrentFeedbackInput] = useState('');
-  const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null);
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   const [scale, setScale] = useState(1);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -74,7 +80,15 @@ export default function TestReportPage() {
 
   useEffect(() => {
     fetchQuestions();
+    return () => {
+      if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+    };
   }, []);
+
+  useEffect(() => {
+    const t = tests.find(t => t.test_name === selectedTestName);
+    if (t) setSingleGene(t.subgene1_name);
+  }, [selectedTestName, tests]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -188,9 +202,12 @@ export default function TestReportPage() {
     }
 
     if (currentTest) {
+      const genesToRandomize = testMode === 'single'
+        ? [singleGene]
+        : [currentTest.subgene1_name, currentTest.subgene2_name];
       setGeneVariants(prev => {
         const next = { ...prev };
-        [currentTest.subgene1_name, currentTest.subgene2_name].forEach(gene => {
+        genesToRandomize.forEach(gene => {
           const opts = VARIANT_OPTIONS[gene];
           if (opts && opts.length > 0) {
             next[gene] = opts[Math.floor(Math.random() * opts.length)];
@@ -213,13 +230,32 @@ export default function TestReportPage() {
 
     const selectedTest = tests.find(t => t.test_name === selectedTestName);
     if (selectedTest) {
-      if (!geneVariants[selectedTest.subgene1_name] || !geneVariants[selectedTest.subgene2_name]) {
+      if (testMode === 'single') {
+        if (!geneVariants[singleGene]) {
+          alert("Please select a variant for the chosen gene.");
+          return;
+        }
+      } else if (!geneVariants[selectedTest.subgene1_name] || !geneVariants[selectedTest.subgene2_name]) {
         alert("Please select variants for both genes.");
         return;
       }
     }
 
+    const genesToSend = testMode === 'single'
+      ? { [singleGene]: geneVariants[singleGene] }
+      : geneVariants;
+
     setGenerating(true);
+    setGenProgress(0);
+    if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = window.setInterval(() => {
+      setGenProgress(prev => {
+        if (prev >= 90) return prev;
+        const step = Math.max(1, (90 - prev) * 0.08);
+        return Math.min(90, prev + step);
+      });
+    }, 300);
+
     try {
       // Build raw string answers for the AI context
       const rawAnswers = questions.map(q => {
@@ -245,14 +281,23 @@ export default function TestReportPage() {
           answers,
           rawAnswers,
           testName: selectedTestName,
-          geneVariants
+          geneVariants: genesToSend
         }),
       });
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
+      if (progressIntervalRef.current) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       if (data.success) {
+        setGenProgress(100);
         setReportResult(data.report);
+        setReportGenes(genesToSend);
+        // Briefly hold at 100% before revealing the result, so the number is
+        // actually visible rather than jumping straight past it.
+        await new Promise(resolve => setTimeout(resolve, 400));
       } else {
         alert("Generation failed: " + data.error);
       }
@@ -260,11 +305,18 @@ export default function TestReportPage() {
       console.error("Failed to generate", err);
       alert("Error calling generate endpoint");
     } finally {
+      if (progressIntervalRef.current) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setGenerating(false);
+      setGenProgress(0);
     }
   };
 
-  const questions = allQuestions.filter(q => q.test_name === selectedTestName);
+  const questions = allQuestions.filter(q =>
+    q.test_name === selectedTestName && (testMode === 'both' || q.subgene_name === singleGene)
+  );
   const answeredQuestionIds = new Set([
     ...Object.keys(answers),
     ...Object.keys(customAnswers).filter(id => customAnswers[id].trim() !== '')
@@ -306,11 +358,55 @@ export default function TestReportPage() {
                   <option key={t.id} value={t.test_name}>{t.test_name}</option>
                 ))}
               </select>
+
+              <div className="flex items-center bg-white border border-[#E8E8E5] rounded-xl p-1 text-sm font-bold">
+                <button
+                  onClick={() => setTestMode('both')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${testMode === 'both' ? 'bg-[#1A1A19] text-white' : 'text-[#8B8B86] hover:text-[#1A1A19]'}`}
+                >
+                  2 Genes
+                </button>
+                <button
+                  onClick={() => setTestMode('single')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${testMode === 'single' ? 'bg-[#1A1A19] text-white' : 'text-[#8B8B86] hover:text-[#1A1A19]'}`}
+                >
+                  1 Gene
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {currentTest && (
+        {currentTest && testMode === 'single' && (
+          <div className="px-6 py-4 border-b border-[#E8E8E5] bg-indigo-50/30 flex gap-6">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-[#6057D7] mb-1">Gene</label>
+              <select
+                value={singleGene}
+                onChange={(e) => setSingleGene(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-[#E8E8E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6057D7]"
+              >
+                <option value={currentTest.subgene1_name}>{currentTest.subgene1_name}</option>
+                <option value={currentTest.subgene2_name}>{currentTest.subgene2_name}</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-[#6057D7] mb-1">{singleGene} Variant</label>
+              <select
+                value={geneVariants[singleGene] || ''}
+                onChange={(e) => setGeneVariants(prev => ({ ...prev, [singleGene]: e.target.value }))}
+                className="w-full px-3 py-2 bg-white border border-[#E8E8E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6057D7]"
+              >
+                <option value="">Select Variant...</option>
+                {VARIANT_OPTIONS[singleGene]?.map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {currentTest && testMode === 'both' && (
           <div className="px-6 py-4 border-b border-[#E8E8E5] bg-indigo-50/30 flex gap-6">
             <div className="flex-1">
               <label className="block text-xs font-bold text-[#6057D7] mb-1">{currentTest.subgene1_name} Variant</label>
@@ -442,8 +538,8 @@ export default function TestReportPage() {
                   : 'bg-[#F0F0ED] text-[#A0A09D] cursor-not-allowed'
                 }`}
             >
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {generating ? 'Generating...' : 'Generate AI Report'}
+              {generating ? null : <Sparkles className="w-4 h-4" />}
+              {generating ? `Generating... ${Math.round(genProgress)}%` : 'Generate AI Report'}
             </button>
           </div>
         </div>
@@ -694,7 +790,7 @@ export default function TestReportPage() {
                   const scriptString = `
                     <script>
                       window.REPORT_DATA = ${JSON.stringify(reportResult)};
-                      window.GENE_VARIANTS = ${JSON.stringify(geneVariants)};
+                      window.GENE_VARIANTS = ${JSON.stringify(reportGenes)};
                       window.USER_GENDER = ${JSON.stringify(selectedGender || '')};
                       console.log("Report Data loaded:", window.REPORT_DATA);
 
@@ -722,6 +818,53 @@ export default function TestReportPage() {
                                     heroEl.src = 'assets/mbq-page1/' + encodeURIComponent(config.dir) + '/' + encodeURIComponent(config.fileName(genotype, genderKey));
                                 }
                             }
+                        })();
+
+                        // Single-gene mode: hide the unused gene's Page 5 boxes (chromatogram,
+                        // "what does your result mean", "where is this variant located"). The
+                        // text-only "what does your result mean" box spans the full row (matching
+                        // the existing full-width row-1 "What is Sanger Sequencing" pattern), and
+                        // is reordered to sit above the two image-heavy boxes, which are left at
+                        // their natural half-width and placed side by side so the chromatogram and
+                        // chromosome-location images don't blow up to full page width.
+                        (function() {
+                            const GENE_PAIRS_BY_CATEGORY = { caffeine: ['CYP1A2', 'ADORA2A'], muscle: ['ACTN3', 'ACE'], hair: ['EDAR', 'FGFR2'] };
+                            if (genes.length !== 1) return;
+                            const testKey = ${JSON.stringify(testId)};
+                            const pair = GENE_PAIRS_BY_CATEGORY[testKey] || genes;
+                            const usedGene = genes[0];
+
+                            // Each box's numbered badge (1/2/3/4) is static template text tied to
+                            // its original position, not its id - re-stamp it to match the new
+                            // visual order so the badges read 1, 2, 3, 4 top-to-bottom again.
+                            const setBadgeNumber = (boxEl, num) => {
+                                const badge = boxEl && boxEl.firstElementChild && boxEl.firstElementChild.firstElementChild;
+                                if (badge) badge.textContent = String(num);
+                            };
+
+                            const resultMeaningEl = document.getElementById('page3-' + usedGene + '-box');
+                            if (resultMeaningEl) {
+                                resultMeaningEl.style.gridColumn = '1 / -1';
+                                resultMeaningEl.style.order = '1';
+                                setBadgeNumber(resultMeaningEl, 2);
+                            }
+                            const chromatogramBoxEl = document.getElementById('page5-' + usedGene + '-chromatogram-box');
+                            if (chromatogramBoxEl) {
+                                chromatogramBoxEl.style.order = '2';
+                                setBadgeNumber(chromatogramBoxEl, 3);
+                            }
+                            const variantBoxEl = document.getElementById('page5-' + usedGene + '-variant-box');
+                            if (variantBoxEl) {
+                                variantBoxEl.style.order = '3';
+                                setBadgeNumber(variantBoxEl, 4);
+                            }
+
+                            pair.filter(g => g !== usedGene).forEach(g => {
+                                ['page5-' + g + '-chromatogram-box', 'page3-' + g + '-box', 'page5-' + g + '-variant-box'].forEach(id => {
+                                    const el = document.getElementById(id);
+                                    if (el) el.style.display = 'none';
+                                });
+                            });
                         })();
 
                         let allLinks = [];
@@ -752,6 +895,18 @@ export default function TestReportPage() {
                             FGFR2: { TT: 'Thicker hair', GT: 'Intermediate hair thickness', TG: 'Intermediate hair thickness', GG: 'Finer hair' }
                         };
                         const getGenotypeTrait = (gene, gt) => (genotypeTraitMap[gene] && genotypeTraitMap[gene][gt]) || null;
+
+                        // Genotype -> chromatogram filename suffix. The chromotogram-images/ assets
+                        // only cover one ordering of each heterozygous pair, so the other reported
+                        // ordering (e.g. CA, TC->written as TC vs CT) needs to resolve to that file.
+                        const chromatogramGenotypeMap = {
+                            CYP1A2: { AA: 'AA', AC: 'AC', CA: 'AC', CC: 'CC' },
+                            ADORA2A: { TT: 'TT', TC: 'TC', CT: 'TC', CC: 'CC' },
+                            ACTN3: { RR: 'RR', RX: 'RX', XR: 'RX', XX: 'XX' },
+                            ACE: { DD: 'DD', ID: 'ID', DI: 'ID', II: 'II' },
+                            EDAR: { GG: 'GG', AG: 'AG', GA: 'AG', AA: 'AA' },
+                            FGFR2: { TT: 'TT', GT: 'GT', TG: 'GT', GG: 'GG' }
+                        };
 
                         // Combined "GENE (Genotype)" string, one gene per line with its trait,
                         // e.g. "CYP1A2 (AC) - Intermediate caffeine metabolizer"
@@ -1053,6 +1208,15 @@ export default function TestReportPage() {
                                 }
                                 
                                 setText('page3-' + g + '-effect', gData.genotype_narrative || "");
+
+                                // Page 5 chromatogram image: swap in the genotype-specific chromatogram
+                                // for this gene, falling back to the template's default if the gene or
+                                // genotype isn't one of the pre-rendered assets.
+                                const chromatogramEl = document.getElementById('page5-' + g + '-chromatogram');
+                                const chromatogramGt = chromatogramGenotypeMap[g] && chromatogramGenotypeMap[g][genotype];
+                                if (chromatogramEl && chromatogramGt) {
+                                    chromatogramEl.src = 'assets/chromotogram-images/' + encodeURIComponent(g) + '/' + encodeURIComponent(g + '_' + chromatogramGt) + '.png';
+                                }
                             }
                         });
 
@@ -1518,9 +1682,15 @@ export default function TestReportPage() {
 
         <div className="flex-1 overflow-y-auto bg-[#1A1A19] p-6 text-[#E8E8E5] font-mono text-sm">
           {generating ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 opacity-70">
-              <Loader2 className="w-8 h-8 animate-spin text-[#3FC2AC]" />
-              <p>Analyzing phenotypic data...</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 opacity-90">
+              <span className="text-5xl font-bold text-[#3FC2AC] tabular-nums">{Math.round(genProgress)}%</span>
+              <div className="w-64 h-2 rounded-full bg-[#2E2E2B] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-[#3FC2AC] transition-all duration-300 ease-out"
+                  style={{ width: `${genProgress}%` }}
+                />
+              </div>
+              <p className="opacity-70">Analyzing phenotypic data...</p>
             </div>
           ) : reportResult ? (
             <pre className="whitespace-pre-wrap break-words">
@@ -1620,14 +1790,7 @@ export default function TestReportPage() {
 
                     <button
                       onClick={() => {
-                        if (currentPageIndex < totalPages - 1) {
-                          if (!pageFeedbacks[currentPageIndex]) {
-                            setPendingNextIndex(currentPageIndex + 1);
-                            setShowFeedbackPrompt(true);
-                          } else {
-                            setCurrentPageIndex(currentPageIndex + 1);
-                          }
-                        }
+                        if (currentPageIndex < totalPages - 1) setCurrentPageIndex(currentPageIndex + 1);
                       }}
                       disabled={currentPageIndex === totalPages - 1}
                       className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 shadow-lg rounded-full flex items-center justify-center text-[#1A1A19] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed z-10"
@@ -1636,73 +1799,6 @@ export default function TestReportPage() {
                     </button>
                   </>
                 )}
-
-                {/* Feedback Prompt Overlay */}
-                <AnimatePresence>
-                  {showFeedbackPrompt && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-                    >
-                      <motion.div
-                        initial={{ scale: 0.95 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0.95 }}
-                        className="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-[400px]"
-                      >
-                        <h4 className="text-lg font-bold text-[#1A1A19] mb-2">Before you continue...</h4>
-                        <p className="text-sm text-[#5c6473] mb-4">Please provide your feedback for Page {currentPageIndex + 1}.</p>
-                        <textarea
-                          value={currentFeedbackInput}
-                          onChange={(e) => setCurrentFeedbackInput(e.target.value)}
-                          placeholder="Your thoughts on this page..."
-                          className="w-full h-32 p-3 border border-[#E8E8E5] rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#6057D7] resize-none"
-                        />
-                        <div className="flex gap-3 justify-end">
-                          <button
-                            onClick={() => setShowFeedbackPrompt(false)}
-                            className="px-4 py-2 text-sm font-semibold text-[#5c6473] hover:text-[#1A1A19]"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            disabled={!currentFeedbackInput.trim() || submittingFeedback}
-                            onClick={async () => {
-                              if (!currentFeedbackInput.trim()) return;
-                              setSubmittingFeedback(true);
-                              try {
-                                await fetch('/api/test/feedback', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    test_name: selectedTestName,
-                                    page_index: currentPageIndex,
-                                    feedback: currentFeedbackInput
-                                  })
-                                });
-                              } catch (e) {
-                                console.error('Feedback save error', e);
-                              }
-                              setPageFeedbacks(prev => ({ ...prev, [currentPageIndex]: currentFeedbackInput }));
-                              setSubmittingFeedback(false);
-                              setShowFeedbackPrompt(false);
-                              setCurrentFeedbackInput('');
-                              if (pendingNextIndex !== null) {
-                                setCurrentPageIndex(pendingNextIndex);
-                                setPendingNextIndex(null);
-                              }
-                            }}
-                            className="px-6 py-2 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
-                          >
-                            {submittingFeedback ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit & Continue'}
-                          </button>
-                        </div>
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </motion.div>
           </motion.div>
