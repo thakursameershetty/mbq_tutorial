@@ -546,6 +546,18 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         };
                         const getGenotypeTrait = (gene, gt) => (genotypeTraitMap[gene] && genotypeTraitMap[gene][gt]) || null;
 
+                        // Genotype -> chromatogram filename suffix. The chromotogram-images/ assets
+                        // only cover one ordering of each heterozygous pair, so the other reported
+                        // ordering (e.g. CA, TC->written as TC vs CT) needs to resolve to that file.
+                        const chromatogramGenotypeMap = {
+                            CYP1A2: { AA: 'AA', AC: 'AC', CA: 'AC', CC: 'CC' },
+                            ADORA2A: { TT: 'TT', TC: 'TC', CT: 'TC', CC: 'CC' },
+                            ACTN3: { RR: 'RR', RX: 'RX', XR: 'RX', XX: 'XX' },
+                            ACE: { DD: 'DD', ID: 'ID', DI: 'ID', II: 'II' },
+                            EDAR: { GG: 'GG', AG: 'AG', GA: 'AG', AA: 'AA' },
+                            FGFR2: { TT: 'TT', GT: 'GT', TG: 'GT', GG: 'GG' }
+                        };
+
                         // Combined "GENE (Genotype)" string, one gene per line with its trait,
                         // e.g. "CYP1A2 (AC) - Intermediate caffeine metabolizer"
                         const geneGtStr = genes.map(g => {
@@ -846,6 +858,15 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                 }
                                 
                                 setText('page3-' + g + '-effect', gData.genotype_narrative || "");
+
+                                // Page 5 chromatogram image: swap in the genotype-specific chromatogram
+                                // for this gene, falling back to the template's default if the gene or
+                                // genotype isn't one of the pre-rendered assets.
+                                const chromatogramEl = document.getElementById('page5-' + g + '-chromatogram');
+                                const chromatogramGt = chromatogramGenotypeMap[g] && chromatogramGenotypeMap[g][genotype];
+                                if (chromatogramEl && chromatogramGt) {
+                                    chromatogramEl.src = 'assets/chromotogram-images/' + encodeURIComponent(g) + '/' + encodeURIComponent(g + '_' + chromatogramGt) + '.png';
+                                }
                             }
                         });
 
