@@ -201,6 +201,21 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
     }
   }, [isOpen]);
 
+  // The app's global viewport meta (index.html) locks out pinch-to-zoom
+  // (user-scalable=0) so normal pages don't accidentally zoom. The report is a
+  // fixed-size design meant to be inspected closely on small screens though, so
+  // relax that lock just while this modal is open and restore it on close.
+  useEffect(() => {
+    if (!isOpen) return;
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    const previousContent = meta.getAttribute('content');
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=1');
+    return () => {
+      if (previousContent !== null) meta.setAttribute('content', previousContent);
+    };
+  }, [isOpen]);
+
   // The report's own pages are all rendered in the iframe at once (stacked); we only
   // ever want one visible so users step through it page-by-page and can't skim ahead
   // without giving feedback. Reset readiness whenever a fresh document loads, then
