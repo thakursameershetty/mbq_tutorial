@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } 
 import QuestionsModal from '../components/QuestionsModal';
 import ReportViewerModal from '../components/ReportViewerModal';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
+import { GENE_CATALOG } from '../lib/geneCatalog';
 
 // Prefer the AI report's own merge timestamp (set per-report when the Python backend
 // generates it) over the shared status_timestamps.generated, which only reflects the
@@ -55,7 +56,7 @@ export default function AdminVerifyPage() {
   const [selectedDataFilter, setSelectedDataFilter] = useState<string>('all');
   const [selectedWorkflowFilter, setSelectedWorkflowFilter] = useState<string>('all');
   const [selectedGeneFilter, setSelectedGeneFilter] = useState<string>('all');
-  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string, generatedAt?: string | null, gender?: string | null } | null>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<{ testName: string, reportData: any, variants: any, mbqId?: string, patientName?: string | null, generatedAt?: string | null, gender?: string | null } | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [isMobilePieModalOpen, setIsMobilePieModalOpen] = useState(false);
   const [isQuestionsModalOpen, setIsQuestionsModalOpen] = useState(false);
@@ -1128,7 +1129,7 @@ export default function AdminVerifyPage() {
                                     )}
                                     {reportData.ai_report && (
                                       <button
-                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at), generatedAt: getReportGeneratedAt(reportData, patient.status_timestamps?.generated), gender: patient.gender })}
+                                        onClick={() => setSelectedAIReport({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(patient.id, patient.created_at), patientName: patient.full_name, generatedAt: getReportGeneratedAt(reportData, patient.status_timestamps?.generated), gender: patient.gender })}
                                         className="flex items-center gap-2 px-4 py-2 bg-amber-100/80 hover:bg-amber-200 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                                       >
                                         <Sparkles size={14} />
@@ -1677,20 +1678,21 @@ export default function AdminVerifyPage() {
                       ))}
 
                       {/* Unselected Genes */}
-                      {[
-                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3,ACE)' },
-                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR,FGFR2)' },
-                        { short: 'CYP1A2', full: 'Caffeine Response (CYP1A2,ADORA2A)' }
-                      ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
+                      {GENE_CATALOG.flatMap(cat => cat.options)
+                        .filter(opt => !editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).includes(opt.label))
+                        .map((opt, idx) => (
                         <span
                           key={`add-${idx}`}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
                           onClick={() => {
                             const genes = editedGeneType ? editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean) : [];
-                            setEditedGeneType([...genes, ag.full].join(', '));
+                            setEditedGeneType([...genes, opt.label].join(', '));
                           }}
                         >
-                          {ag.full}
+                          {opt.label}
+                          <span className={`ml-1 px-1 py-0.5 rounded text-[9px] uppercase tracking-wide ${opt.tier === 'pro' ? 'bg-indigo-100 text-indigo-600' : 'bg-[#E8E8E5] text-[#8B8B86]'}`}>
+                            {opt.tier}
+                          </span>
                           <Plus size={12} className="opacity-70" />
                         </span>
                       ))}
@@ -1872,8 +1874,10 @@ export default function AdminVerifyPage() {
           reportData={selectedAIReport.reportData}
           geneVariants={selectedAIReport.variants}
           mbqId={selectedAIReport.mbqId}
+          patientName={selectedAIReport.patientName}
           generatedAt={selectedAIReport.generatedAt}
           gender={selectedAIReport.gender}
+          requireFeedback={false}
         />
       )}
     </motion.div >

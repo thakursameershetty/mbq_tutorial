@@ -8,6 +8,7 @@ import PatientSurveyModal from '@/components/PatientSurveyModal';
 import AIReportModal from '@/components/AIReportModal';
 import ReportViewerModal from '@/components/ReportViewerModal';
 import FloatingChatbot from '@/components/FloatingChatbot';
+import { getRequiredGenes } from '@/lib/geneCatalog';
 
 const formatUserId = (id: any, createdAt?: string | null) => {
   const num = parseInt(id, 10);
@@ -49,7 +50,7 @@ export default function PatientDashboardPage() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
-  const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string; generatedAt?: string | null; gender?: string | null } | null>(null);
+  const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string; patientName?: string | null; generatedAt?: string | null; gender?: string | null } | null>(null);
   const [fetchDataLoading, setFetchDataLoading] = useState(false);
   const [fetchDataStatus, setFetchDataStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
@@ -185,11 +186,11 @@ export default function PatientDashboardPage() {
       <div className="flex flex-col gap-2">
         {genes.map((gene, idx) => {
           let styleClass = "border-[#E8E8E5] text-[#1A1A19] bg-white";
-          if (gene.includes("Caffeine")) {
+          if (gene.includes("Caffeine") || gene.includes("CYP1A2") || gene.includes("ADORA2A")) {
             styleClass = "border-[#FDE08B] text-[#B45309] bg-[#FFFBEB]";
-          } else if (gene.includes("Muscle Power")) {
+          } else if (gene.includes("Muscle") || gene.includes("ACTN3") || gene.includes("ACE")) {
             styleClass = "border-[#BFDBFE] text-[#1D4ED8] bg-[#EFF6FF]";
-          } else if (gene.includes("Hair Thickness")) {
+          } else if (gene.includes("Hair") || gene.includes("EDAR") || gene.includes("FGFR2")) {
             styleClass = "border-[#E9D5FF] text-[#7E22CE] bg-[#FAF5FF]";
           }
           return (
@@ -265,7 +266,7 @@ export default function PatientDashboardPage() {
             )}
             {reportData.ai_report && (
               <button
-                onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated), gender: user.gender })}
+                onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), patientName: user.full_name, generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated), gender: user.gender })}
                 className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#6057D7] text-white rounded-full text-xs sm:text-sm font-medium hover:bg-[#4F46B8] transition-colors shadow-sm cursor-pointer"
               >
                 <Sparkles size={16} />
@@ -343,6 +344,7 @@ export default function PatientDashboardPage() {
       {/* Questionnaire Retake Banners */}
       {user.reports && Object.entries(user.reports).map(([panelName, panelData]: [string, any]) => {
         if (panelData && panelData.variants && !panelData.ai_report) {
+          const panelGeneCount = getRequiredGenes(user.gene_type || '').filter((g) => g.panel === panelName).length || 2;
           return (
             <motion.div
               key={panelName}
@@ -359,7 +361,7 @@ export default function PatientDashboardPage() {
                   Action Required
                 </span>
                 <p className="text-sm font-medium text-white flex-1 mb-2 sm:mb-0">
-                  Please submit your Phenotypic Survey (10 questions) for {panelName} so that you can get your report
+                  Please submit your Phenotypic Survey ({panelGeneCount * 5} questions) for {panelName} so that you can get your report
                 </p>
                 <button
                   className="inline-flex items-center gap-1 font-bold text-amber-700 bg-white pl-5 pr-4 py-2.5 sm:py-2 rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap shrink-0 self-end sm:self-auto"
@@ -578,7 +580,7 @@ export default function PatientDashboardPage() {
                       )}
                       {reportData.ai_report && (
                         <button
-                          onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated), gender: user.gender })}
+                          onClick={() => setViewReportData({ testName: geneName, reportData: reportData.ai_report, variants: reportData.variants, mbqId: formatUserId(user.id, user.created_at), patientName: user.full_name, generatedAt: getReportGeneratedAt(reportData, user.status_timestamps?.generated), gender: user.gender })}
                           className="flex-1 py-3.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
                         >
                           <Sparkles size={18} />
@@ -656,6 +658,9 @@ export default function PatientDashboardPage() {
           onClose={() => setShowSurveyModal(false)}
           userId={user.id}
           testName={surveyTestName}
+          genes={getRequiredGenes(user.gene_type || '')
+            .filter((g) => g.panel === surveyTestName)
+            .map((g) => g.name)}
           onComplete={() => {
             // Optimistically update the UI to avoid showing the banner while fetching
             // A real refresh will happen via useEffect pooling or next login
@@ -754,6 +759,7 @@ export default function PatientDashboardPage() {
           geneVariants={viewReportData.variants}
           testName={viewReportData.testName}
           mbqId={viewReportData.mbqId}
+          patientName={viewReportData.patientName}
           generatedAt={viewReportData.generatedAt}
           gender={viewReportData.gender}
         />

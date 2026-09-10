@@ -1,11 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ChevronDown, Activity, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
+import { Loader2, ChevronDown, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle, Lightbulb, ImageIcon } from 'lucide-react';
 import FloatingChatbot from '../components/FloatingChatbot';
+
+// Every question's illustration lives at
+// src/assets/questionare-images/<subgene>/<category>-<subgene>-q<n>.png (n is
+// 1-based). Loading them all via import.meta.glob means a new image just has
+// to be dropped in the right folder - no import to add here by hand. Mirrors
+// PatientSurveyModal.tsx so this dev preview matches the patient-facing survey.
+const questionImageModules = import.meta.glob('../assets/questionare-images/*/*.png', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+
+const QUESTION_IMAGES: Record<string, string> = {};
+for (const [path, src] of Object.entries(questionImageModules)) {
+  const match = path.match(/-([a-z0-9]+)-q(\d+)\.png$/i);
+  if (!match) continue;
+  const [, subgene, questionNumber] = match;
+  QUESTION_IMAGES[`${subgene.toUpperCase()}-${Number(questionNumber) - 1}`] = src;
+}
 
 interface Question {
   question: string;
   example: string;
+  image?: string;
   options: { text: string; score: number }[];
   weightage: number;
 }
@@ -24,6 +43,25 @@ const VARIANT_OPTIONS: Record<string, string[]> = {
   ACE: ['II', 'ID', 'DD'],
   EDAR: ['GG', 'AG', 'AA'],
   FGFR2: ['TT', 'GT', 'GG'],
+};
+
+// Every question's 3 options are seeded in the same fixed order (score 1, 0, -1 -
+// see server/createQuestionsTable.js), and each gene's 3 genotypes represent the
+// same dominant/heterozygous/recessive tiers - so "High"/"Neutral"/"Low" picks a
+// consistent tier across every question AND every gene, rather than the old
+// per-question/per-gene random pick (which could land on a mix of tiers and
+// produce an internally inconsistent-reading report). Note VARIANT_OPTIONS above
+// is the raw lab-entry dropdown order (not always High-to-Low - e.g. ACE lists
+// II first), so this maps genotypes explicitly by tier instead of by array index.
+type RandomizeLevel = 'high' | 'neutral' | 'low';
+const LEVEL_TO_OPTION_INDEX: Record<RandomizeLevel, number> = { high: 0, neutral: 1, low: 2 };
+const LEVEL_GENOTYPE: Record<string, Record<RandomizeLevel, string>> = {
+  CYP1A2: { high: 'AA', neutral: 'AC', low: 'CC' },
+  ADORA2A: { high: 'TT', neutral: 'TC', low: 'CC' },
+  ACTN3: { high: 'RR', neutral: 'RX', low: 'XX' },
+  ACE: { high: 'DD', neutral: 'ID', low: 'II' },
+  EDAR: { high: 'GG', neutral: 'AG', low: 'AA' },
+  FGFR2: { high: 'TT', neutral: 'GT', low: 'GG' },
 };
 
 interface SelectedQuestion extends Question {
@@ -52,7 +90,7 @@ export default function TestReportPage() {
   const [loadingQs, setLoadingQs] = useState(true);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [customAnswers, setCustomAnswers] = useState<{ [uniqueId: string]: string }>({});
-  const [expandedQs, setExpandedQs] = useState<Record<string, boolean>>({});
+  const [currentQIndex, setCurrentQIndex] = useState(0);
 
   const [generating, setGenerating] = useState(false);
   // Simulated 0-100 progress for the (single, un-instrumented) generate-report call -
@@ -89,6 +127,13 @@ export default function TestReportPage() {
     const t = tests.find(t => t.test_name === selectedTestName);
     if (t) setSingleGene(t.subgene1_name);
   }, [selectedTestName, tests]);
+
+  // The questionnaire is walked one question at a time - jump back to the
+  // first one whenever the underlying question set changes (test, mode, or
+  // which single gene is selected) so the step index can't point past the end.
+  useEffect(() => {
+    setCurrentQIndex(0);
+  }, [selectedTestName, testMode, singleGene]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -171,10 +216,12 @@ export default function TestReportPage() {
         const sub2 = parseQ(test.subgene2_questions || "[]");
 
         sub1.forEach((q: Question, idx: number) => {
-          selectedQs.push({ ...q, test_name: test.test_name, subgene_name: test.subgene1_name, uniqueId: `${test.id}-1-${idx}` });
+          const image = QUESTION_IMAGES[`${test.subgene1_name}-${idx}`];
+          selectedQs.push({ ...q, image, test_name: test.test_name, subgene_name: test.subgene1_name, uniqueId: `${test.id}-1-${idx}` });
         });
         sub2.forEach((q: Question, idx: number) => {
-          selectedQs.push({ ...q, test_name: test.test_name, subgene_name: test.subgene2_name, uniqueId: `${test.id}-2-${idx}` });
+          const image = QUESTION_IMAGES[`${test.subgene2_name}-${idx}`];
+          selectedQs.push({ ...q, image, test_name: test.test_name, subgene_name: test.subgene2_name, uniqueId: `${test.id}-2-${idx}` });
         });
       });
 
@@ -190,12 +237,13 @@ export default function TestReportPage() {
     }
   };
 
-  const handleRandomize = () => {
+  const handleRandomize = (level: RandomizeLevel) => {
+    const optionIndex = LEVEL_TO_OPTION_INDEX[level];
     if (questions.length > 0) {
       setAnswers(prev => {
         const next = { ...prev };
         questions.forEach(q => {
-          next[q.uniqueId] = Math.floor(Math.random() * q.options.length);
+          next[q.uniqueId] = Math.min(optionIndex, q.options.length - 1);
         });
         return next;
       });
@@ -208,9 +256,9 @@ export default function TestReportPage() {
       setGeneVariants(prev => {
         const next = { ...prev };
         genesToRandomize.forEach(gene => {
-          const opts = VARIANT_OPTIONS[gene];
-          if (opts && opts.length > 0) {
-            next[gene] = opts[Math.floor(Math.random() * opts.length)];
+          const genotype = LEVEL_GENOTYPE[gene]?.[level];
+          if (genotype) {
+            next[gene] = genotype;
           }
         });
         return next;
@@ -323,19 +371,17 @@ export default function TestReportPage() {
   ]);
   const allAnswered = questions.length > 0 && answeredQuestionIds.size === questions.length;
   const currentTest = tests.find(t => t.test_name === selectedTestName);
+  const currentQuestion = questions[currentQIndex];
+  const isCurrentAnswered = currentQuestion ? answeredQuestionIds.has(currentQuestion.uniqueId) : false;
+  const isLastQuestion = currentQIndex === questions.length - 1;
+  const qProgressPct = questions.length > 0 ? ((currentQIndex + 1) / questions.length) * 100 : 0;
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-80px)] w-full max-w-7xl mx-auto px-4 gap-4 pb-6">
       {/* LEFT PANE - Questionnaire */}
       <div className="flex-1 bg-white rounded-3xl border border-[#E8E8E5] shadow-sm flex flex-col overflow-hidden">
         <div className="p-6 border-b border-[#E8E8E5] flex items-center gap-3 bg-[#F9F9F8]">
-          <Activity className="text-[#6057D7]" />
-          <div className="flex-1 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-[#1A1A19]">Questionnaire Test</h2>
-              <p className="text-sm text-[#8B8B86]">Select test and variants to generate report</p>
-            </div>
-
+          <div className="flex-1 flex items-center justify-end">
             <div className="flex items-center gap-2">
               <select
                 value={selectedGender}
@@ -376,6 +422,19 @@ export default function TestReportPage() {
             </div>
           </div>
         </div>
+
+        {!loadingQs && questions.length > 0 && (
+          <div className="px-6 pt-4 bg-[#F9F9F8]">
+            <div className="h-1.5 w-full bg-[#E8E8E5] rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-[#6057D7] rounded-full"
+                initial={false}
+                animate={{ width: `${qProgressPct}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </div>
+        )}
 
         {currentTest && testMode === 'single' && (
           <div className="px-6 py-4 border-b border-[#E8E8E5] bg-indigo-50/30 flex gap-6">
@@ -447,99 +506,129 @@ export default function TestReportPage() {
               No questions found for the selected test.
             </div>
           ) : (
-            <div className="space-y-6">
-              {questions.map((q, index) => (
-                <div key={q.uniqueId} className="bg-white rounded-2xl border border-[#E8E8E5] shadow-sm overflow-hidden">
-                  <div
-                    className="p-5 cursor-pointer hover:bg-[#F9F9F8] transition-colors"
-                    onClick={() => setExpandedQs(prev => ({ ...prev, [q.uniqueId]: prev[q.uniqueId] === false ? true : false }))}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <span className="text-xs font-bold text-[#6057D7] bg-indigo-50 px-2.5 py-1 rounded-md mb-2 inline-block">
-                          {q.test_name} - {q.subgene_name}
-                        </span>
-                        <h3 className="text-[#1A1A19] font-semibold text-[15px]">
-                          {index + 1}. {q.question}
-                        </h3>
-                      </div>
-                      <ChevronDown
-                        size={18}
-                        className={`text-[#8B8B86] shrink-0 mt-1 transition-transform duration-300 ${expandedQs[q.uniqueId] !== false ? 'rotate-180' : ''}`}
+            <div className="max-w-xl mx-auto">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentQuestion.uniqueId}
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -24 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <span className="text-xs font-bold text-[#6057D7] bg-indigo-50 px-2.5 py-1 rounded-md mb-4 inline-block">
+                    {currentQuestion.test_name} - {currentQuestion.subgene_name}
+                  </span>
+
+                  {/* Fixed height (not aspect-ratio) so every question's frame is the
+                      same size regardless of that image's own ratio, and object-contain
+                      so nothing is ever cropped - the source images range from 4:3 to 2:1. */}
+                  <div className="w-full h-44 sm:h-52 rounded-2xl bg-[#F2F2F0] border border-[#E8E8E5] flex items-center justify-center mb-5 overflow-hidden">
+                    {currentQuestion.image ? (
+                      <img src={currentQuestion.image} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <ImageIcon className="w-10 h-10 text-[#C7C7C2]" />
+                    )}
+                  </div>
+
+                  <h3 className="text-[#1A1A19] font-bold text-lg mb-3">
+                    {currentQIndex + 1}. {currentQuestion.question}
+                  </h3>
+
+                  {currentQuestion.example && (
+                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-5">
+                      <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-900 leading-relaxed">
+                        <span className="font-bold">Example: </span>
+                        {currentQuestion.example}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {currentQuestion.options.map((opt, optIdx) => (
+                      <button
+                        key={optIdx}
+                        onClick={() => setAnswers(prev => ({ ...prev, [currentQuestion.uniqueId]: optIdx }))}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-center gap-3
+                          ${answers[currentQuestion.uniqueId] === optIdx
+                            ? 'border-[#6057D7] bg-indigo-50/40 text-[#1A1A19]'
+                            : 'border-[#E8E8E5] bg-white hover:border-[#D4D4CE] text-[#5A5A55]'
+                          }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0
+                          ${answers[currentQuestion.uniqueId] === optIdx ? 'border-[#6057D7]' : 'border-[#D4D4CE]'}`}
+                        >
+                          {answers[currentQuestion.uniqueId] === optIdx && <div className="w-2 h-2 bg-[#6057D7] rounded-full" />}
+                        </div>
+                        <span className="text-sm font-medium">{opt.text}</span>
+                      </button>
+                    ))}
+                    <div className="pt-2">
+                      <input
+                        type="text"
+                        value={customAnswers[currentQuestion.uniqueId] || ''}
+                        onChange={(e) => setCustomAnswers(prev => ({ ...prev, [currentQuestion.uniqueId]: e.target.value }))}
+                        placeholder="Any specific remarks or custom input..."
+                        className="w-full p-3 text-sm border border-[#E8E8E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6057D7]/20 focus:border-[#6057D7] transition-all bg-white placeholder-[#B0B0AE] text-[#1A1A19]"
                       />
                     </div>
                   </div>
-
-                  <AnimatePresence>
-                    {expandedQs[q.uniqueId] !== false && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="px-5 pb-5"
-                      >
-                        <div className="space-y-2 mt-1 pt-3 border-t border-[#E8E8E5]">
-                          {q.options.map((opt, optIdx) => (
-                            <button
-                              key={optIdx}
-                              onClick={() => setAnswers(prev => ({ ...prev, [q.uniqueId]: optIdx }))}
-                              className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-center gap-3
-                                ${answers[q.uniqueId] === optIdx
-                                  ? 'border-[#6057D7] bg-indigo-50/40 text-[#1A1A19]'
-                                  : 'border-[#E8E8E5] bg-white hover:border-[#D4D4CE] text-[#5A5A55]'
-                                }`}
-                            >
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0
-                                ${answers[q.uniqueId] === optIdx ? 'border-[#6057D7]' : 'border-[#D4D4CE]'}`}
-                              >
-                                {answers[q.uniqueId] === optIdx && <div className="w-2 h-2 bg-[#6057D7] rounded-full" />}
-                              </div>
-                              <span className="text-sm font-medium">{opt.text}</span>
-                            </button>
-                          ))}
-                          <div className="pt-2">
-                            <input
-                              type="text"
-                              value={customAnswers[q.uniqueId] || ''}
-                              onChange={(e) => setCustomAnswers(prev => ({ ...prev, [q.uniqueId]: e.target.value }))}
-                              placeholder="Any specific remarks or custom input..."
-                              className="w-full p-3 text-sm border border-[#E8E8E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6057D7]/20 focus:border-[#6057D7] transition-all bg-white placeholder-[#B0B0AE] text-[#1A1A19]"
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
         </div>
 
-        <div className="p-4 border-t border-[#E8E8E5] bg-white flex justify-between items-center">
-          <span className="text-sm text-[#8B8B86]">
-            Answered: <span className="font-bold text-[#1A1A19]">{answeredQuestionIds.size}</span> / {questions.length}
-          </span>
+        <div className="p-4 border-t border-[#E8E8E5] bg-white flex justify-between items-center gap-3">
+          <button
+            onClick={() => setCurrentQIndex(i => Math.max(i - 1, 0))}
+            disabled={currentQIndex === 0}
+            className={`flex items-center gap-1 px-4 py-2 rounded-lg font-bold text-sm transition-all shrink-0
+              ${currentQIndex === 0 ? 'text-[#C7C7C2] cursor-not-allowed' : 'text-[#5A5A55] hover:bg-[#F0F0ED]'}`}
+          >
+            <ChevronLeft className="w-4 h-4" /> Back
+          </button>
+
+          <div className="flex flex-col items-center shrink-0">
+            <span className="text-sm font-bold text-[#1A1A19]">
+              Question {questions.length > 0 ? currentQIndex + 1 : 0} of {questions.length}
+            </span>
+            <span className="text-xs text-[#8B8B86]">
+              Answered: {answeredQuestionIds.size} / {questions.length}
+            </span>
+          </div>
+
           <div className="flex items-center gap-3">
+            <div className="relative">
+              <Shuffle className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#1A1A19]" />
+              <select
+                value=""
+                onChange={(e) => {
+                  const level = e.target.value as RandomizeLevel | '';
+                  if (level) handleRandomize(level);
+                  e.target.value = '';
+                }}
+                disabled={questions.length === 0}
+                className="appearance-none cursor-pointer flex items-center gap-2 pl-9 pr-8 py-2.5 rounded-xl font-bold text-sm border border-[#E8E8E5] text-[#1A1A19] bg-white hover:bg-[#F0F0ED] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="" disabled>Randomize</option>
+                <option value="high">High</option>
+                <option value="neutral">Neutral</option>
+                <option value="low">Low</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#8B8B86]" />
+            </div>
             <button
-              onClick={handleRandomize}
-              disabled={questions.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border border-[#E8E8E5] text-[#1A1A19] hover:bg-[#F0F0ED] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Shuffle className="w-4 h-4" />
-              Randomize
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={!allAnswered || generating}
+              onClick={() => setCurrentQIndex(i => Math.min(i + 1, questions.length - 1))}
+              disabled={isLastQuestion || !isCurrentAnswered}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
-                ${allAnswered
+                ${!isLastQuestion && isCurrentAnswered
                   ? 'bg-[#1A1A19] text-white hover:bg-black'
                   : 'bg-[#F0F0ED] text-[#A0A09D] cursor-not-allowed'
                 }`}
             >
-              {generating ? null : <Sparkles className="w-4 h-4" />}
-              {generating ? `Generating... ${Math.round(genProgress)}%` : 'Generate AI Report'}
+              Next
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -555,7 +644,23 @@ export default function TestReportPage() {
               <p className="text-sm text-[#8B8B86]">Generated JSON output</p>
             </div>
           </div>
-          {reportResult && (
+          <div className="flex items-center gap-2">
+            {/* Lives here (not tied to the last question in the questionnaire) so
+                Randomize-filling every answer doesn't also require paging all the
+                way to the end just to generate. */}
+            <button
+              onClick={handleGenerate}
+              disabled={!allAnswered || generating}
+              className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors
+                ${allAnswered && !generating
+                  ? 'bg-[#1A1A19] text-white hover:bg-black'
+                  : 'bg-[#F0F0ED] text-[#A0A09D] cursor-not-allowed'
+                }`}
+            >
+              {generating ? null : <Sparkles className="w-4 h-4" />}
+              {generating ? `${Math.round(genProgress)}%` : 'Generate'}
+            </button>
+            {reportResult && (
             <button
               onClick={async () => {
                 try {
@@ -800,12 +905,40 @@ export default function TestReportPage() {
                         let genes = Object.keys(genesObj);
 
                         // Page 1 hero image: swaps in a gender + genotype specific portrait.
-                        // Mirrors the logic in ReportViewerModal.tsx.
+                        // Each category only has one photo set, shot against its headline gene
+                        // (CYP1A2 / ACTN3 / EDAR). A Lite purchase of the category's *other* gene
+                        // (ADORA2A / ACE / FGFR2) has no photos of its own, so its genotype is
+                        // mapped onto the equivalent tier (dominant / heterozygous / recessive) of
+                        // the headline gene and that photo is reused. Mirrors ReportViewerModal.tsx.
                         (function() {
                             const heroConfigs = {
-                                caffeine: { dir: 'CYP1A2', gene: 'CYP1A2', normalize: gt => gt === 'CA' ? 'AC' : gt, fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png') },
-                                muscle: { dir: 'ACTN3', gene: 'ACTN3', normalize: gt => gt === 'XR' ? 'RX' : gt, fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png' },
-                                hair: { dir: 'EDAR:FGFR2', gene: 'EDAR', normalize: gt => gt === 'GA' ? 'AG' : gt, fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png' }
+                                caffeine: {
+                                    dir: 'CYP1A2',
+                                    headlineGene: 'CYP1A2',
+                                    fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png'),
+                                    genes: {
+                                        CYP1A2: { normalize: gt => gt === 'CA' ? 'AC' : gt, tiers: ['AA', 'AC', 'CC'] },
+                                        ADORA2A: { normalize: gt => gt === 'CT' ? 'TC' : gt, tiers: ['TT', 'TC', 'CC'] }
+                                    }
+                                },
+                                muscle: {
+                                    dir: 'ACTN3',
+                                    headlineGene: 'ACTN3',
+                                    fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png',
+                                    genes: {
+                                        ACTN3: { normalize: gt => gt === 'XR' ? 'RX' : gt, tiers: ['RR', 'RX', 'XX'] },
+                                        ACE: { normalize: gt => gt === 'DI' ? 'ID' : gt, tiers: ['DD', 'ID', 'II'] }
+                                    }
+                                },
+                                hair: {
+                                    dir: 'EDAR:FGFR2',
+                                    headlineGene: 'EDAR',
+                                    fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png',
+                                    genes: {
+                                        EDAR: { normalize: gt => gt === 'GA' ? 'AG' : gt, tiers: ['GG', 'AG', 'AA'] },
+                                        FGFR2: { normalize: gt => gt === 'TG' ? 'GT' : gt, tiers: ['TT', 'GT', 'GG'] }
+                                    }
+                                }
                             };
                             const testKey = ${JSON.stringify(testId)};
                             const config = heroConfigs[testKey];
@@ -813,9 +946,28 @@ export default function TestReportPage() {
                             if (config && heroEl) {
                                 const rawGender = (window.USER_GENDER || '').toLowerCase();
                                 const genderKey = rawGender.startsWith('m') ? 'male' : rawGender.startsWith('f') ? 'female' : null;
-                                const genotype = config.normalize(genesObj[config.gene] || '');
-                                if (genderKey && genotype) {
-                                    heroEl.src = 'assets/mbq-page1/' + encodeURIComponent(config.dir) + '/' + encodeURIComponent(config.fileName(genotype, genderKey));
+
+                                let genotypeCode = null;
+                                const headlineInfo = config.genes[config.headlineGene];
+                                if (genesObj[config.headlineGene]) {
+                                    genotypeCode = headlineInfo.normalize(genesObj[config.headlineGene]);
+                                } else {
+                                    const altGeneName = Object.keys(config.genes).find(g => g !== config.headlineGene && genesObj[g]);
+                                    if (altGeneName) {
+                                        const altInfo = config.genes[altGeneName];
+                                        const altGenotype = altInfo.normalize(genesObj[altGeneName]);
+                                        const tierIndex = altInfo.tiers.indexOf(altGenotype);
+                                        if (tierIndex !== -1) genotypeCode = headlineInfo.tiers[tierIndex];
+                                    }
+                                }
+
+                                if (genderKey && genotypeCode) {
+                                    // The hair asset folder is literally named "EDAR:FGFR2" - encoding
+                                    // that colon (%3A) makes Vite's static server 404 into the SPA
+                                    // fallback instead of serving the file, so keep it unescaped while
+                                    // still encoding everything else in the path.
+                                    const dirPath = config.dir.split(':').map(encodeURIComponent).join(':');
+                                    heroEl.src = 'assets/mbq-page1/' + dirPath + '/' + encodeURIComponent(config.fileName(genotypeCode, genderKey));
                                 }
                             }
                         })();
@@ -867,13 +1019,25 @@ export default function TestReportPage() {
                             });
                         })();
 
+                        // Must mirror the backend's authoritative_scientific_evidence selection
+                        // (mbq_backend/rag/report_guardrails.py): for a combined report that's 2
+                        // cards from the first gene then 1 from the second, NOT every reference
+                        // from both genes flattened together - otherwise this array misaligns
+                        // with page_2.scientific_evidence and the wrong PubMed record (title/
+                        // authors) gets stitched onto the right card's description below.
                         let allLinks = [];
                         if (data.per_gene_appendix) {
-                            genes.forEach(g => {
-                                if (data.per_gene_appendix[g] && data.per_gene_appendix[g].scientific_references) {
-                                    allLinks = allLinks.concat(data.per_gene_appendix[g].scientific_references);
-                                }
-                            });
+                            if (genes.length >= 2) {
+                                const gene1Refs = (data.per_gene_appendix[genes[0]] && data.per_gene_appendix[genes[0]].scientific_references) || [];
+                                const gene2Refs = (data.per_gene_appendix[genes[1]] && data.per_gene_appendix[genes[1]].scientific_references) || [];
+                                allLinks = [gene1Refs[0], gene1Refs[1], gene2Refs[0]];
+                            } else {
+                                genes.forEach(g => {
+                                    if (data.per_gene_appendix[g] && data.per_gene_appendix[g].scientific_references) {
+                                        allLinks = allLinks.concat(data.per_gene_appendix[g].scientific_references);
+                                    }
+                                });
+                            }
                         }
                         
                         const setText = (id, text) => {
@@ -994,7 +1158,7 @@ export default function TestReportPage() {
                             if (gridContainer && gridContainer.style.display === 'grid') {
                                 const titleDiv = gridContainer.previousElementSibling;
                                 if (titleDiv) {
-                                    const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                    const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                     titleDiv.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                     titleDiv.style.lineHeight = '1.6';
                                     titleDiv.style.textTransform = 'uppercase';
@@ -1034,7 +1198,43 @@ export default function TestReportPage() {
                         
                         // PAGE 1
                         if (data.page_1) {
-                            setText('page1-report-title', data.page_1.report_title);
+                            // Long titles (e.g. "Endurance Performance - Balanced Capacity" or
+                            // "Low-Density, Medium-Strand Hair") were running past the title column
+                            // and overlapping the hero photo. Break onto two lines at " - " if
+                            // present (delimiter dropped), else at the first ", " (comma kept on
+                            // line 1), then shrink the font size (if needed) until each line fits
+                            // the 430px column on a single row — otherwise a long half like
+                            // "Endurance Performance" wraps a second, unwanted time on its own.
+                            // Mirrors ReportViewerModal.tsx.
+                            const titleEl = document.getElementById('page1-report-title');
+                            if (titleEl && data.page_1.report_title) {
+                                const titleText = data.page_1.report_title;
+                                let titleLines;
+                                if (titleText.includes(' - ')) {
+                                    titleLines = titleText.split(' - ').map(s => s.trim()).filter(Boolean);
+                                } else {
+                                    const commaIdx = titleText.indexOf(', ');
+                                    titleLines = commaIdx !== -1
+                                        ? [titleText.slice(0, commaIdx + 1).trim(), titleText.slice(commaIdx + 1).trim()]
+                                        : [titleText.trim()];
+                                }
+                                titleEl.textContent = '';
+                                titleEl.style.fontSize = '44px';
+                                const lineSpans = titleLines.map((line) => {
+                                    const span = document.createElement('span');
+                                    span.textContent = line;
+                                    span.style.display = 'block';
+                                    span.style.whiteSpace = 'nowrap';
+                                    titleEl.appendChild(span);
+                                    return span;
+                                });
+                                const maxLineWidth = 430;
+                                let fontSize = 44;
+                                while (fontSize > 22 && lineSpans.some(s => s.scrollWidth > maxLineWidth)) {
+                                    fontSize -= 2;
+                                    titleEl.style.fontSize = fontSize + 'px';
+                                }
+                            }
                             if (data.page_1.report_subtitles) {
                                 data.page_1.report_subtitles.forEach((s, i) => setText('page1-report-subtitle-' + (i+1), s));
                             }
@@ -1052,7 +1252,7 @@ export default function TestReportPage() {
                             // preceding icon (a sibling of the span, not a child) isn't wiped out.
                             const keyTraitsSpan = document.querySelector('span#page1-key-traits');
                             if (keyTraitsSpan && data.page_1.key_traits) {
-                                const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                 keyTraitsSpan.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                 keyTraitsSpan.style.fontWeight = '500';
                                 keyTraitsSpan.style.fontSize = '17px';
@@ -1062,7 +1262,7 @@ export default function TestReportPage() {
                             } else {
                                 const keyTraitsEl = document.getElementById('page1-key-traits');
                                 if (keyTraitsEl && data.page_1.key_traits) {
-                                    const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                    const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                     keyTraitsEl.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                     keyTraitsEl.style.fontWeight = '500';
                                     keyTraitsEl.style.fontSize = '17px';
@@ -1103,7 +1303,7 @@ export default function TestReportPage() {
                             // "BUILT FOR ..." summary in the share card, derived from key traits
                             const builtForEl = document.getElementById('page1-share-built-for');
                             if (builtForEl && data.page_1.key_traits) {
-                                const traits = data.page_1.key_traits.split('•').map(t => t.trim().toUpperCase()).filter(Boolean);
+                                const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim().toUpperCase()).filter(Boolean);
                                 builtForEl.textContent = traits.join('. ') + '.';
                             }
                         }
@@ -1175,6 +1375,10 @@ export default function TestReportPage() {
                                     setText('page3-research-title-' + (i+1), item.title);
                                     setText('page3-research-desc-' + (i+1), item.description);
                                 });
+                            }
+                            const researchSubtitleEl = document.getElementById('page3-research-subtitle');
+                            if (researchSubtitleEl && genes.length) {
+                                researchSubtitleEl.textContent = '(About people with similar ' + genes.join(' and ') + ' variant' + (genes.length > 1 ? 's' : '') + ')';
                             }
                         }
 
@@ -1444,6 +1648,34 @@ export default function TestReportPage() {
                               while (zoomCleanupFns.length) zoomCleanupFns.pop()();
                           };
 
+                          // html2canvas (used internally by html2pdf) doesn't support CSS
+                          // mask-image / -webkit-mask-image at all - it paints the Page 1 hero
+                          // photo fully opaque with a hard edge instead of the soft left-to-white
+                          // fade the live HTML preview shows via that mask. For capture only, lay
+                          // an ordinary white gradient div directly on top of the image (which
+                          // html2canvas paints fine) using the mask's own alpha stops inverted
+                          // onto opaque white, then remove it afterward via the same cleanup list
+                          // neutralizeZoom uses - the live preview's actual mask is never touched.
+                          // Mirrors ReportViewerModal.tsx.
+                          const addHeroFadeOverlay = (scope) => {
+                              const heroImage = scope.querySelector ? scope.querySelector('#page1-hero-image') : null;
+                              if (!heroImage) return;
+                              const rect = heroImage.getBoundingClientRect();
+                              if (rect.width === 0 && rect.height === 0) return; // not actually visible
+
+                              const overlay = document.createElement('div');
+                              overlay.style.position = 'absolute';
+                              overlay.style.top = '0';
+                              overlay.style.right = '0';
+                              overlay.style.width = heroImage.style.width || (rect.width + 'px');
+                              overlay.style.height = rect.height + 'px';
+                              overlay.style.pointerEvents = 'none';
+                              overlay.style.background = 'linear-gradient(90deg, #fff 0%, #fff 4%, rgba(255,255,255,.92) 9%, rgba(255,255,255,.78) 14%, rgba(255,255,255,.58) 19%, rgba(255,255,255,.36) 25%, rgba(255,255,255,.16) 31%, rgba(255,255,255,0) 39%)';
+
+                              heroImage.parentNode.insertBefore(overlay, heroImage.nextSibling);
+                              zoomCleanupFns.push(() => { overlay.remove(); });
+                          };
+
                           const opt = {
                             margin:       0,
                             filename:     filename || 'report.pdf',
@@ -1477,8 +1709,10 @@ export default function TestReportPage() {
                                           innerRestore.style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
                                       }
                                       // Only the page about to be captured is visible, so its zoomed
-                                      // elements can only be measured (and thus wrapped) now.
+                                      // elements (and the hero image's mask, if this is Page 1) can
+                                      // only be measured/patched now.
                                       neutralizeZoom(pages[i]);
+                                      addHeroFadeOverlay(pages[i]);
                                       return new Promise(r => setTimeout(r, 100)); // allow DOM to settle
                                   });
 
@@ -1496,6 +1730,7 @@ export default function TestReportPage() {
                               pages.forEach(p => p.style.display = ''); // restore display
                             } else {
                               neutralizeZoom(container);
+                              addHeroFadeOverlay(container);
                               await html2pdf().set(opt).from(container).save();
                               restoreZoom();
                             }
@@ -1518,7 +1753,9 @@ export default function TestReportPage() {
                     </script>
                   `;
 
-                  const now = new Date();
+                  // Fixed sample values for this QA page (not tied to a real patient/date) -
+                  // September 5th, 2026, 10:05 AM.
+                  const now = new Date(2026, 8, 5, 10, 5);
                   const formattedDate = now.toLocaleString('en-US', {
                     day: 'numeric',
                     month: 'short',
@@ -1527,6 +1764,8 @@ export default function TestReportPage() {
                     minute: '2-digit',
                     hour12: true
                   });
+                  const sampleMbqId = 'MBQ2026000';
+                  const sampleName = 'Sample Name';
 
                   const pageCount = (html.match(/data-screen-label=/g) || []).length;
                   setTotalPages(pageCount > 0 ? pageCount : 1);
@@ -1660,11 +1899,19 @@ export default function TestReportPage() {
                     </style>
                   `;
 
-                  const finalHtml = html
+                  let finalHtml = html
                     .replace('<head>', `<head><base href="${window.location.origin}/">\n${fontCss}`)
                     .replace('src="./support.js"', 'src="/templates/support.js"')
                     .replace(/dd mm yyyy/g, formattedDate)
                     .replace('</body>', scriptString + '\n' + carouselScript + '\n</body>');
+
+                  // Catches "CQ ID: CQ-2024...", "MBQ ID: MBQ-2024...", etc. in all templates
+                  // (Caffeine, Muscle, Hair) - replaces every page's footer in one pass and
+                  // appends the sample name alongside it. Mirrors ReportViewerModal.tsx.
+                  finalHtml = finalHtml.replace(
+                    /(?:CQ|MBQ|HQ)?\s*ID:\s*(?:CQ|MBQ|HQ)?-?\d{4}-\d{4}-\d{6}/g,
+                    `ID: ${sampleMbqId} &bull; ${sampleName}`
+                  );
 
                   setReportHtml(finalHtml);
                 } catch (err) {
@@ -1675,9 +1922,10 @@ export default function TestReportPage() {
               className="px-4 py-2 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
             >
               <Sparkles className="w-4 h-4" />
-              View Beautiful Report
+              View
             </button>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto bg-[#1A1A19] p-6 text-[#E8E8E5] font-mono text-sm">

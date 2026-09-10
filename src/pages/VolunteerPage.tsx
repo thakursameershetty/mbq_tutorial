@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, CheckCircle2, Clock, User, Phone, Mail, Calendar, Activity, Loader2, Edit, X, Plus, Check, Wand2 } from 'lucide-react';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
+import { GENE_CATALOG } from '../lib/geneCatalog';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -432,20 +433,21 @@ export default function VolunteerPage() {
                       ))}
 
                       {/* Unselected Genes */}
-                      {[
-                        { short: 'ACTN3', full: 'Muscle Power vs Endurance (ACTN3,ACE)' },
-                        { short: 'EDAR', full: 'Hair Thickness & Root Structure (EDAR,FGFR2)' },
-                        { short: 'CYP1A2', full: 'Caffeine Response (CYP1A2,ADORA2A)' }
-                      ].filter(ag => !(editedGeneType || '').toUpperCase().includes(ag.short)).map((ag, idx) => (
+                      {GENE_CATALOG.flatMap(cat => cat.options)
+                        .filter(opt => !editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).includes(opt.label))
+                        .map((opt, idx) => (
                         <span
                           key={`add-${idx}`}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-[#D4D4CE] text-[#8B8B86] leading-none cursor-pointer hover:bg-[#F4F4F2] hover:text-[#5A5A55] transition-all"
                           onClick={() => {
                             const genes = editedGeneType ? editedGeneType.split(/,\s*(?![^(]*\))/).map(x => x.trim()).filter(Boolean) : [];
-                            setEditedGeneType([...genes, ag.full].join(', '));
+                            setEditedGeneType([...genes, opt.label].join(', '));
                           }}
                         >
-                          {ag.full}
+                          {opt.label}
+                          <span className={`ml-1 px-1 py-0.5 rounded text-[9px] uppercase tracking-wide ${opt.tier === 'pro' ? 'bg-indigo-100 text-indigo-600' : 'bg-[#E8E8E5] text-[#8B8B86]'}`}>
+                            {opt.tier}
+                          </span>
                           <Plus size={12} className="opacity-70" />
                         </span>
                       ))}

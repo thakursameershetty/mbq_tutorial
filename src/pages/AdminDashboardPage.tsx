@@ -4,31 +4,12 @@ import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, C
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
+import { getRequiredGenes } from '../lib/geneCatalog';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
   if (isNaN(num)) return `MBQ${id}`;
   return `MBQ${String(num).padStart(3, '0')}`;
-};
-
-const getRequiredGenes = (patientGeneString: string) => {
-  if (!patientGeneString) return [];
-  const panels = patientGeneString.split(/,\s*(?![^(]*\))/).map(s => s.trim().toLowerCase());
-  const requiredGenes: { panel: string, name: string, variants: string[] }[] = [];
-
-  panels.forEach(panel => {
-    if (panel.includes('caffine') || panel.includes('caffeine')) {
-      requiredGenes.push({ panel: "Caffeine Sensitivity", name: "CYP1A2", variants: ["AA", "AC", "CC"] });
-      requiredGenes.push({ panel: "Caffeine Sensitivity", name: "ADORA2A", variants: ["TT", "TC", "CC"] });
-    } else if (panel.includes('muscle') || panel.includes('actn3')) {
-      requiredGenes.push({ panel: "Muscle Performance", name: "ACTN3", variants: ["RR", "RX", "XX"] });
-      requiredGenes.push({ panel: "Muscle Performance", name: "ACE", variants: ["II", "ID", "DD"] });
-    } else if (panel.includes('hair') || panel.includes('edar')) {
-      requiredGenes.push({ panel: "Hair", name: "EDAR", variants: ["GG", "AG", "AA"] });
-      requiredGenes.push({ panel: "Hair", name: "FGFR2", variants: ["TT", "GT", "GG"] });
-    }
-  });
-  return requiredGenes;
 };
 
 const getGeneColor = (geneName: string) => {

@@ -9,8 +9,13 @@ interface ReportViewerModalProps {
   geneVariants: any;
   testName: string;
   mbqId?: string;
+  patientName?: string | null;
   generatedAt?: string | null;
   gender?: string | null;
+  /** Whether feedback must be given once, on the last page, before the download
+   * unlocks. Defaults to true for the patient-facing dashboard; the admin
+   * verification portal passes false so staff can download straight away. */
+  requireFeedback?: boolean;
 }
 
 // Every template page is laid out at a fixed intrinsic size (matches the
@@ -49,7 +54,7 @@ const DislikeIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, generatedAt, gender }: ReportViewerModalProps) {
+export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, patientName, generatedAt, gender, requireFeedback = true }: ReportViewerModalProps) {
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -80,7 +85,6 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
   const [currentFeedbackInput, setCurrentFeedbackInput] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const [showTextarea, setShowTextarea] = useState(false);
-  const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
   // Pages aren't all a uniform 1449px tall (some grow with content) — track the
@@ -90,7 +94,8 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
   // Guards against briefly re-prompting for a page's feedback while the fetch of
   // previously-given feedback (below) is still in flight.
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
-  const hasAllFeedback = totalPages > 0 && Object.keys(pageFeedbacks).length >= totalPages;
+  // Only the last page's feedback is required (and only once) - not every page.
+  const hasAllFeedback = !requireFeedback || (totalPages > 0 && !!pageFeedbacks[totalPages - 1]);
 
   // Download countdown / "what's next" interest-collection flow.
   const [showDownloadFlow, setShowDownloadFlow] = useState(false);
@@ -111,6 +116,12 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
   // was closed partway through) so those pages aren't asked again.
   useEffect(() => {
     if (!isOpen || !testName || !mbqId) return;
+    if (!requireFeedback) {
+      // Admin portal: skip the feedback fetch/gate entirely so Next Page and
+      // Download are never blocked waiting on it.
+      setFeedbackLoaded(true);
+      return;
+    }
     setFeedbackLoaded(false);
     fetch(`/api/test/feedback?test_name=${encodeURIComponent(testName)}&mbq_id=${encodeURIComponent(mbqId)}`)
       .then(res => res.json())
@@ -128,7 +139,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
       })
       .catch(err => console.error('Failed to load existing feedback:', err))
       .finally(() => setFeedbackLoaded(true));
-  }, [isOpen, testName, mbqId]);
+  }, [isOpen, testName, mbqId, requireFeedback]);
 
   // Load any interest the user already recorded (in a previous report's download flow,
   // possibly) for the upcoming tests, so the same choices don't need repeating.
@@ -509,15 +520,42 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         let genes = Object.keys(genesObj);
 
                         // Page 1 hero image: swaps in a gender + genotype specific portrait.
-                        // Each test's headline gene (the one classic RR/RX/XX-style trait is
-                        // built from) drives which of the 6 pre-rendered images shows -
-                        // 3 genotypes x male/female. Falls back to the template's default
-                        // hero image if gender or a matching asset isn't available.
+                        // Each category only has one photo set, shot against its headline gene
+                        // (CYP1A2 / ACTN3 / EDAR) - 3 genotypes x male/female. A Lite purchase of
+                        // the category's *other* gene (ADORA2A / ACE / FGFR2) has no photos of its
+                        // own, so its genotype is mapped onto the equivalent tier (dominant /
+                        // heterozygous / recessive) of the headline gene and that photo is reused.
+                        // Falls back to the template's default hero image if gender or a matching
+                        // asset isn't available.
                         (function() {
                             const heroConfigs = {
-                                caffeine: { dir: 'CYP1A2', gene: 'CYP1A2', normalize: gt => gt === 'CA' ? 'AC' : gt, fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png') },
-                                muscle: { dir: 'ACTN3', gene: 'ACTN3', normalize: gt => gt === 'XR' ? 'RX' : gt, fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png' },
-                                hair: { dir: 'EDAR:FGFR2', gene: 'EDAR', normalize: gt => gt === 'GA' ? 'AG' : gt, fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png' }
+                                caffeine: {
+                                    dir: 'CYP1A2',
+                                    headlineGene: 'CYP1A2',
+                                    fileName: (gt, genderKey) => genderKey === 'male' ? ('CYP1A2_male_' + gt + ' 1.png') : ('CYP1A2_' + gt + '_female 1.png'),
+                                    genes: {
+                                        CYP1A2: { normalize: gt => gt === 'CA' ? 'AC' : gt, tiers: ['AA', 'AC', 'CC'] },
+                                        ADORA2A: { normalize: gt => gt === 'CT' ? 'TC' : gt, tiers: ['TT', 'TC', 'CC'] }
+                                    }
+                                },
+                                muscle: {
+                                    dir: 'ACTN3',
+                                    headlineGene: 'ACTN3',
+                                    fileName: (gt, genderKey) => 'ACTN3_' + gt + '_' + genderKey + '.png',
+                                    genes: {
+                                        ACTN3: { normalize: gt => gt === 'XR' ? 'RX' : gt, tiers: ['RR', 'RX', 'XX'] },
+                                        ACE: { normalize: gt => gt === 'DI' ? 'ID' : gt, tiers: ['DD', 'ID', 'II'] }
+                                    }
+                                },
+                                hair: {
+                                    dir: 'EDAR:FGFR2',
+                                    headlineGene: 'EDAR',
+                                    fileName: (gt, genderKey) => 'EDAR_' + gt + '_' + (genderKey === 'male' ? 'Male' : 'female') + '.png',
+                                    genes: {
+                                        EDAR: { normalize: gt => gt === 'GA' ? 'AG' : gt, tiers: ['GG', 'AG', 'AA'] },
+                                        FGFR2: { normalize: gt => gt === 'TG' ? 'GT' : gt, tiers: ['TT', 'GT', 'GG'] }
+                                    }
+                                }
                             };
                             const testKey = ${JSON.stringify(templateName)};
                             const config = heroConfigs[testKey];
@@ -525,20 +563,98 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             if (config && heroEl) {
                                 const rawGender = (window.USER_GENDER || '').toLowerCase();
                                 const genderKey = rawGender.startsWith('m') ? 'male' : rawGender.startsWith('f') ? 'female' : null;
-                                const genotype = config.normalize(genesObj[config.gene] || '');
-                                if (genderKey && genotype) {
-                                    heroEl.src = 'assets/mbq-page1/' + encodeURIComponent(config.dir) + '/' + encodeURIComponent(config.fileName(genotype, genderKey));
+
+                                let genotypeCode = null;
+                                const headlineInfo = config.genes[config.headlineGene];
+                                if (genesObj[config.headlineGene]) {
+                                    genotypeCode = headlineInfo.normalize(genesObj[config.headlineGene]);
+                                } else {
+                                    const altGeneName = Object.keys(config.genes).find(g => g !== config.headlineGene && genesObj[g]);
+                                    if (altGeneName) {
+                                        const altInfo = config.genes[altGeneName];
+                                        const altGenotype = altInfo.normalize(genesObj[altGeneName]);
+                                        const tierIndex = altInfo.tiers.indexOf(altGenotype);
+                                        if (tierIndex !== -1) genotypeCode = headlineInfo.tiers[tierIndex];
+                                    }
+                                }
+
+                                if (genderKey && genotypeCode) {
+                                    // The hair asset folder is literally named "EDAR:FGFR2" - encoding
+                                    // that colon (%3A) makes Vite's static server 404 into the SPA
+                                    // fallback instead of serving the file, so keep it unescaped while
+                                    // still encoding everything else in the path.
+                                    const dirPath = config.dir.split(':').map(encodeURIComponent).join(':');
+                                    heroEl.src = 'assets/mbq-page1/' + dirPath + '/' + encodeURIComponent(config.fileName(genotypeCode, genderKey));
                                 }
                             }
                         })();
 
+                        // Single-gene mode: hide the unused gene's Page 5 boxes (chromatogram,
+                        // "what does your result mean", "where is this variant located"). The
+                        // text-only "what does your result mean" box spans the full row (matching
+                        // the existing full-width row-1 "What is Sanger Sequencing" pattern), and
+                        // is reordered to sit above the two image-heavy boxes, which are left at
+                        // their natural half-width and placed side by side so the chromatogram and
+                        // chromosome-location images don't blow up to full page width.
+                        (function() {
+                            const GENE_PAIRS_BY_CATEGORY = { caffeine: ['CYP1A2', 'ADORA2A'], muscle: ['ACTN3', 'ACE'], hair: ['EDAR', 'FGFR2'] };
+                            if (genes.length !== 1) return;
+                            const testKey = ${JSON.stringify(templateName)};
+                            const pair = GENE_PAIRS_BY_CATEGORY[testKey] || genes;
+                            const usedGene = genes[0];
+
+                            // Each box's numbered badge (1/2/3/4) is static template text tied to
+                            // its original position, not its id - re-stamp it to match the new
+                            // visual order so the badges read 1, 2, 3, 4 top-to-bottom again.
+                            const setBadgeNumber = (boxEl, num) => {
+                                const badge = boxEl && boxEl.firstElementChild && boxEl.firstElementChild.firstElementChild;
+                                if (badge) badge.textContent = String(num);
+                            };
+
+                            const resultMeaningEl = document.getElementById('page3-' + usedGene + '-box');
+                            if (resultMeaningEl) {
+                                resultMeaningEl.style.gridColumn = '1 / -1';
+                                resultMeaningEl.style.order = '1';
+                                setBadgeNumber(resultMeaningEl, 2);
+                            }
+                            const chromatogramBoxEl = document.getElementById('page5-' + usedGene + '-chromatogram-box');
+                            if (chromatogramBoxEl) {
+                                chromatogramBoxEl.style.order = '2';
+                                setBadgeNumber(chromatogramBoxEl, 3);
+                            }
+                            const variantBoxEl = document.getElementById('page5-' + usedGene + '-variant-box');
+                            if (variantBoxEl) {
+                                variantBoxEl.style.order = '3';
+                                setBadgeNumber(variantBoxEl, 4);
+                            }
+
+                            pair.filter(g => g !== usedGene).forEach(g => {
+                                ['page5-' + g + '-chromatogram-box', 'page3-' + g + '-box', 'page5-' + g + '-variant-box'].forEach(id => {
+                                    const el = document.getElementById(id);
+                                    if (el) el.style.display = 'none';
+                                });
+                            });
+                        })();
+
+                        // Must mirror the backend's authoritative_scientific_evidence selection
+                        // (mbq_backend/rag/report_guardrails.py): for a combined report that's 2
+                        // cards from the first gene then 1 from the second, NOT every reference
+                        // from both genes flattened together - otherwise this array misaligns
+                        // with page_2.scientific_evidence and the wrong PubMed record (title/
+                        // authors) gets stitched onto the right card's description below.
                         let allLinks = [];
                         if (data.per_gene_appendix) {
-                            genes.forEach(g => {
-                                if (data.per_gene_appendix[g] && data.per_gene_appendix[g].scientific_references) {
-                                    allLinks = allLinks.concat(data.per_gene_appendix[g].scientific_references);
-                                }
-                            });
+                            if (genes.length >= 2) {
+                                const gene1Refs = (data.per_gene_appendix[genes[0]] && data.per_gene_appendix[genes[0]].scientific_references) || [];
+                                const gene2Refs = (data.per_gene_appendix[genes[1]] && data.per_gene_appendix[genes[1]].scientific_references) || [];
+                                allLinks = [gene1Refs[0], gene1Refs[1], gene2Refs[0]];
+                            } else {
+                                genes.forEach(g => {
+                                    if (data.per_gene_appendix[g] && data.per_gene_appendix[g].scientific_references) {
+                                        allLinks = allLinks.concat(data.per_gene_appendix[g].scientific_references);
+                                    }
+                                });
+                            }
                         }
                         
                         const setText = (id, text) => {
@@ -659,7 +775,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             if (gridContainer && gridContainer.style.display === 'grid') {
                                 const titleDiv = gridContainer.previousElementSibling;
                                 if (titleDiv) {
-                                    const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                    const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                     titleDiv.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                     titleDiv.style.lineHeight = '1.6';
                                     titleDiv.style.textTransform = 'uppercase';
@@ -699,7 +815,42 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         
                         // PAGE 1
                         if (data.page_1) {
-                            setText('page1-report-title', data.page_1.report_title);
+                            // Long titles (e.g. "Endurance Performance - Balanced Capacity" or
+                            // "Low-Density, Medium-Strand Hair") were running past the title column
+                            // and overlapping the hero photo. Break onto two lines at " - " if
+                            // present (delimiter dropped), else at the first ", " (comma kept on
+                            // line 1), then shrink the font size (if needed) until each line fits
+                            // the 430px column on a single row — otherwise a long half like
+                            // "Endurance Performance" wraps a second, unwanted time on its own.
+                            const titleEl = document.getElementById('page1-report-title');
+                            if (titleEl && data.page_1.report_title) {
+                                const titleText = data.page_1.report_title;
+                                let titleLines;
+                                if (titleText.includes(' - ')) {
+                                    titleLines = titleText.split(' - ').map(s => s.trim()).filter(Boolean);
+                                } else {
+                                    const commaIdx = titleText.indexOf(', ');
+                                    titleLines = commaIdx !== -1
+                                        ? [titleText.slice(0, commaIdx + 1).trim(), titleText.slice(commaIdx + 1).trim()]
+                                        : [titleText.trim()];
+                                }
+                                titleEl.textContent = '';
+                                titleEl.style.fontSize = '44px';
+                                const lineSpans = titleLines.map((line) => {
+                                    const span = document.createElement('span');
+                                    span.textContent = line;
+                                    span.style.display = 'block';
+                                    span.style.whiteSpace = 'nowrap';
+                                    titleEl.appendChild(span);
+                                    return span;
+                                });
+                                const maxLineWidth = 430;
+                                let fontSize = 44;
+                                while (fontSize > 22 && lineSpans.some(s => s.scrollWidth > maxLineWidth)) {
+                                    fontSize -= 2;
+                                    titleEl.style.fontSize = fontSize + 'px';
+                                }
+                            }
                             if (data.page_1.report_subtitles) {
                                 data.page_1.report_subtitles.forEach((s, i) => setText('page1-report-subtitle-' + (i+1), s));
                             }
@@ -717,7 +868,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             // preceding icon (a sibling of the span, not a child) isn't wiped out.
                             const keyTraitsSpan = document.querySelector('span#page1-key-traits');
                             if (keyTraitsSpan && data.page_1.key_traits) {
-                                const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                 keyTraitsSpan.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                 keyTraitsSpan.style.fontWeight = '500';
                                 keyTraitsSpan.style.fontSize = '17px';
@@ -727,7 +878,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             } else {
                                 const keyTraitsEl = document.getElementById('page1-key-traits');
                                 if (keyTraitsEl && data.page_1.key_traits) {
-                                    const traits = data.page_1.key_traits.split('•').map(t => t.trim()).filter(Boolean);
+                                    const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim()).filter(Boolean).map(t => t.charAt(0).toUpperCase() + t.slice(1));
                                     keyTraitsEl.innerHTML = traits.map(t => '&bull; ' + t).join('<br/>');
                                     keyTraitsEl.style.fontWeight = '500';
                                     keyTraitsEl.style.fontSize = '17px';
@@ -735,7 +886,13 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             }
 
                             setText('page1-tendency-description', data.page_1.tendency_description);
-                            
+
+                            const badgeEl = document.getElementById('page1-expression-badge');
+                            if (badgeEl && data.page_1.expression_badge) {
+                                badgeEl.textContent = data.page_1.expression_badge;
+                                badgeEl.style.display = 'block';
+                            }
+
                             if (data.page_1.what_this_means_for_you_cards) {
                                 data.page_1.what_this_means_for_you_cards.forEach((card, i) => {
                                     setText('page1-wtm-card-title-' + (i+1), card.title);
@@ -768,7 +925,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             // "BUILT FOR ..." summary in the share card, derived from key traits
                             const builtForEl = document.getElementById('page1-share-built-for');
                             if (builtForEl && data.page_1.key_traits) {
-                                const traits = data.page_1.key_traits.split('•').map(t => t.trim().toUpperCase()).filter(Boolean);
+                                const traits = data.page_1.key_traits.split(/[•,]/).map(t => t.trim().toUpperCase()).filter(Boolean);
                                 builtForEl.textContent = traits.join('. ') + '.';
                             }
                         }
@@ -840,6 +997,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                     setText('page3-research-title-' + (i+1), item.title);
                                     setText('page3-research-desc-' + (i+1), item.description);
                                 });
+                            }
+                            const researchSubtitleEl = document.getElementById('page3-research-subtitle');
+                            if (researchSubtitleEl && genes.length) {
+                                researchSubtitleEl.textContent = '(About people with similar ' + genes.join(' and ') + ' variant' + (genes.length > 1 ? 's' : '') + ')';
                             }
                         }
 
@@ -1112,6 +1273,33 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                               while (zoomCleanupFns.length) zoomCleanupFns.pop()();
                           };
 
+                          // html2canvas (used internally by html2pdf) doesn't support CSS
+                          // mask-image / -webkit-mask-image at all - it paints the Page 1 hero
+                          // photo fully opaque with a hard edge instead of the soft left-to-white
+                          // fade the live HTML preview shows via that mask. For capture only, lay
+                          // an ordinary white gradient div directly on top of the image (which
+                          // html2canvas paints fine) using the mask's own alpha stops inverted
+                          // onto opaque white, then remove it afterward via the same cleanup list
+                          // neutralizeZoom uses - the live preview's actual mask is never touched.
+                          const addHeroFadeOverlay = (scope) => {
+                              const heroImage = scope.querySelector ? scope.querySelector('#page1-hero-image') : null;
+                              if (!heroImage) return;
+                              const rect = heroImage.getBoundingClientRect();
+                              if (rect.width === 0 && rect.height === 0) return; // not actually visible
+
+                              const overlay = document.createElement('div');
+                              overlay.style.position = 'absolute';
+                              overlay.style.top = '0';
+                              overlay.style.right = '0';
+                              overlay.style.width = heroImage.style.width || (rect.width + 'px');
+                              overlay.style.height = rect.height + 'px';
+                              overlay.style.pointerEvents = 'none';
+                              overlay.style.background = 'linear-gradient(90deg, #fff 0%, #fff 4%, rgba(255,255,255,.92) 9%, rgba(255,255,255,.78) 14%, rgba(255,255,255,.58) 19%, rgba(255,255,255,.36) 25%, rgba(255,255,255,.16) 31%, rgba(255,255,255,0) 39%)';
+
+                              heroImage.parentNode.insertBefore(overlay, heroImage.nextSibling);
+                              zoomCleanupFns.push(() => { overlay.remove(); });
+                          };
+
                           const opt = {
                             margin:       0,
                             filename:     filename || 'report.pdf',
@@ -1144,8 +1332,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                           innerRestore.style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
                                       }
                                       // Only the page about to be captured is visible, so its zoomed
-                                      // elements can only be measured (and thus wrapped) now.
+                                      // elements (and the hero image's mask, if this is Page 1) can
+                                      // only be measured/patched now.
                                       neutralizeZoom(pages[i]);
+                                      addHeroFadeOverlay(pages[i]);
                                       return new Promise(r => setTimeout(r, 100)); // allow DOM to settle
                                   });
 
@@ -1163,6 +1353,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                               pages.forEach(p => p.style.display = ''); // restore display
                             } else {
                               neutralizeZoom(container);
+                              addHeroFadeOverlay(container);
                               await html2pdf().set(opt).from(container).save();
                               restoreZoom();
                             }
@@ -1313,7 +1504,17 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
 
       if (mbqId) {
         // Catches "CQ ID: CQ-2024...", "MBQ ID: MBQ-2024...", etc. in all templates (Caffeine, Muscle, Hair, etc.)
-        finalHtml = finalHtml.replace(/(?:CQ|MBQ|HQ)?\s*ID:\s*(?:CQ|MBQ|HQ)?-?\d{4}-\d{4}-\d{6}/g, `ID: ${mbqId}`);
+        // — replaces it on every page's footer in one pass since the placeholder text is
+        // identical across all 5 pages. Appends the patient's name alongside it (same footer
+        // slot) rather than touching each template's markup individually.
+        const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const footerIdText = patientName
+          ? `ID: ${mbqId} &bull; ${escapeHtml(patientName)}`
+          : `ID: ${mbqId}`;
+        // $ has special meaning as a String.replace replacement token (e.g. "$&") - escape any
+        // literal $ in the name/id so it can't be misinterpreted.
+        const safeFooterIdText = footerIdText.replace(/\$/g, '$$$$');
+        finalHtml = finalHtml.replace(/(?:CQ|MBQ|HQ)?\s*ID:\s*(?:CQ|MBQ|HQ)?-?\d{4}-\d{4}-\d{6}/g, safeFooterIdText);
       }
 
       setReportHtml(finalHtml);
@@ -1350,17 +1551,13 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                   <button
                     onClick={() => {
                       if (!hasAllFeedback) {
-                        const missingIndex = Array.from({ length: totalPages }, (_, i) => i).find(i => !pageFeedbacks[i]);
-                        if (missingIndex !== undefined) {
-                          setCurrentPageIndex(missingIndex);
-                          setPendingNextIndex(null);
-                          setShowFeedbackPrompt(true);
-                        }
+                        setCurrentPageIndex(totalPages - 1);
+                        setShowFeedbackPrompt(true);
                         return;
                       }
                       setShowDownloadFlow(true);
                     }}
-                    title={hasAllFeedback ? undefined : 'Share your feedback on every page to unlock the download'}
+                    title={hasAllFeedback ? undefined : 'Share your feedback to unlock the download'}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${hasAllFeedback
                       ? 'bg-[#1A1A19] text-white hover:bg-black'
                       : 'bg-[#F0F0ED] text-[#8B8B86] cursor-not-allowed'
@@ -1436,12 +1633,9 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                     {currentPageIndex + 1} / {totalPages}
                   </span>
 
-                  {feedbackLoaded && currentPageIndex === totalPages - 1 && !pageFeedbacks[currentPageIndex] ? (
+                  {requireFeedback && feedbackLoaded && currentPageIndex === totalPages - 1 && !pageFeedbacks[currentPageIndex] ? (
                     <button
-                      onClick={() => {
-                        setPendingNextIndex(null);
-                        setShowFeedbackPrompt(true);
-                      }}
+                      onClick={() => setShowFeedbackPrompt(true)}
                       className="flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap pl-3 pr-3 py-2 sm:pl-4 sm:pr-4 sm:py-2.5 bg-amber-500 shadow-lg rounded-full text-xs sm:text-sm font-bold text-white hover:bg-amber-600 transition-colors"
                     >
                       Give Feedback
@@ -1450,16 +1644,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                   ) : (
                     <button
                       onClick={() => {
-                        // Previously-answered pages (loaded from an earlier visit) skip
-                        // straight ahead; only an unanswered page prompts for feedback.
-                        if (!feedbackLoaded) return;
+                        // Feedback is only asked for once, on the last page (see the branch
+                        // above) - navigating between pages is never gated on it.
                         if (currentPageIndex < totalPages - 1) {
-                          if (!pageFeedbacks[currentPageIndex]) {
-                            setPendingNextIndex(currentPageIndex + 1);
-                            setShowFeedbackPrompt(true);
-                          } else {
-                            setCurrentPageIndex(currentPageIndex + 1);
-                          }
+                          setCurrentPageIndex(currentPageIndex + 1);
                         }
                       }}
                       disabled={currentPageIndex === totalPages - 1 || !feedbackLoaded}
@@ -1494,7 +1682,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                       className="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-[400px] flex flex-col items-center text-center"
                     >
                       <h4 className="text-lg font-bold text-[#1A1A19] mb-2">Your feedback helps.</h4>
-                      <p className="text-sm text-[#5c6473] mb-6">We are making our systems better, Please contribute your thoughts on Page {currentPageIndex + 1}.</p>
+                      <p className="text-sm text-[#5c6473] mb-6">We are making our systems better. Please share your thoughts on this report.</p>
 
                       <div className="flex gap-6 justify-center mb-6">
                         <button
@@ -1595,10 +1783,6 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             setCurrentFeedbackInput('');
                             setSelectedEmoji(null);
                             setShowTextarea(false);
-                            if (pendingNextIndex !== null) {
-                              setCurrentPageIndex(pendingNextIndex);
-                              setPendingNextIndex(null);
-                            }
                           }}
                           className="px-6 py-2 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
                         >
