@@ -1,7 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ChevronDown, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle, Lightbulb, ImageIcon } from 'lucide-react';
+import { Loader2, ChevronDown, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle, Lightbulb, ImageIcon, CheckCircle2 } from 'lucide-react';
 import FloatingChatbot from '../components/FloatingChatbot';
+
+// Tests for the "what's coming next" interest list shown during the download countdown.
+// Mirrors ReportViewerModal.tsx so this dev preview matches the patient-facing flow.
+const UPCOMING_TESTS = [
+  { name: 'Body Fuel Qode', image: '/assets/upcoming-tests/body-fuel-qode.svg' },
+  { name: 'Metabolism Qode', image: '/assets/upcoming-tests/metabolism-qode.svg' },
+  { name: 'Collagen Qode Test', image: '/assets/upcoming-tests/collagen-qode-test.svg' },
+  { name: 'Hair Fall Qode Test', image: '/assets/upcoming-tests/hair-fall-qode-test.svg' },
+  { name: 'Grey Qode Test', image: '/assets/upcoming-tests/grey-qode-test.svg' },
+  { name: 'City Shield Qode Test', image: '/assets/upcoming-tests/city-shield-qode-test.svg' },
+  { name: 'Dairy Qode Test', image: '/assets/upcoming-tests/dairy-qode-test.svg' },
+  { name: 'Sleep Qode Test', image: '/assets/upcoming-tests/sleep-qode-test.svg' },
+  { name: 'Taste Qode Test', image: '/assets/upcoming-tests/taste-qode-test.svg' },
+];
+
+const DOWNLOAD_COUNTDOWN_SECONDS = 10;
+
+const LikeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="#664FC2" d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2M4 10h2v9H4zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7z" />
+  </svg>
+);
+
+const DislikeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="#664FC2" d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2 2 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.36l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2m-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638zM18 14V5h2l.001 9z" />
+  </svg>
+);
 
 // Every question's illustration lives at
 // src/assets/questionare-images/<subgene>/<category>-<subgene>-q<n>.png (n is
@@ -115,6 +143,40 @@ export default function TestReportPage() {
   // currently-visible page's real rendered height so it's shown in full rather
   // than clipped to (or padded out to) one fixed length for every page.
   const [pageHeight, setPageHeight] = useState(DESIGN_HEIGHT);
+
+  // Download countdown / "what's next" interest-collection flow - mirrors
+  // ReportViewerModal.tsx so this preview shows exactly what patients see.
+  // Interests are kept purely in local state here (no mbqId to persist
+  // against in this dev tool), just for previewing the interaction.
+  const [showDownloadFlow, setShowDownloadFlow] = useState(false);
+  const [downloadCountdown, setDownloadCountdown] = useState(DOWNLOAD_COUNTDOWN_SECONDS);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [testInterests, setTestInterests] = useState<Record<string, boolean>>({});
+  const isDownloadDone = showDownloadFlow && downloadCountdown === 0 && !pdfGenerating;
+
+  const triggerDownload = () => {
+    setPdfGenerating(true);
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement | null;
+    const downloadFn = iframe?.contentWindow && (iframe.contentWindow as any).downloadPDF;
+    const genPromise = downloadFn
+      ? downloadFn(`${selectedTestName.toLowerCase().replace(/\s+/g, '-')}-report.pdf`)
+      : Promise.resolve();
+    Promise.resolve(genPromise)
+      .catch((e: any) => console.error('PDF generation failed:', e))
+      .finally(() => setPdfGenerating(false));
+  };
+
+  useEffect(() => {
+    if (!showDownloadFlow) return;
+
+    setDownloadCountdown(DOWNLOAD_COUNTDOWN_SECONDS);
+    triggerDownload();
+
+    const interval = setInterval(() => {
+      setDownloadCountdown(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showDownloadFlow]);
 
   useEffect(() => {
     fetchQuestions();
@@ -1684,10 +1746,33 @@ export default function TestReportPage() {
                             jsPDF:        { unit: 'px', format: [1024, 1449], orientation: 'portrait' }
                           };
 
+                          // html2pdf's toPdf() always slices a captured canvas into ceil(canvas.height
+                          // / onePagePxHeight) PDF pages - it has no option to disable this. Every page
+                          // here is restored to its exact designed height (1449px, clipped via
+                          // overflow:hidden) right before capture, but a 1px rounding/reflow difference
+                          // is enough to push canvas.height one pixel past one page's worth, which
+                          // silently appends a second, almost entirely blank page for that slice. Crop
+                          // the canvas back down to exactly one page's pixel height right before toPdf()
+                          // so this can never happen, regardless of the exact cause of the overflow.
+                          const onePagePxHeight = opt.jsPDF.format[1] * opt.html2canvas.scale;
+                          function clampCanvasHeight() {
+                              const canvas = this.prop.canvas;
+                              if (canvas && canvas.height > onePagePxHeight) {
+                                  const cropped = document.createElement('canvas');
+                                  cropped.width = canvas.width;
+                                  cropped.height = onePagePxHeight;
+                                  cropped.getContext('2d').drawImage(
+                                      canvas, 0, 0, canvas.width, onePagePxHeight,
+                                      0, 0, canvas.width, onePagePxHeight
+                                  );
+                                  this.prop.canvas = cropped;
+                              }
+                          }
+
                           try {
                             if (pages.length > 0) {
                               let worker = html2pdf().set(opt);
-                              
+
                               for (let i = 0; i < pages.length; i++) {
                                   worker = worker.then(() => {
                                       pages.forEach((p, idx) => {
@@ -1717,9 +1802,9 @@ export default function TestReportPage() {
                                   });
 
                                   if (i === 0) {
-                                      worker = worker.from(pages[i]).toPdf();
+                                      worker = worker.from(pages[i]).toContainer().toCanvas().then(clampCanvasHeight).toPdf();
                                   } else {
-                                      worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().toPdf();
+                                      worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().then(clampCanvasHeight).toPdf();
                                   }
 
                                   worker = worker.then(() => { restoreZoom(); });
@@ -1969,24 +2054,24 @@ export default function TestReportPage() {
               className="bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full max-w-[1000px] h-[90vh]"
             >
               <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
-                <h3 className="font-bold text-lg text-[#1A1A19]">{selectedTestName} Report</h3>
+                <h3 className="font-bold text-lg text-[#1A1A19]">
+                  {showDownloadFlow ? 'Preparing Your Download' : `${selectedTestName} Report`}
+                </h3>
                 <div className="flex items-center gap-3">
+                  {!showDownloadFlow && (
+                    <button
+                      onClick={() => setShowDownloadFlow(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#1A1A19] text-white rounded-lg text-sm font-bold hover:bg-black transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download PDF
+                    </button>
+                  )}
                   <button
                     onClick={() => {
-                      const iframe = document.getElementById('report-iframe') as HTMLIFrameElement;
-                      if (iframe && iframe.contentWindow && (iframe.contentWindow as any).downloadPDF) {
-                        (iframe.contentWindow as any).downloadPDF(`${selectedTestName.toLowerCase().replace(/\s+/g, '-')}-report.pdf`);
-                      } else {
-                        alert("PDF generation is still loading, please try again in a few seconds.");
-                      }
+                      setReportHtml(null);
+                      setShowDownloadFlow(false);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1A1A19] text-white rounded-lg text-sm font-bold hover:bg-black transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download PDF
-                  </button>
-                  <button
-                    onClick={() => setReportHtml(null)}
                     className="p-2 hover:bg-[#E8E8E5] rounded-full transition-colors"
                   >
                     <X className="w-5 h-5 text-[#5A5A55]" />
@@ -2046,6 +2131,109 @@ export default function TestReportPage() {
                       <ChevronRight className="w-6 h-6" />
                     </button>
                   </>
+                )}
+
+                {/* Download countdown / "what's next" interest overlay - layered on top
+                    of (not replacing) the report+iframe above, so the in-progress PDF
+                    generation running inside that iframe is never interrupted. Mirrors
+                    ReportViewerModal.tsx so this preview matches the patient-facing flow. */}
+                {showDownloadFlow && (
+                  <div className="absolute inset-0 z-30 bg-[#F9F9F8] flex flex-col overflow-hidden">
+                    <div className="p-6 sm:p-8 text-center border-b border-[#E8E8E5] bg-white shrink-0">
+                      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 transition-colors ${isDownloadDone ? 'bg-emerald-100 text-emerald-600' : 'bg-[#EDEBFB] text-[#6057D7]'}`}>
+                        {isDownloadDone ? <CheckCircle2 className="w-8 h-8" /> : <Download className="w-8 h-8" />}
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-bold text-[#1A1A19]">
+                        {isDownloadDone
+                          ? 'Downloaded!'
+                          : downloadCountdown > 0
+                            ? <>Your download starts in <span className="text-[#6057D7]">{downloadCountdown}s</span></>
+                            : 'Finishing up your report…'}
+                      </h2>
+                      <p className="text-sm text-[#8B8B86] mt-1.5 max-w-md mx-auto">
+                        {isDownloadDone ? (
+                          <>
+                            Your {selectedTestName} report has been saved to your device. If the download
+                            didn't start, please click{' '}
+                            <button
+                              onClick={triggerDownload}
+                              className="text-[#6057D7] font-semibold underline hover:text-[#4F46B8] cursor-pointer"
+                            >
+                              here
+                            </button>.
+                          </>
+                        ) : (
+                          "While we prepare your PDF, tell us which upcoming MyBodyQode tests interest you."
+                        )}
+                      </p>
+                      {!isDownloadDone && (
+                        <div className="w-full max-w-xs mx-auto h-1.5 bg-[#E8E8E5] rounded-full mt-4 overflow-hidden">
+                          <div
+                            className="h-full bg-[#6057D7] transition-all duration-1000 ease-linear"
+                            style={{ width: `${((DOWNLOAD_COUNTDOWN_SECONDS - downloadCountdown) / DOWNLOAD_COUNTDOWN_SECONDS) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto">
+                      <div className="sticky top-0 z-10 bg-[#F9F9F8] px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+                        <div className="max-w-xl mx-auto">
+                          <h3 className="text-sm font-bold text-[#1A1A19]">Upcoming MyBodyQode Tests</h3>
+                          <p className="text-xs text-[#8B8B86] mt-0.5">Let us know which ones you'd be interested in.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2.5 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
+                        {UPCOMING_TESTS.map(({ name, image }) => (
+                          <div
+                            key={name}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-3"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <img
+                                src={image}
+                                alt=""
+                                className="w-12 h-12 rounded-xl object-cover shrink-0"
+                              />
+                              <span className="text-sm font-semibold text-[#1A1A19] truncate">{name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => setTestInterests(prev => ({ ...prev, [name]: true }))}
+                                aria-label={`Interested in ${name}`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                              >
+                                <LikeIcon className="w-4 h-4 shrink-0" />
+                                I'm interested
+                              </button>
+                              <button
+                                onClick={() => setTestInterests(prev => ({ ...prev, [name]: false }))}
+                                aria-label={`Not interested in ${name}`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                              >
+                                <DislikeIcon className="w-4 h-4 shrink-0" />
+                                Not interested
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {isDownloadDone && (
+                      <div className="p-4 border-t border-[#E8E8E5] bg-white shrink-0 flex justify-center">
+                        <button
+                          onClick={() => {
+                            setReportHtml(null);
+                            setShowDownloadFlow(false);
+                          }}
+                          className="px-8 py-3 bg-[#6057D7] hover:bg-[#4F46B8] text-white rounded-full font-semibold transition-colors cursor-pointer"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </motion.div>

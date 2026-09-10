@@ -1308,10 +1308,33 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             jsPDF:        { unit: 'px', format: [1024, 1449], orientation: 'portrait' }
                           };
 
+                          // html2pdf's toPdf() always slices a captured canvas into ceil(canvas.height
+                          // / onePagePxHeight) PDF pages - it has no option to disable this. Every page
+                          // here is restored to its exact designed height (1449px, clipped via
+                          // overflow:hidden) right before capture, but a 1px rounding/reflow difference
+                          // is enough to push canvas.height one pixel past one page's worth, which
+                          // silently appends a second, almost entirely blank page for that slice. Crop
+                          // the canvas back down to exactly one page's pixel height right before toPdf()
+                          // so this can never happen, regardless of the exact cause of the overflow.
+                          const onePagePxHeight = opt.jsPDF.format[1] * opt.html2canvas.scale;
+                          function clampCanvasHeight() {
+                              const canvas = this.prop.canvas;
+                              if (canvas && canvas.height > onePagePxHeight) {
+                                  const cropped = document.createElement('canvas');
+                                  cropped.width = canvas.width;
+                                  cropped.height = onePagePxHeight;
+                                  cropped.getContext('2d').drawImage(
+                                      canvas, 0, 0, canvas.width, onePagePxHeight,
+                                      0, 0, canvas.width, onePagePxHeight
+                                  );
+                                  this.prop.canvas = cropped;
+                              }
+                          }
+
                           try {
                             if (pages.length > 0) {
                               let worker = html2pdf().set(opt);
-                              
+
                               for (let i = 0; i < pages.length; i++) {
                                   worker = worker.then(() => {
                                       pages.forEach((p, idx) => {
@@ -1340,9 +1363,9 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                   });
 
                                   if (i === 0) {
-                                      worker = worker.from(pages[i]).toPdf();
+                                      worker = worker.from(pages[i]).toContainer().toCanvas().then(clampCanvasHeight).toPdf();
                                   } else {
-                                      worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().toPdf();
+                                      worker = worker.get('pdf').then(pdf => { pdf.addPage(); }).from(pages[i]).toContainer().toCanvas().then(clampCanvasHeight).toPdf();
                                   }
 
                                   worker = worker.then(() => { restoreZoom(); });
@@ -1850,7 +1873,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                       {UPCOMING_TESTS.map(({ name, image }) => (
                         <div
                           key={name}
-                          className="flex items-center justify-between gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-3"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-3"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <img
@@ -1864,16 +1887,18 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             <button
                               onClick={() => setTestInterest(name, true)}
                               aria-label={`Interested in ${name}`}
-                              className={`w-9 h-9 p-2 rounded-full flex items-center justify-center border transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7]' : 'border-[#E8E8E5] hover:bg-[#F7F7F5]'}`}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
                             >
-                              <LikeIcon className="w-full h-full" />
+                              <LikeIcon className="w-4 h-4 shrink-0" />
+                              I'm interested
                             </button>
                             <button
                               onClick={() => setTestInterest(name, false)}
                               aria-label={`Not interested in ${name}`}
-                              className={`w-9 h-9 p-2 rounded-full flex items-center justify-center border transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7]' : 'border-[#E8E8E5] hover:bg-[#F7F7F5]'}`}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
                             >
-                              <DislikeIcon className="w-full h-full" />
+                              <DislikeIcon className="w-4 h-4 shrink-0" />
+                              Not interested
                             </button>
                           </div>
                         </div>

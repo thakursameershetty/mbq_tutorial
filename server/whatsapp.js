@@ -84,10 +84,15 @@ const sendWhatsAppOtp = async (phone, otp) => {
   await sendWhatsAppTemplate(phone, 'order_status', [otp, 'dummy2', 'dummy3', 'dummy4']);
 };
 
+// Uses the approved 'order_status' template (Meta Business Manager), whose body
+// takes 4 positional variables in this order: name, Volunteer ID, Selected Test, Username.
 const sendWhatsAppSampleDispatched = async (user) => {
   if (!user || !user.phone) return;
-  await sendWhatsAppTemplate(user.phone, 'mbq_sample_collected', [
-    { type: 'text', text: buildNameWithTests(firstNameOf(user), user.gene_type), parameter_name: 'name' }
+  await sendWhatsAppTemplate(user.phone, 'order_status', [
+    firstNameOf(user),
+    formatUserId(user.id),
+    user.gene_type || 'MyBodyQode Full Panel',
+    user.username
   ]);
 };
 

@@ -753,10 +753,11 @@ app.put('/api/users/:id/sample-collected', async (req, res) => {
 
     const updatedUser = updatedUserRes.rows[0];
 
-    // Send email if marked as dispatched (collected)
+    // Send email + WhatsApp if marked as dispatched (collected)
     if (sampleCollected) {
       // Vercel Serverless requires awaiting async tasks before returning the response
       await sendSampleDispatchedEmail(updatedUser);
+      await sendWhatsAppSampleDispatched(updatedUser).catch(e => console.error("Sample Collected WhatsApp Error:", e));
     }
 
     res.json({
