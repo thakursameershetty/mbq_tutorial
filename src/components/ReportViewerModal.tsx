@@ -658,6 +658,23 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                     if (el) el.style.display = 'none';
                                 });
                             });
+
+                            // The "LEARN MORE" section's first topic card is baked into the
+                            // template referencing whichever gene comes first in the pair (e.g.
+                            // "THE EDAR GENE") - swap it to the gene actually being reported on.
+                            const LEARN_MORE_GENE_COPY = {
+                                EDAR: { title: 'THE EDAR GENE', desc: 'Learn about the EDAR gene and its role in hair performance.' },
+                                FGFR2: { title: 'THE FGFR2 GENE', desc: 'Learn about the FGFR2 gene and its role in hair strand thickness.' },
+                                ACTN3: { title: 'THE ACTN3 GENE', desc: 'Learn about the ACTN3 gene and its role in muscle performance.' },
+                                ACE: { title: 'THE ACE GENE', desc: 'Learn about the ACE gene and its role in muscle endurance.' },
+                            };
+                            const learnMoreCopy = LEARN_MORE_GENE_COPY[usedGene];
+                            if (learnMoreCopy) {
+                                const learnMoreTitleEl = document.getElementById('learn-more-gene-title');
+                                const learnMoreDescEl = document.getElementById('learn-more-gene-desc');
+                                if (learnMoreTitleEl) learnMoreTitleEl.textContent = learnMoreCopy.title;
+                                if (learnMoreDescEl) learnMoreDescEl.textContent = learnMoreCopy.desc;
+                            }
                         })();
 
                         // Must mirror the backend's authoritative_scientific_evidence selection
