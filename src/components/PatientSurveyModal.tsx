@@ -359,7 +359,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                         }`}
                     >
                       {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {submitting ? 'Generating AI Report...' : 'Submit Answers'}
+                      {submitting ? 'Submitting...' : 'Submit Answers'}
                     </button>
                   ) : (
                     <button
