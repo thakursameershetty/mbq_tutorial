@@ -25,19 +25,41 @@ interface ReportViewerModalProps {
 const DESIGN_WIDTH = 1024;
 const DESIGN_HEIGHT = 1449;
 
-// Tests for the "what's coming next" interest list shown during the download countdown.
-// `image` points at a placeholder SVG in /public/assets/upcoming-tests/ - swap those
-// files (keeping the same filenames, or update the paths here) for real artwork later.
-const UPCOMING_TESTS = [
-  { name: 'Body Fuel Qode', image: '/assets/upcoming-tests/body-fuel-qode.svg' },
-  { name: 'Metabolism Qode', image: '/assets/upcoming-tests/metabolism-qode.svg' },
-  { name: 'Collagen Qode Test', image: '/assets/upcoming-tests/collagen-qode-test.svg' },
-  { name: 'Hair Fall Qode Test', image: '/assets/upcoming-tests/hair-fall-qode-test.svg' },
-  { name: 'Grey Qode Test', image: '/assets/upcoming-tests/grey-qode-test.svg' },
-  { name: 'City Shield Qode Test', image: '/assets/upcoming-tests/city-shield-qode-test.svg' },
-  { name: 'Dairy Qode Test', image: '/assets/upcoming-tests/dairy-qode-test.svg' },
-  { name: 'Sleep Qode Test', image: '/assets/upcoming-tests/sleep-qode-test.svg' },
-  { name: 'Taste Qode Test', image: '/assets/upcoming-tests/taste-qode-test.svg' },
+// Tests for the "what's coming next" interest list shown during the download
+// countdown, grouped the way the product catalog groups them. `image` points
+// at a placeholder SVG in /public/assets/upcoming-tests/ - swap those files
+// (keeping the same filenames, or update the paths here) for real artwork
+// later. Tests already offered in the current panel (Muscle, Caffeine, Hair)
+// are intentionally left out - this list is only what's still upcoming.
+const UPCOMING_TEST_CATEGORIES = [
+  {
+    name: 'Daily Wellness',
+    description: 'Discover how your genes can guide the everyday choices that support your health and well-being.',
+    tests: [
+      { name: 'Body Fuel Qode', image: '/assets/upcoming-tests/body-fuel-qode.svg', description: 'Trying to lose weight but wondering why your body responds differently?' },
+      { name: 'Metabolism Qode', image: '/assets/upcoming-tests/metabolism-qode.svg', description: 'Ever wondered why some people seem to burn energy faster than others?' },
+      { name: 'Sleep Qode', image: '/assets/upcoming-tests/sleep-qode-test.svg', description: 'Are you naturally an early bird - or do you come alive at night?' },
+      { name: 'Dairy Qode', image: '/assets/upcoming-tests/dairy-qode-test.svg', description: 'Does milk or milk products make you feel uncomfortable?' },
+      { name: 'Taste Qode', image: '/assets/upcoming-tests/taste-qode-test.svg', description: 'Why does the same food taste bitter to you but not to someone else?' },
+      { name: 'City Shield Qode', image: '/assets/upcoming-tests/city-shield-qode-test.svg', description: 'Wondering how well your body handles everyday pollution and environmental stress?' },
+    ],
+  },
+  {
+    name: 'Daily Performance',
+    description: 'Unlock your genetic potential and discover how your body is built to perform, adapt, and recover.',
+    tests: [
+      { name: 'Performance Qode', image: '/assets/upcoming-tests/performance-qode-test.svg', description: 'Do you want to know what kind of exercise your body may naturally enjoy?' },
+    ],
+  },
+  {
+    name: 'Daily Appearance',
+    description: 'Your DNA holds clues to your skin and hair - see what they reveal about your natural appearance.',
+    tests: [
+      { name: 'Collagen Qode', image: '/assets/upcoming-tests/collagen-qode-test.svg', description: "Want to know how your genes may affect your skin's natural support?" },
+      { name: 'Hair Fall Qode', image: '/assets/upcoming-tests/hair-fall-qode-test.svg', description: 'Worried about hair fall or thinning?' },
+      { name: 'Grey Qode', image: '/assets/upcoming-tests/grey-qode-test.svg', description: 'Wondering why some people go grey earlier than others?' },
+    ],
+  },
 ];
 
 const DOWNLOAD_COUNTDOWN_SECONDS = 10;
@@ -279,6 +301,8 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
       let templateName = 'caffeine';
       if (testName.toLowerCase().includes('muscle')) templateName = 'muscle';
       else if (testName.toLowerCase().includes('hair')) templateName = 'hair';
+      // Drives the WhatsApp/Instagram share text below - "Caffeine"/"Muscle"/"Hair".
+      const categoryLabel = templateName.charAt(0).toUpperCase() + templateName.slice(1);
 
       const htmlUrl = `/templates/${templateName}-sample.html`;
       const resHtml = await fetch(htmlUrl);
@@ -1152,7 +1176,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                       try {
                                           await navigator.share({
                                               title: 'My Body Qode',
-                                              text: 'Check out my personalized Body Qode report!',
+                                              text: "Check out My ${categoryLabel} Qode from MyBodyQode. What's your Qode?",
                                               files: [file]
                                           });
                                       } catch (err) {
@@ -1869,37 +1893,48 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         <p className="text-xs text-[#8B8B86] mt-0.5">Let us know which ones you'd be interested in.</p>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2.5 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
-                      {UPCOMING_TESTS.map(({ name, image }) => (
-                        <div
-                          key={name}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-3"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <img
-                              src={image}
-                              alt=""
-                              className="w-12 h-12 rounded-xl object-cover shrink-0"
-                            />
-                            <span className="text-sm font-semibold text-[#1A1A19] truncate">{name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() => setTestInterest(name, true)}
-                              aria-label={`Interested in ${name}`}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
-                            >
-                              <LikeIcon className="w-4 h-4 shrink-0" />
-                              I'm interested
-                            </button>
-                            <button
-                              onClick={() => setTestInterest(name, false)}
-                              aria-label={`Not interested in ${name}`}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
-                            >
-                              <DislikeIcon className="w-4 h-4 shrink-0" />
-                              Not interested
-                            </button>
+                    <div className="flex flex-col gap-6 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
+                      {UPCOMING_TEST_CATEGORIES.map((category) => (
+                        <div key={category.name}>
+                          <h4 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider">{category.name}</h4>
+                          <p className="text-xs text-[#8B8B86] mt-1 mb-3">{category.description}</p>
+                          <div className="flex flex-col gap-2.5">
+                            {category.tests.map(({ name, image, description }) => (
+                              <div
+                                key={name}
+                                className="flex flex-col gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-4"
+                              >
+                                <div className="flex items-start gap-3 min-w-0">
+                                  <img
+                                    src={image}
+                                    alt=""
+                                    className="w-12 h-12 rounded-xl object-cover shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-[#1A1A19]">{name}</p>
+                                    <p className="text-xs text-[#8B8B86] mt-0.5">{description}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    onClick={() => setTestInterest(name, true)}
+                                    aria-label={`Interested in ${name}`}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                                  >
+                                    <LikeIcon className="w-4 h-4 shrink-0" />
+                                    I'm interested
+                                  </button>
+                                  <button
+                                    onClick={() => setTestInterest(name, false)}
+                                    aria-label={`Not interested in ${name}`}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                                  >
+                                    <DislikeIcon className="w-4 h-4 shrink-0" />
+                                    Not interested
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       ))}
