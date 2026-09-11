@@ -580,7 +580,7 @@ app.put('/api/users/:id/phone', async (req, res) => {
       SET phone = $1
       WHERE id = $2
       RETURNING id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested,
-                request_status, sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, report_answers, status_timestamps, created_at;
+                sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, report_answers, status_timestamps, created_at;
     `;
     const result = await pool.query(query, [phone.trim(), userId]);
 
@@ -594,7 +594,7 @@ app.put('/api/users/:id/phone', async (req, res) => {
     });
   } catch (error) {
     console.error('Update Phone Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 });
 
