@@ -64,6 +64,7 @@ export default function AdminVerifyPage() {
   const [editingGenePatient, setEditingGenePatient] = useState<any>(null);
   const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [editedGeneType, setEditedGeneType] = useState<string>('');
+  const [editedPhone, setEditedPhone] = useState<string>('');
   const [isUpdatingGene, setIsUpdatingGene] = useState(false);
 
   const [autoSendWhatsApp, setAutoSendWhatsApp] = useState(() => {
@@ -101,17 +102,39 @@ export default function AdminVerifyPage() {
     if (!editingGenePatient) return;
     setIsUpdatingGene(true);
     try {
-      const response = await fetch(`/api/users/${editingGenePatient.id}/gene`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gene_type: editedGeneType }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setPatients(prev => prev.map(p => p.id === editingGenePatient.id ? { ...p, gene_type: editedGeneType } : p));
+      const trimmedPhone = editedPhone.trim();
+      if (!trimmedPhone) {
+        alert('Phone number is required.');
+        return;
+      }
+
+      const requests = [
+        fetch(`/api/users/${editingGenePatient.id}/gene`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gene_type: editedGeneType }),
+        }),
+      ];
+      const phoneChanged = trimmedPhone !== (editingGenePatient.phone || '');
+      if (phoneChanged) {
+        requests.push(
+          fetch(`/api/users/${editingGenePatient.id}/phone`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: trimmedPhone }),
+          })
+        );
+      }
+
+      const responses = await Promise.all(requests);
+      const results = await Promise.all(responses.map(r => r.json()));
+      const failed = results.find(r => !r.success);
+
+      if (!failed) {
+        setPatients(prev => prev.map(p => p.id === editingGenePatient.id ? { ...p, gene_type: editedGeneType, phone: trimmedPhone } : p));
         setEditingGenePatient(null);
       } else {
-        alert(data.error || 'Failed to update gene panel');
+        alert(failed.error || 'Failed to update patient');
       }
     } catch (err) {
       console.error(err);
@@ -833,6 +856,7 @@ export default function AdminVerifyPage() {
                             e.stopPropagation();
                             setEditingGenePatient(patient);
                             setEditedGeneType(patient.gene_type || '');
+                            setEditedPhone(patient.phone || '');
                           }}
                           className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 rounded-full transition-colors border border-indigo-100"
                           title="Edit User"
@@ -1653,9 +1677,17 @@ export default function AdminVerifyPage() {
                   <div className="text-xs text-[#5A5A55]">
                     <span className="font-semibold text-[#1A1A19]">Email:</span> {editingGenePatient.email || 'N/A'}
                   </div>
-                  <div className="text-xs text-[#5A5A55] mt-1">
-                    <span className="font-semibold text-[#1A1A19]">Phone:</span> {editingGenePatient.phone || 'N/A'}
-                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-[#8B8B86] uppercase tracking-wider mb-2 block">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={editedPhone}
+                    onChange={(e) => setEditedPhone(e.target.value)}
+                    placeholder="Enter phone number"
+                    className="w-full bg-white border border-[#E8E8E5] text-sm font-semibold text-[#1A1A19] rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 focus:border-[#6057D7]/30 transition-all"
+                  />
                 </div>
 
                 <div className="mb-6">
