@@ -60,6 +60,24 @@ const GENE_PANEL_LABEL: Record<string, string> = {
   FGFR2: 'Hair',
 };
 
+// Display order for genes within a panel, so the lab dashboard always shows
+// them in the order the lab team expects, regardless of how the stored
+// gene_type string lists them. Panels not listed here keep their original order.
+const PANEL_GENE_DISPLAY_ORDER: Record<string, string[]> = {
+  'Caffeine Sensitivity': ['ADORA2A', 'CYP1A2'],
+  'Muscle Performance': ['ACE', 'ACTN3'],
+};
+
+// ACTN3 genotypes are stored/submitted as RR/RX/XX (used throughout report
+// generation), but the lab team reads them as CC/CT/TT. This only changes
+// what's shown in the dropdown, not the underlying value.
+const VARIANT_DISPLAY_LABEL: Record<string, Record<string, string>> = {
+  ACTN3: { RR: 'CC', RX: 'CT', XX: 'TT' },
+};
+
+export const getVariantLabel = (gene: string, variant: string): string =>
+  VARIANT_DISPLAY_LABEL[gene]?.[variant] || variant;
+
 export interface RequiredGene {
   panel: string;
   name: string;
@@ -82,6 +100,11 @@ export const getRequiredGenes = (geneTypeString: string): RequiredGene[] => {
     const match = panel.match(/\(([^)]+)\)/);
     if (!match) return;
     const genes = match[1].split(',').map((g) => g.trim().toUpperCase()).filter(Boolean);
+    const panelOfFirst = GENE_PANEL_LABEL[genes[0]];
+    const displayOrder = panelOfFirst && PANEL_GENE_DISPLAY_ORDER[panelOfFirst];
+    if (displayOrder) {
+      genes.sort((a, b) => displayOrder.indexOf(a) - displayOrder.indexOf(b));
+    }
     genes.forEach((gene) => {
       const variants = GENE_VARIANTS[gene];
       if (!variants) return;

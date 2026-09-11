@@ -4,7 +4,7 @@ import { Search, ChevronDown, CheckCircle2, User, FileText, Activity, Loader2, C
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
 import SmartBulkMatchModal from '../components/SmartBulkMatchModal';
-import { getRequiredGenes } from '../lib/geneCatalog';
+import { getRequiredGenes, getVariantLabel } from '../lib/geneCatalog';
 
 const formatUserId = (id: any) => {
   const num = parseInt(id, 10);
@@ -669,7 +669,7 @@ export default function LabDashboard() {
                                         >
                                           <option value="" disabled>Sel {rg.name}</option>
                                           {rg.variants.map((v, i) => (
-                                            <option key={i} value={v} className="truncate">{v}</option>
+                                            <option key={i} value={v} className="truncate">{getVariantLabel(rg.name, v)}</option>
                                           ))}
                                         </select>
                                       </div>
@@ -911,7 +911,7 @@ export default function LabDashboard() {
                                         style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
                                       >
                                         <option value="" disabled>Select {rg.name}</option>
-                                        {rg.variants.map((v, i) => <option key={i} value={v}>{v}</option>)}
+                                        {rg.variants.map((v, i) => <option key={i} value={v}>{getVariantLabel(rg.name, v)}</option>)}
                                       </select>
                                     </div>
                                   ))}
