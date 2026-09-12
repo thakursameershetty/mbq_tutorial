@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, ChevronLeft, ChevronRight, Loader2, MessageSquareHeart, CheckCircle2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Loader2, MessageSquareHeart, CheckCircle2, Share2 } from 'lucide-react';
 
 interface ReportViewerModalProps {
   isOpen: boolean;
@@ -76,6 +76,19 @@ const DislikeIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/>
+    <path fill="currentColor" d="M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.335.101 11.892c0 2.096.549 4.14 1.595 5.945L0 24l6.335-1.652a12.1 12.1 0 0 0 5.706 1.447h.005c6.585 0 11.946-5.335 11.949-11.896 0-3.176-1.24-6.165-3.475-8.45zm-8.475 18.297h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.975.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.245c0-5.459 4.456-9.902 9.937-9.902 2.654 0 5.148 1.03 7.023 2.898a9.83 9.83 0 0 1 2.903 6.996c-.002 5.462-4.457 9.892-9.979 9.892"/>
+  </svg>
+);
+
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069M12 0C8.741 0 8.332.014 7.052.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12s.014 3.668.072 4.948c.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24s3.668-.014 4.948-.072c4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948s-.014-3.667-.072-4.947c-.196-4.354-2.617-6.78-6.979-6.98C15.667.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+  </svg>
+);
+
 export default function ReportViewerModal({ isOpen, onClose, reportData, geneVariants, testName, mbqId, patientName, generatedAt, gender, requireFeedback = true }: ReportViewerModalProps) {
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
@@ -119,12 +132,16 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
   // Only the last page's feedback is required (and only once) - not every page.
   const hasAllFeedback = !requireFeedback || (totalPages > 0 && !!pageFeedbacks[totalPages - 1]);
 
-  // Download countdown / "what's next" interest-collection flow.
+  // Download countdown / "what's next" interest-collection flow. Opening the
+  // flow first shows a share chooser (WhatsApp / Instagram / Download) rather
+  // than starting the download immediately - only picking Download moves on
+  // to the countdown/generation step below.
   const [showDownloadFlow, setShowDownloadFlow] = useState(false);
+  const [shareChoiceMade, setShareChoiceMade] = useState(false);
   const [downloadCountdown, setDownloadCountdown] = useState(DOWNLOAD_COUNTDOWN_SECONDS);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [testInterests, setTestInterests] = useState<Record<string, boolean>>({});
-  const isDownloadDone = showDownloadFlow && downloadCountdown === 0 && !pdfGenerating;
+  const isDownloadDone = showDownloadFlow && shareChoiceMade && downloadCountdown === 0 && !pdfGenerating;
 
   useEffect(() => {
     if (isOpen && reportData) {
@@ -197,11 +214,12 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
       .finally(() => setPdfGenerating(false));
   };
 
-  // Kick off the real PDF generation the moment the download flow opens, in parallel
-  // with the countdown/interest UI - "everything just like now", just started earlier
-  // instead of only once the counter hits zero.
+  // Kick off the real PDF generation the moment Download is picked from the share
+  // chooser, in parallel with the countdown/interest UI - "everything just like
+  // now", just gated behind that explicit choice instead of firing as soon as
+  // the flow opens.
   useEffect(() => {
-    if (!showDownloadFlow) return;
+    if (!showDownloadFlow || !shareChoiceMade) return;
 
     setDownloadCountdown(DOWNLOAD_COUNTDOWN_SECONDS);
     triggerDownload();
@@ -210,7 +228,17 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
       setDownloadCountdown(prev => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [showDownloadFlow]);
+  }, [showDownloadFlow, shareChoiceMade]);
+
+  // Asks the iframe's own share-card logic (the same one powering the report's
+  // in-page "Share your Qode" card) to capture and share the card image via the
+  // native share sheet - reused here so the modal's chooser doesn't duplicate
+  // that image-capture logic.
+  const shareCardVia = (platform: 'WhatsApp' | 'Instagram') => {
+    const iframe = document.getElementById('report-iframe') as HTMLIFrameElement | null;
+    const shareFn = iframe?.contentWindow && (iframe.contentWindow as any).shareQodeCard;
+    if (shareFn) shareFn(platform);
+  };
 
   const setTestInterest = (test: string, interested: boolean) => {
     setTestInterests(prev => ({ ...prev, [test]: interested }));
@@ -1218,6 +1246,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                           }
                           if (whatsappBtn) whatsappBtn.onclick = () => shareViaApi('WhatsApp');
                           if (instagramBtn) instagramBtn.onclick = () => shareViaApi('Instagram');
+
+                          // Exposed so the modal's own share chooser (outside the iframe) can
+                          // trigger the same card-image capture + native share sheet.
+                          window.shareQodeCard = shareViaApi;
                       }, 500);
                       // ---------------------------
 
@@ -1601,6 +1633,69 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
     }
   };
 
+  // Reused on both the share chooser and the download-progress screen so the
+  // "what's coming next" prompt shows up as soon as Share is opened, not only
+  // after Download is picked.
+  const upcomingTestsSection = (
+    <div className="flex-1 overflow-y-auto">
+      {/* The sticky header owns its own top padding (rather than the
+          scroll container) so its opaque background fully covers that
+          space too - otherwise content peeks out above it while scrolling. */}
+      <div className="sticky top-0 z-10 bg-[#F9F9F8] px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+        <div className="max-w-xl mx-auto">
+          <h3 className="text-sm font-bold text-[#1A1A19]">Upcoming MyBodyQode Tests</h3>
+          <p className="text-xs text-[#8B8B86] mt-0.5">Let us know which ones you'd be interested in.</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-6 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
+        {UPCOMING_TEST_CATEGORIES.map((category) => (
+          <div key={category.name}>
+            <h4 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider">{category.name}</h4>
+            <p className="text-xs text-[#8B8B86] mt-1 mb-3">{category.description}</p>
+            <div className="flex flex-col gap-2.5">
+              {category.tests.map(({ name, image, description }) => (
+                <div
+                  key={name}
+                  className="flex flex-col gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-4"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <img
+                      src={image}
+                      alt=""
+                      className="w-12 h-12 rounded-xl object-cover shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#1A1A19]">{name}</p>
+                      <p className="text-xs text-[#8B8B86] mt-0.5">{description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setTestInterest(name, true)}
+                      aria-label={`Interested in ${name}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                    >
+                      <LikeIcon className="w-4 h-4 shrink-0" />
+                      I'm interested
+                    </button>
+                    <button
+                      onClick={() => setTestInterest(name, false)}
+                      aria-label={`Not interested in ${name}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
+                    >
+                      <DislikeIcon className="w-4 h-4 shrink-0" />
+                      Not interested
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -1620,7 +1715,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
           >
             <div className="flex items-center justify-between p-4 border-b border-[#E8E8E5] bg-[#F9F9F8]">
               <h3 className="font-bold text-lg text-[#1A1A19]">
-                {showDownloadFlow ? 'Preparing Your Download' : `${testName} Report`}
+                {showDownloadFlow ? (shareChoiceMade ? 'Preparing Your Download' : 'Share Your Report') : `${testName} Report`}
               </h3>
               <div className="flex items-center gap-3">
                 {!showDownloadFlow && (
@@ -1631,6 +1726,10 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                         setShowFeedbackPrompt(true);
                         return;
                       }
+                      // Admin portal (requireFeedback=false) skips the share chooser and
+                      // goes straight to the download it always has - only the
+                      // patient-facing dashboard gets the new share-first flow.
+                      setShareChoiceMade(!requireFeedback);
                       setShowDownloadFlow(true);
                     }}
                     title={hasAllFeedback ? undefined : 'Share your feedback to unlock the download'}
@@ -1639,8 +1738,8 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                       : 'bg-[#F0F0ED] text-[#8B8B86] cursor-not-allowed'
                       }`}
                   >
-                    <Download className="w-4 h-4" />
-                    {hasAllFeedback ? 'Download PDF' : 'Feedback Required'}
+                    {requireFeedback ? <Share2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                    {hasAllFeedback ? (requireFeedback ? 'Share' : 'Download PDF') : 'Feedback Required'}
                   </button>
                 )}
                 <button
@@ -1870,10 +1969,54 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                 )}
               </AnimatePresence>
 
+              {/* Share chooser — the first thing Share opens to. Picking WhatsApp/Instagram
+                  shares the report's share-card image right away and stays right here;
+                  only Download moves on to the countdown/generation overlay below. */}
+              {showDownloadFlow && !shareChoiceMade && (
+                <div className="absolute inset-0 z-30 bg-[#F9F9F8] flex flex-col overflow-hidden">
+                  <div className="p-6 sm:p-8 text-center border-b border-[#E8E8E5] bg-white shrink-0">
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#1A1A19]">Share your {testName} report</h2>
+                    <p className="text-sm text-[#8B8B86] mt-1.5 max-w-sm mx-auto">
+                      Share your result card, or download the full report as a PDF.
+                    </p>
+                    <div className="flex items-center justify-center gap-6 sm:gap-10 mt-6">
+                      <button
+                        onClick={() => shareCardVia('WhatsApp')}
+                        className="flex flex-col items-center gap-2 cursor-pointer group"
+                      >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105" style={{ background: 'linear-gradient(135deg,#15a44a,#22c55e)' }}>
+                          <WhatsAppIcon className="w-7 h-7" />
+                        </div>
+                        <span className="text-xs font-semibold text-[#5A5A55]">WhatsApp</span>
+                      </button>
+                      <button
+                        onClick={() => shareCardVia('Instagram')}
+                        className="flex flex-col items-center gap-2 cursor-pointer group"
+                      >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105" style={{ background: 'linear-gradient(135deg,#7a2fd6,#e23b7a 55%,#f5a623)' }}>
+                          <InstagramIcon className="w-7 h-7" />
+                        </div>
+                        <span className="text-xs font-semibold text-[#5A5A55]">Instagram</span>
+                      </button>
+                      <button
+                        onClick={() => setShareChoiceMade(true)}
+                        className="flex flex-col items-center gap-2 cursor-pointer group"
+                      >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center bg-[#EDEBFB] text-[#6057D7] shadow-sm transition-transform group-hover:scale-105">
+                          <Download className="w-7 h-7" />
+                        </div>
+                        <span className="text-xs font-semibold text-[#5A5A55]">Download PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                  {upcomingTestsSection}
+                </div>
+              )}
+
               {/* Download countdown / "what's next" interest overlay — layered on top of
                   (not replacing) the report+iframe above, so the in-progress PDF
                   generation running inside that iframe is never interrupted. */}
-              {showDownloadFlow && (
+              {showDownloadFlow && shareChoiceMade && (
                 <div className="absolute inset-0 z-30 bg-[#F9F9F8] flex flex-col overflow-hidden">
                   <div className="p-6 sm:p-8 text-center border-b border-[#E8E8E5] bg-white shrink-0">
                     <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 transition-colors ${isDownloadDone ? 'bg-emerald-100 text-emerald-600' : 'bg-[#EDEBFB] text-[#6057D7]'}`}>
@@ -1912,63 +2055,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                     )}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto">
-                    {/* The sticky header owns its own top padding (rather than the
-                        scroll container) so its opaque background fully covers that
-                        space too - otherwise content peeks out above it while scrolling. */}
-                    <div className="sticky top-0 z-10 bg-[#F9F9F8] px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
-                      <div className="max-w-xl mx-auto">
-                        <h3 className="text-sm font-bold text-[#1A1A19]">Upcoming MyBodyQode Tests</h3>
-                        <p className="text-xs text-[#8B8B86] mt-0.5">Let us know which ones you'd be interested in.</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-6 max-w-xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6">
-                      {UPCOMING_TEST_CATEGORIES.map((category) => (
-                        <div key={category.name}>
-                          <h4 className="text-xs font-bold text-[#6057D7] uppercase tracking-wider">{category.name}</h4>
-                          <p className="text-xs text-[#8B8B86] mt-1 mb-3">{category.description}</p>
-                          <div className="flex flex-col gap-2.5">
-                            {category.tests.map(({ name, image, description }) => (
-                              <div
-                                key={name}
-                                className="flex flex-col gap-3 bg-white border border-[#E8E8E5] rounded-2xl px-4 py-4"
-                              >
-                                <div className="flex items-start gap-3 min-w-0">
-                                  <img
-                                    src={image}
-                                    alt=""
-                                    className="w-12 h-12 rounded-xl object-cover shrink-0"
-                                  />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-[#1A1A19]">{name}</p>
-                                    <p className="text-xs text-[#8B8B86] mt-0.5">{description}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button
-                                    onClick={() => setTestInterest(name, true)}
-                                    aria-label={`Interested in ${name}`}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === true ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
-                                  >
-                                    <LikeIcon className="w-4 h-4 shrink-0" />
-                                    I'm interested
-                                  </button>
-                                  <button
-                                    onClick={() => setTestInterest(name, false)}
-                                    aria-label={`Not interested in ${name}`}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${testInterests[name] === false ? 'bg-[#EDEBFB] border-[#6057D7] text-[#6057D7]' : 'border-[#E8E8E5] text-[#5A5A55] hover:bg-[#F7F7F5]'}`}
-                                  >
-                                    <DislikeIcon className="w-4 h-4 shrink-0" />
-                                    Not interested
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  {upcomingTestsSection}
 
                   {isDownloadDone && (
                     <div className="p-4 border-t border-[#E8E8E5] bg-white shrink-0 flex justify-center">
