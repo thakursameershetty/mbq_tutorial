@@ -663,6 +663,8 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                             // template referencing whichever gene comes first in the pair (e.g.
                             // "THE EDAR GENE") - swap it to the gene actually being reported on.
                             const LEARN_MORE_GENE_COPY = {
+                                CYP1A2: { title: 'THE CYP1A2 GENE', desc: 'Learn about the CYP1A2 gene and its role in caffeine metabolism.' },
+                                ADORA2A: { title: 'THE ADORA2A GENE', desc: 'Learn about the ADORA2A gene and its role in caffeine sensitivity.' },
                                 EDAR: { title: 'THE EDAR GENE', desc: 'Learn about the EDAR gene and its role in hair performance.' },
                                 FGFR2: { title: 'THE FGFR2 GENE', desc: 'Learn about the FGFR2 gene and its role in hair strand thickness.' },
                                 ACTN3: { title: 'THE ACTN3 GENE', desc: 'Learn about the ACTN3 gene and its role in muscle performance.' },
@@ -1358,9 +1360,15 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                           // the canvas back down to exactly one page's pixel height right before toPdf()
                           // so this can never happen, regardless of the exact cause of the overflow.
                           const onePagePxHeight = opt.jsPDF.format[1] * opt.html2canvas.scale;
+                          // Only clamp a tiny (sub-pixel rounding) overflow back down to exactly one
+                          // page. Genuine content overflow (e.g. a long AI-generated narrative that's
+                          // actually taller than the designed page) must NOT be cropped here - leave it
+                          // alone so html2pdf's own pagination spills it onto additional PDF page(s)
+                          // instead of silently cutting content off the bottom of the page.
+                          const ROUNDING_OVERFLOW_PX = 8; // canvas px at scale 2 => ~4 real px
                           function clampCanvasHeight() {
                               const canvas = this.prop.canvas;
-                              if (canvas && canvas.height > onePagePxHeight) {
+                              if (canvas && canvas.height > onePagePxHeight && canvas.height - onePagePxHeight <= ROUNDING_OVERFLOW_PX) {
                                   const cropped = document.createElement('canvas');
                                   cropped.width = canvas.width;
                                   cropped.height = onePagePxHeight;
@@ -1381,19 +1389,23 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                                       pages.forEach((p, idx) => {
                                           p.style.display = (idx === i) ? 'block' : 'none';
                                       });
-                                      // The interactive viewer overrides a page's height to 'auto'
-                                      // while it's being viewed (see showOnlyPage below) so it can
-                                      // measure and display the page in full - restore its original
-                                      // fixed height here so the PDF capture matches the designed
-                                      // page size regardless of what was viewed beforehand.
+                                      // Restore each page to the same "auto height with the designed
+                                      // page size as a floor" state the interactive viewer's own
+                                      // showOnlyPage() uses (rather than forcing back to that exact
+                                      // fixed height) - a page whose content fits still renders at
+                                      // exactly the designed size via its flex layout, but a page
+                                      // whose content genuinely overflows (e.g. a long AI-generated
+                                      // narrative) is allowed to grow instead of being clipped, so
+                                      // html2pdf's own pagination carries the rest onto additional
+                                      // PDF page(s) instead of silently cutting content off.
                                       if (window.__originalPageHeights && window.__originalPageHeights.has(pages[i])) {
-                                          pages[i].style.height = window.__originalPageHeights.get(pages[i]);
-                                          pages[i].style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(pages[i])) || '';
+                                          pages[i].style.minHeight = window.__originalPageHeights.get(pages[i]) || (window.__originalPageMinHeights && window.__originalPageMinHeights.get(pages[i])) || '';
+                                          pages[i].style.height = 'auto';
                                       }
                                       const innerRestore = Array.from(pages[i].children).find((c) => window.__originalPageHeights && window.__originalPageHeights.has(c));
                                       if (innerRestore) {
-                                          innerRestore.style.height = window.__originalPageHeights.get(innerRestore);
-                                          innerRestore.style.minHeight = (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
+                                          innerRestore.style.minHeight = window.__originalPageHeights.get(innerRestore) || (window.__originalPageMinHeights && window.__originalPageMinHeights.get(innerRestore)) || '';
+                                          innerRestore.style.height = 'auto';
                                       }
                                       // Only the page about to be captured is visible, so its zoomed
                                       // elements (and the hero image's mask, if this is Page 1) can
