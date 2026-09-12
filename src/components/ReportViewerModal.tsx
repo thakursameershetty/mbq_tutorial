@@ -1718,28 +1718,22 @@ export default function ReportViewerModal({ isOpen, onClose, reportData, geneVar
                 {showDownloadFlow ? (shareChoiceMade ? 'Preparing Your Download' : 'Share Your Report') : `${testName} Report`}
               </h3>
               <div className="flex items-center gap-3">
-                {!showDownloadFlow && (
+                {/* Hidden entirely (rather than shown disabled) until feedback is given -
+                    the inline feedback prompt on the last page is what actually asks for
+                    it, so this button only needs to appear once it's unlocked. */}
+                {!showDownloadFlow && hasAllFeedback && (
                   <button
                     onClick={() => {
-                      if (!hasAllFeedback) {
-                        setCurrentPageIndex(totalPages - 1);
-                        setShowFeedbackPrompt(true);
-                        return;
-                      }
                       // Admin portal (requireFeedback=false) skips the share chooser and
                       // goes straight to the download it always has - only the
                       // patient-facing dashboard gets the new share-first flow.
                       setShareChoiceMade(!requireFeedback);
                       setShowDownloadFlow(true);
                     }}
-                    title={hasAllFeedback ? undefined : 'Share your feedback to unlock the download'}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${hasAllFeedback
-                      ? 'bg-[#1A1A19] text-white hover:bg-black'
-                      : 'bg-[#F0F0ED] text-[#8B8B86] cursor-not-allowed'
-                      }`}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors bg-[#1A1A19] text-white hover:bg-black"
                   >
                     {requireFeedback ? <Share2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                    {hasAllFeedback ? (requireFeedback ? 'Share' : 'Download PDF') : 'Feedback Required'}
+                    {requireFeedback ? 'Share' : 'Download PDF'}
                   </button>
                 )}
                 <button

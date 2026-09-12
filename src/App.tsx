@@ -8,6 +8,7 @@ import PatientDashboardPage from './pages/PatientDashboardPage';
 import ReportPage from './pages/ReportPage';
 import VolunteerPage from './pages/VolunteerPage';
 import AdminVerifyPage from './pages/AdminVerifyPage';
+import AdminQueriesPage from './pages/AdminQueriesPage';
 import TestReportPage from './pages/TestReportPage';
 import { GeminiStatusWidget } from './components/ui/gemini-status-widget';
 
@@ -24,7 +25,7 @@ function Navigation() {
 }
 
 // Renders the Gemini status widget only on admin pages
-const ADMIN_ROUTES = ['/admin', '/admin-verify'];
+const ADMIN_ROUTES = ['/admin', '/admin-verify', '/queries'];
 function AdminGeminiStatus() {
   const { pathname } = useLocation();
   if (!ADMIN_ROUTES.includes(pathname)) return null;
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/volunteer" element={<VolunteerPage />} />
           <Route path="/admin-verify" element={<AdminVerifyPage />} />
+          <Route path="/queries" element={<AdminQueriesPage />} />
           <Route path="/test-report-generation" element={<TestReportPage />} />
         </Routes>
         <AdminGeminiStatus />

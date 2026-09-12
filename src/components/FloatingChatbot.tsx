@@ -118,6 +118,11 @@ const CustomCodeBlock = ({
   );
 };
 
+// Draws attention to the QodAI button on every dashboard visit (an intro
+// speech bubble + a couple of bounces), then settles into a low-key pulsing
+// ring for the rest of that visit (or until the user opens the chat) - this
+// re-announces itself each time the component mounts rather than only once
+// ever, since a single lifetime intro was too easy to miss entirely.
 export default function FloatingChatbot({
   userName = "User",
   contextData,
@@ -125,6 +130,18 @@ export default function FloatingChatbot({
   const [isOpen, setIsOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [message, setMessage] = useState("");
+  const [showIntro, setShowIntro] = useState(true);
+  const [hasUsedChat, setHasUsedChat] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowIntro(false), 6000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const markChatUsed = () => {
+    setShowIntro(false);
+    setHasUsedChat(true);
+  };
 
   const displayName = userName?.trim() || "User";
 
@@ -1515,17 +1532,81 @@ export default function FloatingChatbot({
 
       {/* FAB */}
       {(!isOpen || !isFullScreen) && (
-        <motion.button
-          className="fixed bottom-6 right-6 w-14 h-14 bg-[#6057D7] rounded-full shadow-[0_8px_20px_rgba(96,87,215,0.3)] flex items-center justify-center text-white hover:bg-[#4B44B3] transition-colors z-[60] cursor-pointer"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <Sparkles size={24} />
-          {!isOpen && (
-            <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+        <>
+          {/* Low-key ambient pulse - keeps drawing the eye across return visits
+              until the user has actually opened the chat once, without being
+              as naggy as a permanent bounce. */}
+          {!isOpen && !hasUsedChat && !showIntro && (
+            <motion.span
+              className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-[#6057D7] z-[59] pointer-events-none"
+              initial={{ opacity: 0.45, scale: 1 }}
+              animate={{ opacity: 0, scale: 1.6 }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+            />
           )}
-        </motion.button>
+
+          <AnimatePresence>
+            {showIntro && !isOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.85 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  scale: 1,
+                  transition: { type: "spring", bounce: 0.45, duration: 0.55, delay: 0.3 },
+                }}
+                exit={{
+                  opacity: 0,
+                  y: 6,
+                  scale: 0.92,
+                  transition: { duration: 0.35, ease: "easeInOut" },
+                }}
+                onClick={() => {
+                  setIsOpen(true);
+                  markChatUsed();
+                }}
+                className="fixed bottom-24 right-6 z-[60] max-w-[240px] bg-white text-[#1A1A19] rounded-2xl rounded-br-md shadow-[0_12px_32px_rgba(96,87,215,0.35)] border-2 border-[#6057D7]/25 pl-3.5 pr-9 py-3 cursor-pointer"
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowIntro(false);
+                  }}
+                  className="absolute top-1.5 right-1.5 p-1 rounded-full text-[#A0A09D] hover:text-[#5A5A55] hover:bg-[#F0F0ED] transition-colors cursor-pointer"
+                  aria-label="Dismiss"
+                >
+                  <X size={12} />
+                </button>
+                <div className="flex items-start gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#EDEBFB] text-[#6057D7] flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles size={13} />
+                  </div>
+                  <p className="text-[13px] font-semibold leading-snug">
+                    Hi, I'm QodAI 👋 You can ask me about your results!
+                  </p>
+                </div>
+                <span className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white border-r-2 border-b-2 border-[#6057D7]/25 rotate-45" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <motion.button
+            className="fixed bottom-6 right-6 w-14 h-14 bg-[#6057D7] rounded-full shadow-[0_8px_20px_rgba(96,87,215,0.3)] flex items-center justify-center text-white hover:bg-[#4B44B3] transition-colors z-[60] cursor-pointer"
+            animate={showIntro ? { y: [0, -14, 0, -8, 0, -4, 0] } : { y: 0 }}
+            transition={showIntro ? { duration: 1.6, repeat: 1, delay: 0.3, ease: "easeOut" } : {}}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              setIsOpen(!isOpen);
+              markChatUsed();
+            }}
+          >
+            <Sparkles size={24} />
+            {!isOpen && (
+              <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+            )}
+          </motion.button>
+        </>
       )}
     </>
   );

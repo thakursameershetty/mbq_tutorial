@@ -100,6 +100,22 @@ pool.query(`
   );
 `).catch(err => console.error('Failed to ensure chat_sessions/chat_usage tables:', err));
 
+// Patient-submitted help/feedback queries, surfaced to admins on /queries. Name/
+// phone/email/mbq_id are captured at submission time (not joined from users)
+// so a query still displays correctly even if the user's own record changes later.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS queries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    mbq_id VARCHAR(50),
+    name VARCHAR(255),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    message TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+`).catch(err => console.error('Failed to ensure queries table:', err));
+
 /**
  * Fetches all rows from the configured Google Sheet.
  * Results are cached for SHEET_CACHE_TTL_MS (2 min) to reduce Sheets API load.
@@ -657,6 +673,53 @@ app.get('/api/admin/patients', async (req, res) => {
   } catch (error) {
     console.error('Error fetching patients:', error);
     res.status(500).json({ error: 'Failed to fetch patients' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Patient Help/Feedback Queries
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/queries', express.json(), async (req, res) => {
+  const { user_id, mbq_id, name, phone, email, message } = req.body;
+
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'message is required.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO queries (user_id, mbq_id, name, phone, email, message)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [user_id || null, mbq_id || null, name || null, phone || null, email || null, message.trim()]
+    );
+    res.json({ success: true, query: result.rows[0] });
+  } catch (error) {
+    console.error('Error submitting query:', error);
+    res.status(500).json({ error: 'Failed to submit query.' });
+  }
+});
+
+app.get('/api/queries', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM queries ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching queries:', error);
+    res.status(500).json({ error: 'Failed to fetch queries.' });
+  }
+});
+
+app.delete('/api/queries/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM queries WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Query not found.' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting query:', error);
+    res.status(500).json({ error: 'Failed to delete query.' });
   }
 });
 

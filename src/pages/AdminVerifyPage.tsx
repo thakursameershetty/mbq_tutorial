@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2, MessageCircle } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, User, Loader2, ShieldAlert, Sparkles, FileText, Trash2, X, AlertTriangle, Check, Download, RefreshCw, AlertCircle, Edit, Plus, Wand2, MessageCircle, MessageCircleQuestion } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import QuestionsModal from '../components/QuestionsModal';
 import ReportViewerModal from '../components/ReportViewerModal';
@@ -652,6 +653,14 @@ export default function AdminVerifyPage() {
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export</span>
               </button>
+
+              <Link
+                to="/queries"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-[#E8E8E5] rounded-2xl text-sm font-semibold text-[#5A5A55] transition-all shadow-sm shrink-0 hover:bg-[#F8F8F7] h-[44px]"
+              >
+                <MessageCircleQuestion className="w-4 h-4" />
+                <span className="hidden sm:inline">Queries</span>
+              </Link>
             </div>
           </div>
         </div>

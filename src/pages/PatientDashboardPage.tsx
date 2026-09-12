@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles, Users, ArrowLeft, Loader2, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { X, FileText, Activity, LogOut, RefreshCw, AlertCircle, Sparkles, Users, ArrowLeft, Loader2, ClipboardList, CheckCircle2, HelpCircle, Send } from 'lucide-react';
 import { OrderTracking } from '@/components/ui/order-tracking';
 import { useNavigate, Link } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/utils';
@@ -48,6 +48,10 @@ export default function PatientDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [showTracking, setShowTracking] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [helpMessage, setHelpMessage] = useState('');
+  const [submittingHelp, setSubmittingHelp] = useState(false);
+  const [helpSubmitted, setHelpSubmitted] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedAIReport, setSelectedAIReport] = useState<{ geneName: string, content: string } | null>(null);
   const [viewReportData, setViewReportData] = useState<{ testName: string; reportData: any; variants: any; mbqId?: string; patientName?: string | null; generatedAt?: string | null; gender?: string | null } | null>(null);
@@ -204,6 +208,37 @@ export default function PatientDashboardPage() {
       }
       setGeneratingPanel(null);
       setGeneratingProgress(0);
+    }
+  };
+
+  const handleSubmitQuery = async () => {
+    if (!user?.id || !helpMessage.trim()) return;
+    setSubmittingHelp(true);
+    try {
+      const res = await fetch('/api/queries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          mbq_id: formatUserId(user.id, user.created_at),
+          name: user.full_name,
+          phone: user.phone,
+          email: user.email,
+          message: helpMessage,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHelpSubmitted(true);
+        setHelpMessage('');
+      } else {
+        alert(data.error || 'Failed to submit your message.');
+      }
+    } catch (err) {
+      console.error('Error submitting query:', err);
+      alert('Connection failed.');
+    } finally {
+      setSubmittingHelp(false);
     }
   };
 
@@ -393,6 +428,19 @@ export default function PatientDashboardPage() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="w-full max-w-4xl mx-auto mt-8 sm:mt-12 px-4 pb-12"
     >
+      {/* Floats above everything, always reachable regardless of scroll position -
+          not part of the action row so it doesn't get lost among the report buttons. */}
+      <button
+        onClick={() => {
+          setHelpSubmitted(false);
+          setShowHelpModal(true);
+        }}
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[60] flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white/90 backdrop-blur-xl text-[#1A1A19] border border-[#E8E8E5] rounded-full text-xs sm:text-sm font-semibold shadow-lg hover:bg-white transition-colors cursor-pointer"
+      >
+        <HelpCircle size={16} />
+        Help
+      </button>
+
       <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-6 sm:p-10 border border-white/60 shadow-[0_8px_32px_rgb(0,0,0,0.04)] mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 sm:gap-4">
         <div className="flex-1 w-full min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A19] tracking-tight mb-2 break-words">Hello, {user.full_name?.toUpperCase()}</h1>
@@ -838,6 +886,73 @@ export default function PatientDashboardPage() {
                   Logout
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Help / Feedback Modal */}
+      <AnimatePresence>
+        {showHelpModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-w-sm w-full border border-[#E8E8E5] text-center"
+            >
+              {helpSubmitted ? (
+                <>
+                  <div className="mx-auto w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Message sent!</h3>
+                  <p className="text-[#8B8B86] text-sm mb-6">Our team will get back to you soon.</p>
+                  <button
+                    onClick={() => setShowHelpModal(false)}
+                    className="w-full py-2.5 px-4 bg-[#1A1A19] hover:bg-black text-white rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto w-12 h-12 bg-[#EDEBFB] text-[#6057D7] rounded-full flex items-center justify-center mb-4">
+                    <HelpCircle size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#1A1A19] mb-2">Need help?</h3>
+                  <p className="text-[#8B8B86] text-sm mb-4">Send us your question or feedback and our team will follow up.</p>
+                  <textarea
+                    value={helpMessage}
+                    onChange={(e) => setHelpMessage(e.target.value)}
+                    placeholder="Type your question or feedback here..."
+                    rows={4}
+                    className="w-full text-sm text-left bg-[#F7F7F5] border border-[#E8E8E5] rounded-xl p-3 outline-none focus:ring-2 focus:ring-[#6057D7]/20 resize-none mb-6"
+                  />
+                  <div className="flex gap-3 w-full">
+                    <button
+                      onClick={() => setShowHelpModal(false)}
+                      disabled={submittingHelp}
+                      className="flex-1 py-2.5 px-4 bg-[#F7F7F5] hover:bg-[#E8E8E5] text-[#5A5A55] rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSubmitQuery}
+                      disabled={submittingHelp || !helpMessage.trim()}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#6057D7] hover:bg-[#4B44B3] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      {submittingHelp ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      Send
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
