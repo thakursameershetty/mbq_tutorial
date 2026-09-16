@@ -122,36 +122,30 @@ export default function LabDashboard() {
     }
   };
 
-  const handleSubmitAll = async (patient: any) => {
-    const requiredGenes = getRequiredGenes(patient.gene);
+  // Submits a single panel (e.g. just "Caffeine Sensitivity") instead of every
+  // panel at once, so editing one panel's genotype doesn't force resubmitting
+  // panels that were already generated.
+  const handleSubmitPanel = async (patient: any, panelName: string, panelGenes: { name: string }[]) => {
     const patientVariants = selectedVariants[patient.id] || {};
-    
-    // Ensure all genes across all panels are selected
-    for (const rg of requiredGenes) {
+
+    for (const rg of panelGenes) {
       if (!patientVariants[rg.name]) {
         alert(`Please select the genotype for ${rg.name} before submitting.`);
         return;
       }
     }
 
-    if (!window.confirm(`Are you sure you want to submit all variants for ${patient.name}?`)) {
+    if (!window.confirm(`Are you sure you want to submit the ${panelName} panel for ${patient.name}?`)) {
       return;
     }
 
-    // Get unique panels
-    const panels = new Set(requiredGenes.map(rg => rg.panel));
-
-    setActionLoading(patient.id + '-generate');
+    setActionLoading(patient.id + '-generate-' + panelName);
     try {
-      const panelsPayload = Array.from(panels).map(panelName => {
-        const specificVariants: Record<string, string> = {};
-        requiredGenes
-          .filter(rg => rg.panel === panelName)
-          .forEach(rg => {
-            specificVariants[rg.name] = patientVariants[rg.name];
-          });
-        return { geneName: panelName, variants: specificVariants };
+      const specificVariants: Record<string, string> = {};
+      panelGenes.forEach(rg => {
+        specificVariants[rg.name] = patientVariants[rg.name];
       });
+      const panelsPayload = [{ geneName: panelName, variants: specificVariants }];
 
       const res = await fetch(`/api/users/${patient.id}/request-generation`, {
         method: 'POST',
@@ -159,34 +153,45 @@ export default function LabDashboard() {
         body: JSON.stringify({ panels: panelsPayload }),
       });
       if (!res.ok) throw new Error('Failed to request generation');
-      await res.json();
+      const data = await res.json();
 
-      alert('Surveys requested successfully! Phenotypic journey pending.');
+      if (data.testNamesFailed && data.testNamesFailed.length > 0) {
+        alert(`Submitted, but the ${panelName} report failed to generate and will need to be retried.`);
+      } else {
+        alert(`${panelName} submitted successfully!`);
+      }
       fetchPatients();
     } catch (err) {
       console.error(err);
-      alert('Failed to submit all variants');
+      alert(`Failed to submit ${panelName}`);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleUndoAll = async (patient: any) => {
-    if (!window.confirm(`Are you sure you want to undo the submission for ${patient.name}? This will clear all AI reports and survey status.`)) {
+  // Undoes a single panel's submission (clears that panel's variants/report)
+  // instead of wiping every panel the admin has already submitted for this
+  // patient.
+  const handleUndoPanel = async (patient: any, panelName: string) => {
+    if (!window.confirm(`Are you sure you want to undo the ${panelName} submission for ${patient.name}? This will clear its AI report and survey status.`)) {
       return;
     }
 
-    setActionLoading(patient.id + '-undo');
+    setActionLoading(patient.id + '-undo-' + panelName);
     try {
-      const response = await fetch(`/api/users/${patient.id}/delete-report`, {
+      const response = await fetch(`/api/users/${patient.id}/delete-report?geneName=${encodeURIComponent(panelName)}`, {
         method: 'DELETE',
       });
       const data = await response.json();
       if (data.success) {
-        alert('Submission undone successfully.');
+        alert(`${panelName} submission undone successfully.`);
         setSelectedVariants(prev => {
           const next = { ...prev };
-          delete next[patient.id];
+          if (next[patient.id]) {
+            next[patient.id] = { ...next[patient.id] };
+            const requiredGenes = getRequiredGenes(patient.gene).filter(rg => rg.panel === panelName);
+            requiredGenes.forEach(rg => delete next[patient.id][rg.name]);
+          }
           return next;
         });
         fetchPatients();
@@ -654,62 +659,59 @@ export default function LabDashboard() {
 
                             return (
                               <>
-                                {Object.entries(panels).map(([_panelName, panelGenes], pIdx) => (
-                                  <div key={pIdx} className="flex gap-2 items-start border-l-2 border-[#E8E8E5] pl-3">
-                                    {panelGenes.map((rg, idx) => (
-                                      <div key={idx} className="flex flex-col gap-1 w-[110px]">
-                                        <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
-                                        <select
-                                          disabled={!patient.sample_received}
-                                          className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
-                                          onClick={(e) => e.stopPropagation()}
-                                          value={selectedVariants[patient.id]?.[rg.name] || (patient.reports && (Object.values(patient.reports).find((r: any) => r.variants && r.variants[rg.name]) as any)?.variants[rg.name]) || ""}
-                                          onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
-                                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
-                                        >
-                                          <option value="" disabled>Sel {rg.name}</option>
-                                          {rg.variants.map((v, i) => (
-                                            <option key={i} value={v} className="truncate">{getVariantLabel(rg.name, v)}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    ))}
+                                {Object.entries(panels).map(([panelName, panelGenes], pIdx) => (
+                                  <div key={pIdx} className="flex flex-col gap-2 border-l-2 border-[#E8E8E5] pl-3">
+                                    <div className="flex gap-2 items-start">
+                                      {panelGenes.map((rg, idx) => (
+                                        <div key={idx} className="flex flex-col gap-1 w-[110px]">
+                                          <span className="text-[9px] font-bold text-[#A0A09D] uppercase tracking-wider pl-1">{rg.name}</span>
+                                          <select
+                                            disabled={!patient.sample_received}
+                                            className={`bg-white border border-[#E8E8E5] text-[10px] font-semibold text-[#5A5A55] rounded-xl h-[34px] px-2 pr-5 outline-none focus:ring-2 focus:ring-[#6057D7]/20 w-full appearance-none shadow-sm transition-all ${!patient.sample_received ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F9F9F8] cursor-pointer'}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            value={selectedVariants[patient.id]?.[rg.name] || (patient.reports && (Object.values(patient.reports).find((r: any) => r.variants && r.variants[rg.name]) as any)?.variants[rg.name]) || ""}
+                                            onChange={(e) => handleVariantChange(patient.id, rg.name, e.target.value)}
+                                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23A0A09D\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '0.8em' }}
+                                          >
+                                            <option value="" disabled>Sel {rg.name}</option>
+                                            {rg.variants.map((v, i) => (
+                                              <option key={i} value={v} className="truncate">{getVariantLabel(rg.name, v)}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {patient.sample_received && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSubmitPanel(patient, panelName, panelGenes);
+                                        }}
+                                        disabled={actionLoading === patient.id + '-generate-' + panelName}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 justify-center uppercase tracking-wider"
+                                      >
+                                        {actionLoading === patient.id + '-generate-' + panelName ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                                        Submit {panelName}
+                                      </button>
+                                    )}
+                                    {patient.reports && patient.reports[panelName] && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleUndoPanel(patient, panelName);
+                                        }}
+                                        disabled={actionLoading === patient.id + '-undo-' + panelName}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-lg text-[10px] font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 justify-center"
+                                      >
+                                        {actionLoading === patient.id + '-undo-' + panelName ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                        Undo {panelName}
+                                      </button>
+                                    )}
                                   </div>
                                 ))}
                               </>
                             );
                           })()}
-
-                          {patient.sample_received && (
-                            <div className="flex flex-col gap-2 w-full mt-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSubmitAll(patient);
-                                }}
-                                disabled={actionLoading === patient.id + '-generate'}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full justify-center uppercase tracking-wider"
-                              >
-                                {actionLoading === patient.id + '-generate' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                                Submit All Variants
-                              </button>
-
-                              {patient.reports && Object.keys(patient.reports).length > 0 && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUndoAll(patient);
-                                  }}
-                                  disabled={actionLoading === patient.id + '-undo'}
-                                  className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full justify-center"
-                                >
-                                  {actionLoading === patient.id + '-undo' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                  Undo Submission
-                                </button>
-                              )}
-                            </div>
-                          )}
-
                         </div>
                       </div>
 
@@ -916,41 +918,37 @@ export default function LabDashboard() {
                                     </div>
                                   ))}
                                 </div>
+                                {patient.sample_received && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSubmitPanel(patient, panelName, panelGenes);
+                                    }}
+                                    disabled={actionLoading === patient.id + '-generate-' + panelName}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full uppercase tracking-wider"
+                                  >
+                                    {actionLoading === patient.id + '-generate-' + panelName ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                    Submit {panelName}
+                                  </button>
+                                )}
+                                {patient.reports && patient.reports[panelName] && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUndoPanel(patient, panelName);
+                                    }}
+                                    disabled={actionLoading === patient.id + '-undo-' + panelName}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 w-full"
+                                  >
+                                    {actionLoading === patient.id + '-undo-' + panelName ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    Undo {panelName}
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
                         );
                       })()}
-
-                      {patient.sample_received && (
-                        <div className="flex flex-col gap-2 w-full mt-4 border-t border-[#E8E8E5] pt-4">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSubmitAll(patient);
-                            }}
-                            disabled={actionLoading === patient.id + '-generate'}
-                            className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-[#1A1A19] hover:bg-[#333333] text-white rounded-2xl text-sm font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 uppercase tracking-wider"
-                          >
-                            {actionLoading === patient.id + '-generate' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                            Submit All Variants
-                          </button>
-
-                          {patient.reports && Object.keys(patient.reports).length > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUndoAll(patient);
-                              }}
-                              disabled={actionLoading === patient.id + '-undo'}
-                              className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 rounded-2xl text-sm font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                            >
-                              {actionLoading === patient.id + '-undo' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                              Undo Submission
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </motion.div>

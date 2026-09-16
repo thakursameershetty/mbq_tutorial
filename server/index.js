@@ -54,6 +54,38 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle pg client', err);
 });
 
+// Several routes (request-generation, generate-report, upload-report,
+// delete-report, verify-report) each do their own read-then-write of a
+// user's `reports` JSONB column. Without locking, two of these firing
+// concurrently for the same user (e.g. the admin submitting a panel while
+// the patient's own report-answers flow is generating another) race: both
+// read the same stale `reports` blob, and whichever UPDATE commits last
+// silently overwrites the other's work, dropping already-generated
+// reports. This wraps a read-modify-write in a single transaction that
+// holds a row lock on the user for its duration, serializing all writers
+// against each other so no update is lost.
+async function withUserRowLock(userId, fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const userRes = await client.query('SELECT * FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    if (userRes.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return { notFound: true };
+    }
+    const value = await fn(client, userRes.rows[0]);
+    await client.query('COMMIT');
+    return { notFound: false, value };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Ensure the per-page report feedback table (and its emoji column, added after the
 // table was first created by server/createFeedbackTable.js) exists on startup.
 pool.query(`
@@ -919,11 +951,16 @@ app.put('/api/users/:id/sample-received', async (req, res) => {
 // Request AI Report Generation (Automated Pipeline)
 // ─────────────────────────────────────────────────────────────────────────────
 // Calls the Python AI pipeline for a single panel if it's ready (variants +
-// answers both present, no report generated yet). Returns { ai_report,
-// generated_at } on success, or null if not ready / the call failed. Shared
-// between the two triggers below so generation is idempotent and can fire
-// from whichever of {answers submitted, variants entered} completes second.
-async function generateAiReportForPanel(testName, panelData, phenotypeResponses, rawAnswers) {
+// answers both present, no report generated yet). Returns:
+//   - null                          if not ready (no variants / no answers yet)
+//   - { ai_report, generated_at }   on success
+//   - { failed: true, error }       if the call kept failing after retries
+// Retries transient network/LLM failures a couple of times with backoff
+// before giving up, since a single panel occasionally failing shouldn't
+// silently drop that report out of a multi-panel submission. Shared between
+// the two triggers below so generation is idempotent and can fire from
+// whichever of {answers submitted, variants entered} completes second.
+async function generateAiReportForPanel(testName, panelData, phenotypeResponses, rawAnswers, retries = 2) {
   if (!panelData || !panelData.variants || panelData.ai_report) return null;
   if (!phenotypeResponses || Object.keys(phenotypeResponses).length === 0) return null;
 
@@ -932,8 +969,6 @@ async function generateAiReportForPanel(testName, panelData, phenotypeResponses,
   else if (testName.toLowerCase().includes('muscle')) category = 'muscle';
   else if (testName.toLowerCase().includes('hair')) category = 'hair';
   else category = 'caffeine';
-
-  console.log(`Triggering AI generation for ${category}...`);
 
   const payload = {
     category,
@@ -944,29 +979,37 @@ async function generateAiReportForPanel(testName, panelData, phenotypeResponses,
       raw_answers: rawAnswers || []
     }
   };
-  console.log('Sending payload to Python backend:', JSON.stringify(payload));
 
   const url = process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/dynamic/analyze-category` : 'http://127.0.0.1:8000/dynamic/analyze-category';
-  try {
-    const aiResponse = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
 
-    if (aiResponse.ok) {
-      const aiData = await aiResponse.json();
-      console.log(`AI generation successful for ${category}.`);
-      return { ai_report: aiData.results || aiData, generated_at: new Date().toISOString() };
+  let lastError = null;
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    console.log(`Triggering AI generation for ${category} (attempt ${attempt}/${retries + 1})...`);
+    try {
+      const aiResponse = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        console.log(`AI generation successful for ${category}.`);
+        return { ai_report: aiData.results || aiData, generated_at: new Date().toISOString() };
+      }
+
+      const errorText = await aiResponse.text();
+      lastError = `${aiResponse.status} ${aiResponse.statusText} - ${errorText}`;
+      console.error(`AI generation failed for ${category} (attempt ${attempt}/${retries + 1}): ${lastError}`);
+    } catch (err) {
+      lastError = err.message || String(err);
+      console.error(`AI generation request failed for ${category} (attempt ${attempt}/${retries + 1}):`, err);
     }
 
-    const errorText = await aiResponse.text();
-    console.error(`AI generation failed for ${category}: ${aiResponse.status} ${aiResponse.statusText} - ${errorText}`);
-    return null;
-  } catch (err) {
-    console.error(`AI generation request failed for ${category}:`, err);
-    return null;
+    if (attempt <= retries) await sleep(1000 * attempt);
   }
+
+  return { failed: true, error: lastError };
 }
 
 app.post('/api/users/:id/request-generation', async (req, res) => {
@@ -978,59 +1021,65 @@ app.post('/api/users/:id/request-generation', async (req, res) => {
   }
 
   try {
-    const userRes = await pool.query('SELECT reports, report_answers FROM users WHERE id = $1', [userId]);
-    if (userRes.rowCount === 0) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
-
-    let reports = userRes.rows[0].reports || {};
-    let reportAnswers = userRes.rows[0].report_answers || {};
-    if (typeof reportAnswers === 'string') reportAnswers = JSON.parse(reportAnswers);
-
     const testNamesAwaitingAnswers = [];
     const testNamesGenerated = [];
+    const testNamesFailed = [];
 
-    for (const { geneName, variants } of panels) {
-      if (!reports[geneName]) {
-        reports[geneName] = {};
+    // Holds the user row locked for the whole read-modify-write below (including
+    // the per-panel LLM calls) so a concurrent writer of `reports` for this same
+    // user (patient's own generate-report, an upload, a delete...) can't read a
+    // stale blob and clobber the panels generated here. See withUserRowLock.
+    const { notFound, value: updatedUser } = await withUserRowLock(userId, async (client, user) => {
+      let reports = user.reports || {};
+      if (typeof reports === 'string') reports = JSON.parse(reports);
+      let reportAnswers = user.report_answers || {};
+      if (typeof reportAnswers === 'string') reportAnswers = JSON.parse(reportAnswers);
+
+      for (const { geneName, variants } of panels) {
+        if (!reports[geneName]) {
+          reports[geneName] = {};
+        }
+
+        // Save variants inside the reports JSON for the specific gene
+        reports[geneName].variants = variants;
+
+        // Reset AI report since we are requesting a new one
+        delete reports[geneName].ai_report;
+
+        // If the patient already answered this panel's questionnaire before the
+        // lab finished, generate the report right now instead of waiting on the
+        // patient to submit anything else - otherwise this panel is stuck
+        // showing "we'll generate your report automatically" forever, since
+        // nothing else re-triggers generation once the survey is already done.
+        const phenotypeResponses = reportAnswers[geneName];
+        const rawAnswers = reportAnswers[`${geneName}_custom`];
+        const genResult = await generateAiReportForPanel(geneName, reports[geneName], phenotypeResponses, rawAnswers);
+        if (genResult && genResult.failed) {
+          console.error(`Report generation permanently failed for ${geneName} (user ${userId}): ${genResult.error}`);
+          testNamesFailed.push(geneName);
+        } else if (genResult) {
+          reports[geneName].ai_report = genResult.ai_report;
+          reports[geneName].generated_at = genResult.generated_at;
+          testNamesGenerated.push(geneName);
+        } else {
+          testNamesAwaitingAnswers.push(geneName);
+        }
       }
 
-      // Save variants inside the reports JSON for the specific gene
-      reports[geneName].variants = variants;
+      const panelsWithVariants = Object.values(reports).filter(r => r && r.variants);
+      const allGenerated = panelsWithVariants.length > 0 && panelsWithVariants.every(r => r.ai_report);
+      const stillPending = panelsWithVariants.some(r => !r.ai_report);
 
-      // Reset AI report since we are requesting a new one
-      delete reports[geneName].ai_report;
+      const updateRes = await client.query(
+        `UPDATE users SET reports = $1, survey_requested = $2, report_generated = $3 WHERE id = $4 RETURNING *`,
+        [JSON.stringify(reports), stillPending, allGenerated, userId]
+      );
+      return updateRes.rows[0];
+    });
 
-      // If the patient already answered this panel's questionnaire before the
-      // lab finished, generate the report right now instead of waiting on the
-      // patient to submit anything else - otherwise this panel is stuck
-      // showing "we'll generate your report automatically" forever, since
-      // nothing else re-triggers generation once the survey is already done.
-      const phenotypeResponses = reportAnswers[geneName];
-      const rawAnswers = reportAnswers[`${geneName}_custom`];
-      const genResult = await generateAiReportForPanel(geneName, reports[geneName], phenotypeResponses, rawAnswers);
-      if (genResult) {
-        reports[geneName].ai_report = genResult.ai_report;
-        reports[geneName].generated_at = genResult.generated_at;
-        testNamesGenerated.push(geneName);
-      } else {
-        testNamesAwaitingAnswers.push(geneName);
-      }
+    if (notFound) {
+      return res.status(404).json({ error: 'User not found.' });
     }
-
-    const panelsWithVariants = Object.values(reports).filter(r => r && r.variants);
-    const allGenerated = panelsWithVariants.length > 0 && panelsWithVariants.every(r => r.ai_report);
-    const stillPending = panelsWithVariants.some(r => !r.ai_report);
-
-    // Update user to reflect the new variants/report state
-    const updateQuery = `
-      UPDATE users
-      SET reports = $1, survey_requested = $2, report_generated = $3
-      WHERE id = $4
-      RETURNING *
-    `;
-    const updateRes = await pool.query(updateQuery, [reports, stillPending, allGenerated, userId]);
-    const updatedUser = updateRes.rows[0];
 
     // Panels still missing answers get the "please answer" nudge; panels whose
     // answers were already on file just got their report generated, so those
@@ -1052,7 +1101,12 @@ app.post('/api/users/:id/request-generation', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'AI Report generation requested successfully.',
+      message: testNamesFailed.length > 0
+        ? `AI Report generation requested, but ${testNamesFailed.length} panel(s) failed to generate and will need to be retried: ${testNamesFailed.join(', ')}.`
+        : 'AI Report generation requested successfully.',
+      testNamesGenerated,
+      testNamesAwaitingAnswers,
+      testNamesFailed,
       user: updatedUser
     });
   } catch (error) {
@@ -1076,117 +1130,112 @@ app.post('/api/users/:id/upload-report', upload.single('report'), async (req, re
   const sendWhatsApp = req.body.sendWhatsApp === 'true';
 
   try {
-    const userRes = await pool.query('SELECT reports, genotypes, phenotypic_analysis FROM users WHERE id = $1', [userId]);
-    if (userRes.rowCount === 0) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
+    let generatedReport = false;
 
-    let currentReports = userRes.rows[0].reports || {};
-    if (typeof currentReports === 'string') {
-      currentReports = JSON.parse(currentReports);
-    }
+    // Locks the user row for the whole read-modify-write (merge write +
+    // the later ai_report write once the python call returns), so this
+    // can't race with request-generation/generate-report/delete-report/
+    // verify-report clobbering each other's writes to `reports`.
+    const { notFound } = await withUserRowLock(userId, async (client, user) => {
+      let currentReports = user.reports || {};
+      if (typeof currentReports === 'string') currentReports = JSON.parse(currentReports);
 
-    let currentGenotypes = userRes.rows[0].genotypes || {};
-    if (typeof currentGenotypes === 'string') {
-      currentGenotypes = JSON.parse(currentGenotypes);
-    }
+      let currentGenotypes = user.genotypes || {};
+      if (typeof currentGenotypes === 'string') currentGenotypes = JSON.parse(currentGenotypes);
 
-    // Merge new genotypes with existing ones
-    if (genotypes) {
-      currentGenotypes = { ...currentGenotypes, ...genotypes };
-    }
+      // Merge new genotypes with existing ones
+      if (genotypes) {
+        currentGenotypes = { ...currentGenotypes, ...genotypes };
+      }
 
-    if (geneName) {
-      currentReports[geneName] = { url: reportUrl, uploadedAt: new Date().toISOString() };
-    }
+      if (geneName) {
+        currentReports[geneName] = { url: reportUrl, uploadedAt: new Date().toISOString() };
+      }
 
-    const query = `
-      UPDATE users 
-      SET report_uploaded = TRUE, report_url = $1, genotypes = $2, reports = $4
-      WHERE id = $3
-      RETURNING id, report_uploaded, report_url, reports;
-    `;
-    const result = await pool.query(query, [reportUrl, JSON.stringify(currentGenotypes), userId, JSON.stringify(currentReports)]);
+      await client.query(
+        `UPDATE users SET report_uploaded = TRUE, report_url = $1, genotypes = $2, reports = $3 WHERE id = $4`,
+        [reportUrl, JSON.stringify(currentGenotypes), JSON.stringify(currentReports), userId]
+      );
 
-    if (result.rowCount === 0) {
+      // Use report_answers instead of phenotypic_analysis for the Python backend
+      let phenotypeData = user.report_answers || {};
+      if (typeof phenotypeData === 'string') phenotypeData = JSON.parse(phenotypeData);
+
+      // Fallback to phenotypic_analysis if report_answers is empty
+      if (Object.keys(phenotypeData).length === 0) {
+        phenotypeData = user.phenotypic_analysis || {};
+      }
+
+      const flatResponses = {};
+      const flatten = (obj, prefix = '') => {
+        for (const [key, val] of Object.entries(obj)) {
+          if (typeof val === 'object' && val !== null) {
+            flatten(val, `${prefix}${key}_`);
+          } else {
+            flatResponses[`${prefix}${key}`] = val;
+          }
+        }
+      };
+      flatten(phenotypeData);
+
+      const genotypeData = genotypes && geneName ? { genotype: genotypes[geneName] } : {};
+
+      try {
+        const pythonRes = await fetch(process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/analyze-genomic` : 'http://localhost:8080/analyze-genomic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            gene: geneName,
+            genotype_data: genotypeData,
+            phenotype_data: {
+              gene: geneName,
+              responses: flatResponses
+            },
+            lifestyle_context: {
+              user_type: "explorer"
+            }
+          })
+        });
+
+        if (!pythonRes.ok) {
+          const errText = await pythonRes.text();
+          console.error('Python backend error:', errText);
+          // Continue anyway to store the uploaded report
+        } else {
+          const pythonData = await pythonRes.json();
+          // Save the generated report
+          currentReports[geneName] = {
+            ...currentReports[geneName],
+            ai_report: pythonData.result,
+            generated_at: new Date().toISOString()
+          };
+
+          // Update DB with the ai_report
+          await client.query(
+            `UPDATE users SET reports = $1, report_generated = TRUE WHERE id = $2`,
+            [JSON.stringify(currentReports), userId]
+          );
+          generatedReport = true;
+        }
+      } catch (pyErr) {
+        console.error('Failed to communicate with python backend:', pyErr);
+      }
+    });
+
+    if (notFound) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
     await updateStatusTimestamp(userId, 'uploaded', true);
-
-    // Use report_answers instead of phenotypic_analysis for the Python backend
-    let phenotypeData = userRes.rows[0].report_answers || {};
-    if (typeof phenotypeData === 'string') {
-      phenotypeData = JSON.parse(phenotypeData);
-    }
-
-    // Fallback to phenotypic_analysis if report_answers is empty
-    if (Object.keys(phenotypeData).length === 0) {
-      phenotypeData = userRes.rows[0].phenotypic_analysis || {};
-    }
-
-    const flatResponses = {};
-    const flatten = (obj, prefix = '') => {
-      for (const [key, value] of Object.entries(obj)) {
-        if (typeof value === 'object' && value !== null) {
-          flatten(value, `${prefix}${key}_`);
-        } else {
-          flatResponses[`${prefix}${key}`] = value;
-        }
-      }
-    };
-    flatten(phenotypeData);
-
-    const genotypeData = genotypes && geneName ? { genotype: genotypes[geneName] } : {};
-
-    try {
-      const pythonRes = await fetch(process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/analyze-genomic` : 'http://localhost:8080/analyze-genomic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          gene: geneName,
-          genotype_data: genotypeData,
-          phenotype_data: {
-            gene: geneName,
-            responses: flatResponses
-          },
-          lifestyle_context: {
-            user_type: "explorer"
-          }
-        })
-      });
-
-      if (!pythonRes.ok) {
-        const errText = await pythonRes.text();
-        console.error('Python backend error:', errText);
-        // Continue anyway to store the uploaded report
-      } else {
-        const pythonData = await pythonRes.json();
-        // Save the generated report
-        currentReports[geneName] = {
-          ...currentReports[geneName],
-          ai_report: pythonData.result,
-          generated_at: new Date().toISOString()
-        };
-
-        // Update DB with the ai_report
-        await pool.query(`
-          UPDATE users 
-          SET reports = $1, report_generated = TRUE
-          WHERE id = $2
-        `, [JSON.stringify(currentReports), userId]);
-
-        await updateStatusTimestamp(userId, 'generated', true);
-      }
-    } catch (pyErr) {
-      console.error('Failed to communicate with python backend:', pyErr);
+    if (generatedReport) {
+      await updateStatusTimestamp(userId, 'generated', true);
     }
 
     // Fetch updated user
     const updatedUserRes = await pool.query(`
-      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested, 
+      SELECT id, username, full_name, email, phone, age, gender, gene_type, phenotypic_analysis, survey_requested,
              sample_collected, sample_received, report_uploaded, report_generated, report_verified, report_url, reports, status_timestamps, created_at
       FROM users WHERE id = $1
     `, [userId]);
@@ -1279,30 +1328,36 @@ app.put('/api/users/:id/verify-report', async (req, res) => {
   }
 
   try {
-    const userRes = await pool.query('SELECT reports FROM users WHERE id = $1', [userId]);
-    if (userRes.rowCount === 0) {
+    let allVerified = false;
+    let panelFound = true;
+
+    const { notFound } = await withUserRowLock(userId, async (client, user) => {
+      let reports = user.reports || {};
+      if (typeof reports === 'string') reports = JSON.parse(reports);
+      if (!reports[testName]) {
+        panelFound = false;
+        return;
+      }
+
+      reports[testName].verified = !!reportVerified;
+      reports[testName].verified_at = reportVerified ? new Date().toISOString() : null;
+
+      // report_verified is an aggregate: true only once every generated panel is verified
+      const generatedPanels = Object.values(reports).filter(r => r && r.ai_report);
+      allVerified = generatedPanels.length > 0 && generatedPanels.every(r => r.verified === true);
+
+      await client.query(
+        `UPDATE users SET reports = $1, report_verified = $2 WHERE id = $3`,
+        [JSON.stringify(reports), allVerified, userId]
+      );
+    });
+
+    if (notFound) {
       return res.status(404).json({ error: 'User not found.' });
     }
-
-    let reports = userRes.rows[0].reports || {};
-    if (!reports[testName]) {
+    if (!panelFound) {
       return res.status(404).json({ error: `No report found for test "${testName}".` });
     }
-
-    reports[testName].verified = !!reportVerified;
-    reports[testName].verified_at = reportVerified ? new Date().toISOString() : null;
-
-    // report_verified is an aggregate: true only once every generated panel is verified
-    const generatedPanels = Object.values(reports).filter(r => r && r.ai_report);
-    const allVerified = generatedPanels.length > 0 && generatedPanels.every(r => r.verified === true);
-
-    const query = `
-      UPDATE users
-      SET reports = $1, report_verified = $2
-      WHERE id = $3
-      RETURNING id, report_verified;
-    `;
-    await pool.query(query, [JSON.stringify(reports), allVerified, userId]);
 
     if (allVerified) {
       await updateStatusTimestamp(userId, 'verified', true);
@@ -1439,104 +1494,78 @@ app.post('/api/users/:id/generate-report', express.json(), async (req, res) => {
   const { testName } = req.body;
 
   try {
-    const userRes = await pool.query('SELECT full_name, email, phone, reports, report_answers FROM users WHERE id = $1', [userId]);
-    if (userRes.rowCount === 0) {
+    let anyGenerated = false;
+    let failed = false;
+
+    // Locks the user row for the duration of the read-modify-write (including
+    // the LLM call) so this can't race with request-generation/upload-report/
+    // delete-report/verify-report clobbering each other's writes to `reports`.
+    const { notFound, value } = await withUserRowLock(userId, async (client, user) => {
+      let reports = user.reports || {};
+      if (typeof reports === 'string') reports = JSON.parse(reports);
+
+      let reportAnswers = user.report_answers || {};
+      if (typeof reportAnswers === 'string') reportAnswers = JSON.parse(reportAnswers);
+
+      const mappedAnswers = reportAnswers[testName];
+      const rawAnswers = reportAnswers[`${testName}_custom`];
+      const panelData = reports[testName];
+
+      // Clear any stale ai_report before regenerating, mirroring /request-generation.
+      // Without this, a report generated under the panel's *previous* gene selection
+      // (e.g. a Pro EDAR+FGFR2 report left in place after the panel was downgraded to
+      // a Lite FGFR2-only test) would silently be kept instead of regenerated against
+      // the current variants.
+      if (panelData) {
+        delete panelData.ai_report;
+        delete panelData.generated_at;
+      }
+
+      const genResult = await generateAiReportForPanel(testName, panelData, mappedAnswers, rawAnswers);
+      if (genResult && genResult.failed) {
+        console.error(`Report generation permanently failed for ${testName} (user ${userId}): ${genResult.error}`);
+        failed = true;
+      } else if (genResult) {
+        reports[testName] = { ...reports[testName], ai_report: genResult.ai_report, generated_at: genResult.generated_at };
+        anyGenerated = true;
+      }
+
+      // Check if there are any other panels still pending AI report
+      let stillPending = false;
+      for (const pk of Object.keys(reports)) {
+        if (reports[pk] && reports[pk].variants && !reports[pk].ai_report) {
+          stillPending = true;
+          break;
+        }
+      }
+
+      // report_generated is an aggregate: true only once every panel with variants has an ai_report
+      const panelsWithVariants = Object.values(reports).filter(r => r && r.variants);
+      const allGenerated = panelsWithVariants.length > 0 && panelsWithVariants.every(r => r.ai_report);
+
+      const updateRes = await client.query(
+        `UPDATE users SET reports = $1, survey_requested = $2, report_generated = $3, report_url = $4, status_timestamps = jsonb_set(COALESCE(status_timestamps, '{}'::jsonb), '{generated}', to_jsonb(NOW()::text)) WHERE id = $5 RETURNING *`,
+        [JSON.stringify(reports), stillPending, allGenerated, 'generated', userId]
+      );
+      return updateRes.rows[0];
+    });
+
+    if (notFound) {
       return res.status(404).json({ error: 'User not found' });
     }
-
-    const user = userRes.rows[0];
-    let reports = user.reports || {};
-    if (typeof reports === 'string') reports = JSON.parse(reports);
-
-    let reportAnswers = user.report_answers || {};
-    if (typeof reportAnswers === 'string') reportAnswers = JSON.parse(reportAnswers);
-
-    const mappedAnswers = reportAnswers[testName];
-    const rawAnswers = reportAnswers[`${testName}_custom`];
-    const panelData = reports[testName];
-
-    // Clear any stale ai_report before regenerating, mirroring /request-generation.
-    // Without this, a report generated under the panel's *previous* gene selection
-    // (e.g. a Pro EDAR+FGFR2 report left in place after the panel was downgraded to
-    // a Lite FGFR2-only test) would silently be kept instead of regenerated against
-    // the current variants.
-    if (panelData) {
-      delete panelData.ai_report;
-      delete panelData.generated_at;
-    }
-
-    let anyGenerated = false;
-    if (panelData && panelData.variants && !panelData.ai_report) {
-      let category = '';
-      if (testName.toLowerCase().includes('caffeine')) category = 'caffeine';
-      else if (testName.toLowerCase().includes('muscle')) category = 'muscle';
-      else if (testName.toLowerCase().includes('hair')) category = 'hair';
-      else category = 'caffeine';
-
-      console.log(`Triggering AI generation for ${category}...`);
-
-      const payload = {
-        category,
-        genes: panelData.variants,
-        phenotype_responses: mappedAnswers, // Send ONLY the mapped answers for this specific test
-        lifestyle_context: {
-          user_type: "explorer",
-          raw_answers: rawAnswers || []
-        }
-      };
-      console.log('Sending payload to Python backend:', JSON.stringify(payload));
-
-      const url = process.env.PYTHON_BACKEND_URL ? `${process.env.PYTHON_BACKEND_URL}/dynamic/analyze-category` : 'http://127.0.0.1:8000/dynamic/analyze-category';
-      try {
-        const aiResponse = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          reports[testName] = { ...reports[testName], ai_report: aiData.results || aiData, generated_at: new Date().toISOString() };
-          console.log(`AI generation successful for ${category}.`);
-          anyGenerated = true;
-        } else {
-          const errorText = await aiResponse.text();
-          console.error(`AI generation failed for ${category}: ${aiResponse.status} ${aiResponse.statusText} - ${errorText}`);
-        }
-      } catch (err) {
-        console.error(`AI generation request failed for ${category}:`, err);
-      }
-    }
+    const updatedUser = value;
 
     if (anyGenerated) {
       try {
         const { sendWhatsAppReportGenerated } = require('./whatsapp');
         const { sendReportGeneratedEmail } = require('./mailer');
 
-        await sendWhatsAppReportGenerated({ ...user, id: userId }, testName);
-        await sendReportGeneratedEmail({ ...user, id: userId }, testName);
+        await sendWhatsAppReportGenerated({ ...updatedUser, id: userId }, testName);
+        await sendReportGeneratedEmail({ ...updatedUser, id: userId }, testName);
       } catch (e) { console.error("Notification failed:", e); }
     }
 
-    // Check if there are any other panels still pending AI report
-    let stillPending = false;
-    for (const pk of Object.keys(reports)) {
-      if (reports[pk] && reports[pk].variants && !reports[pk].ai_report) {
-        stillPending = true;
-        break;
-      }
-    }
-
-    // report_generated is an aggregate: true only once every panel with variants has an ai_report
-    const panelsWithVariants = Object.values(reports).filter(r => r && r.variants);
-    const allGenerated = panelsWithVariants.length > 0 && panelsWithVariants.every(r => r.ai_report);
-
-    const updateRes = await pool.query(
-      `UPDATE users SET reports = $1, survey_requested = $2, report_generated = $3, report_url = $4, status_timestamps = jsonb_set(COALESCE(status_timestamps, '{}'::jsonb), '{generated}', to_jsonb(NOW()::text)) WHERE id = $5 RETURNING *`,
-      [JSON.stringify(reports), stillPending, allGenerated, 'generated', userId]
-    );
-
-    res.json({ success: true, generated: anyGenerated, user: updateRes.rows[0] });
+    res.json({ success: !failed, generated: anyGenerated, failed, user: updatedUser });
   } catch (error) {
     console.error('Error generating report:', error);
     res.status(500).json({ error: 'Server error generating report' });
