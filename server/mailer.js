@@ -927,7 +927,7 @@ const sendCollectAnswersEmail = async (user, testNames) => {
   const firstName = buildNameWithTests(firstNameOf(user), testNames);
 
   const mailOptions = {
-    from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
     to: user.email,
     subject: 'Action Required: Answer questions to get your MyBodyQode report',
     html: `<!DOCTYPE html>
@@ -1052,7 +1052,7 @@ const sendAdminAnswersCompleteEmail = async (user, panelNames) => {
   const panelsHtml = panelNames.map(p => `<li>${escapeHtml(p)}</li>`).join('');
 
   const mailOptions = {
-    from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',
+    from: `"MyBodyQode Team" <team@mybodyqode.com>`,
     to: ADMIN_NOTIFY_EMAIL,
     subject: `${patientId} answered all ${panelNames.length} test survey${panelNames.length === 1 ? '' : 's'} — awaiting your approval`,
     html: `<!DOCTYPE html>
