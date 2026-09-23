@@ -1029,3 +1029,128 @@ const sendCollectAnswersEmail = async (user, testNames) => {
 };
 
 module.exports.sendCollectAnswersEmail = sendCollectAnswersEmail;
+
+const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || 'earlyaccess.mbq@gmail.com';
+
+const escapeHtml = (str) => String(str || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+// Tells the admin a patient has answered the survey for every panel they
+// purchased, so their reports are ready to be reviewed and verified.
+const sendAdminAnswersCompleteEmail = async (user, panelNames) => {
+  if (!resend) {
+    console.warn('RESEND_API_KEY not set; skipping admin answers-complete email.');
+    return;
+  }
+  if (!user) return;
+
+  const patientId = formatUserId(user.id);
+  const name = escapeHtml(user.full_name || user.username || 'Unknown');
+  const panelsHtml = panelNames.map(p => `<li>${escapeHtml(p)}</li>`).join('');
+
+  const mailOptions = {
+    from: 'MyBodyQode <no-reply@updates.mybodyqode.com>',
+    to: ADMIN_NOTIFY_EMAIL,
+    subject: `${patientId} answered all ${panelNames.length} test survey${panelNames.length === 1 ? '' : 's'} — awaiting your approval`,
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F9F9F8;
+    color: #1A1A19;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    background-color: #ffffff;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+  }
+  .header {
+    text-align: center;
+    padding: 40px 20px 20px;
+  }
+  .content {
+    padding: 20px 40px 40px;
+  }
+  .details td {
+    padding: 4px 16px 4px 0;
+    vertical-align: top;
+  }
+  .button-container {
+    text-align: center;
+    margin: 40px 0;
+  }
+  .button {
+    background-color: #6057D7;
+    color: #FFFFFF !important;
+    text-decoration: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    display: inline-block;
+  }
+  .footer {
+    background-color: #F9F9F8;
+    border-top: 1px solid #E8E8E5;
+    padding: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #A0A09D;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="color: #1A1A19; font-size: 20px; font-weight: 800;">MyBodyQode Admin</h1>
+    </div>
+    <div class="content">
+      <p style="font-size: 18px; color: #1A1A19; font-weight: 600;">A patient has answered all of their test questions and is waiting for your approval.</p>
+
+      <table class="details">
+        <tr><td style="color: #8B8B86;">Patient ID</td><td><strong>${patientId}</strong></td></tr>
+        <tr><td style="color: #8B8B86;">Name</td><td>${name}</td></tr>
+        <tr><td style="color: #8B8B86;">Email</td><td>${escapeHtml(user.email || '—')}</td></tr>
+        <tr><td style="color: #8B8B86;">Phone</td><td>${escapeHtml(user.phone || '—')}</td></tr>
+      </table>
+
+      <p style="margin-top: 24px; margin-bottom: 4px;">Tests answered (${panelNames.length}):</p>
+      <ul style="margin-top: 0;">${panelsHtml}</ul>
+
+      <div class="button-container">
+        <a href="https://mbq-tutorial.vercel.app/admin-verify" class="button">Review &amp; Verify</a>
+      </div>
+    </div>
+    <div class="footer">
+      <p>&copy; 2026 MyBodyQode. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  };
+
+  try {
+    const { data, error } = await resend.emails.send(mailOptions);
+    if (error) {
+      console.error('Error sending admin answers-complete email:', error);
+      return;
+    }
+    console.log(`Admin answers-complete email sent for user ${user.id}`, data);
+  } catch (error) {
+    console.error('Exception while sending admin answers-complete email:', error);
+  }
+};
+
+module.exports.sendAdminAnswersCompleteEmail = sendAdminAnswersCompleteEmail;

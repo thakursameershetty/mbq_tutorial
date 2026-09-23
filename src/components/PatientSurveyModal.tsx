@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, CheckCircle2, ChevronLeft, Lightbulb, ImageIcon } from 'lucide-react';
 
@@ -168,6 +168,13 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
     }
   };
 
+  // The body keeps its scroll offset across questions, so without this each
+  // Next/Back lands partway down the new question on short (mobile) screens.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [currentIndex]);
+
   if (!isOpen) return null;
 
   const answeredQuestionIds = new Set([
@@ -189,7 +196,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+        className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center sm:p-6"
         onClick={onClose}
       >
         <motion.div
@@ -197,7 +204,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden border border-[#E8E8E5]"
+          className="bg-white sm:rounded-3xl shadow-2xl w-full max-w-3xl h-dvh sm:h-[85vh] flex flex-col overflow-hidden sm:border border-[#E8E8E5]"
         >
           {isSubmitted ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F9F9F8]">
@@ -217,11 +224,11 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
             </div>
           ) : (
             <>
-              <div className="p-6 border-b border-[#E8E8E5] bg-[#F9F9F8] shrink-0">
+              <div className="px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 sm:p-6 border-b border-[#E8E8E5] bg-[#F9F9F8] shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-[#1A1A19]">Phenotypic Survey</h2>
-                    <p className="text-sm text-[#8B8B86] mt-1">Please answer the following questions to help us generate your report.</p>
+                    <h2 className="text-lg sm:text-xl font-bold text-[#1A1A19]">Phenotypic Survey</h2>
+                    <p className="hidden sm:block text-sm text-[#8B8B86] mt-1">Please answer the following questions to help us generate your report.</p>
                   </div>
                   <button
                     onClick={onClose}
@@ -231,7 +238,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                   </button>
                 </div>
                 {!loading && questions.length > 0 && (
-                  <div className="mt-5 h-1.5 w-full bg-[#E8E8E5] rounded-full overflow-hidden">
+                  <div className="mt-3 sm:mt-5 h-1.5 w-full bg-[#E8E8E5] rounded-full overflow-hidden">
                     <motion.div
                       className="h-full bg-[#6057D7] rounded-full"
                       initial={false}
@@ -242,7 +249,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-white">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-8 bg-white">
                 {loading ? (
                   <div className="flex flex-col items-center justify-center h-full">
                     <Loader2 className="w-8 h-8 animate-spin text-[#6057D7]" />
@@ -266,14 +273,14 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                         exit={{ opacity: 0, x: -24 }}
                         transition={{ duration: 0.25 }}
                       >
-                        <span className="text-xs font-bold text-[#6057D7] bg-indigo-50 px-2.5 py-1 rounded-md mb-4 inline-block">
+                        <span className="text-xs font-bold text-[#6057D7] bg-indigo-50 px-2.5 py-1 rounded-md mb-2 sm:mb-4 inline-block">
                           {currentQuestion.test_name} - {currentQuestion.subgene_name}
                         </span>
 
                         {/* Fixed height (not aspect-ratio) so every question's frame is the
                             same size regardless of that image's own ratio, and object-contain
                             so nothing is ever cropped - the source images range from 4:3 to 2:1. */}
-                        <div className="w-full h-48 sm:h-60 rounded-2xl bg-[#F2F2F0] border border-[#E8E8E5] flex items-center justify-center mb-6 overflow-hidden">
+                        <div className="w-full h-32 sm:h-60 rounded-2xl bg-[#F2F2F0] border border-[#E8E8E5] flex items-center justify-center mb-3 sm:mb-6 overflow-hidden">
                           {currentQuestion.image ? (
                             <img src={currentQuestion.image} alt="" className="w-full h-full object-contain" />
                           ) : (
@@ -281,14 +288,14 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                           )}
                         </div>
 
-                        <h3 className="text-[#1A1A19] font-bold text-xl sm:text-2xl mb-4">
+                        <h3 className="text-[#1A1A19] font-bold text-lg leading-snug sm:text-2xl mb-3 sm:mb-4">
                           {currentIndex + 1}. {currentQuestion.question}
                         </h3>
 
                         {currentQuestion.example && (
-                          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 sm:p-4 mb-3 sm:mb-6">
                             <Lightbulb className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                            <p className="text-sm text-amber-900 leading-relaxed">
+                            <p className="text-sm text-amber-900 leading-snug sm:leading-relaxed">
                               <span className="font-bold">Example: </span>
                               {currentQuestion.example}
                             </p>
@@ -300,7 +307,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
                             <button
                               key={optIdx}
                               onClick={() => setAnswers(prev => ({ ...prev, [currentQuestion.uniqueId]: optIdx }))}
-                              className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3
+                              className={`w-full text-left px-3 py-2.5 sm:p-4 rounded-xl border transition-all flex items-center gap-3
                         ${answers[currentQuestion.uniqueId] === optIdx
                                   ? 'border-[#6057D7] bg-indigo-50/50 text-[#1A1A19] shadow-sm'
                                   : 'border-[#E8E8E5] bg-white hover:border-[#D4D4CE] text-[#5A5A55]'
@@ -331,7 +338,7 @@ export default function PatientSurveyModal({ isOpen, onClose, userId, testName, 
               </div>
 
               {!loading && questions.length > 0 && (
-                <div className="p-4 sm:p-6 border-t border-[#E8E8E5] bg-[#F9F9F8] flex justify-between items-center shrink-0 gap-4">
+                <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-6 border-t border-[#E8E8E5] bg-[#F9F9F8] flex justify-between items-center shrink-0 gap-4">
                   <button
                     onClick={goPrev}
                     disabled={currentIndex === 0}

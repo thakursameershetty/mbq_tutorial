@@ -4,7 +4,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { attemptSmartMapWithAI, generatePhenotypicAnalysis, getKeyPoolStatus, getSheetCacheStatus, getCachedSheetData, setCachedSheetData, invalidateSheetCache, attemptSmartBulkMatchWithAI, generateChatResponse } = require('./aiMapping');
-const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail } = require('./mailer');
+const { sendSampleDispatchedEmail, sendForgotCredentialsEmail, sendOtpEmail, sendReportReadyEmail, sendCollectAnswersEmail, sendAdminAnswersCompleteEmail } = require('./mailer');
+const { getRequiredPanels } = require('./notifyUtils');
 const { sendWhatsAppSampleDispatched, sendWhatsAppReportGenerated, sendWhatsAppReportReady, sendWhatsAppSurveyRequested } = require('./whatsapp');
 const { QUESTION_ID_MAP } = require('./questionMapper');
 const multer = require('multer');
@@ -1449,7 +1450,7 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
     }
 
     // 2. Fetch current user to merge or replace report_answers
-    const userRes = await pool.query('SELECT report_answers FROM users WHERE id = $1', [userId]);
+    const userRes = await pool.query('SELECT report_answers, gene_type FROM users WHERE id = $1', [userId]);
     if (userRes.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -1478,6 +1479,15 @@ app.post('/api/users/:id/report-answers', express.json(), async (req, res) => {
       `UPDATE users SET report_answers = $1 WHERE id = $2 RETURNING *`,
       [JSON.stringify(updatedAnswers), userId]
     );
+
+    // Notify the admin once, on the submission that completes the last
+    // outstanding panel survey - not on every panel along the way.
+    const requiredPanels = getRequiredPanels(userRes.rows[0].gene_type);
+    const allAnsweredBefore = requiredPanels.every(p => currentAnswers[p]);
+    const allAnsweredNow = requiredPanels.every(p => updatedAnswers[p]);
+    if (requiredPanels.length > 0 && allAnsweredNow && !allAnsweredBefore) {
+      await sendAdminAnswersCompleteEmail(updateRes.rows[0], requiredPanels);
+    }
 
     res.json({ success: true, user: updateRes.rows[0] });
   } catch (error) {
