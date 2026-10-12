@@ -1904,7 +1904,7 @@ app.get('/api/test/interests', async (req, res) => {
 
 app.post('/api/test/generate-report', async (req, res) => {
   try {
-    const { answers, rawAnswers, email = 'test@example.com', phone = '1234567890', testName, geneVariants } = req.body;
+    const { answers, rawAnswers, email = 'test@example.com', phone = '1234567890', testName, geneVariants, reportVersion } = req.body;
 
     if (!answers || Object.keys(answers).length === 0) {
       return res.status(400).json({ error: 'Answers are required' });
@@ -1956,7 +1956,10 @@ app.post('/api/test/generate-report', async (req, res) => {
       lifestyle_context: {
         user_type: "explorer",
         raw_answers: rawAnswers || []
-      }
+      },
+      // Report schema version to generate (1 or 2). The Python backend ignores
+      // it until it supports both; the response's _meta says what it produced.
+      ...(reportVersion ? { report_version: Number(reportVersion) } : {})
     };
 
     console.log(`Sending request to Python backend for category: ${category}`);

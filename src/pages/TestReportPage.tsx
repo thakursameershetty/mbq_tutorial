@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ChevronDown, Sparkles, FileText, ArrowRight, X, Download, ChevronLeft, ChevronRight, Shuffle, Lightbulb, ImageIcon, CheckCircle2 } from 'lucide-react';
 import FloatingChatbot from '../components/FloatingChatbot';
+import { reportSchemaVersion, reportTemplateUrl, toV1FieldLayout, type ReportVersion } from '../lib/reportVersion';
 
 // Tests for the "what's coming next" interest list shown during the download
 // countdown, grouped the way the product catalog groups them. Mirrors
@@ -128,7 +129,24 @@ interface SelectedQuestion extends Question {
 const DESIGN_WIDTH = 1024;
 const DESIGN_HEIGHT = 1449;
 
+// Which report version "Generate" asks the backend for. The viewer doesn't use
+// this - it renders each report with the template matching the report's own
+// _meta.report_schema_version (see src/lib/reportVersion.ts).
+const REPORT_VERSION_STORAGE_KEY = 'testReportVersion';
+
 export default function TestReportPage() {
+  const [requestedVersion, setRequestedVersion] = useState<ReportVersion>(() => {
+    try {
+      return localStorage.getItem(REPORT_VERSION_STORAGE_KEY) === '2' ? 2 : 1;
+    } catch {
+      return 1;
+    }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(REPORT_VERSION_STORAGE_KEY, String(requestedVersion)); } catch { /* ignore */ }
+  }, [requestedVersion]);
+  // The version that was requested for the current reportResult.
+  const [generatedVersion, setGeneratedVersion] = useState<ReportVersion>(1);
   const [allQuestions, setAllQuestions] = useState<SelectedQuestion[]>([]);
   const [tests, setTests] = useState<TestData[]>([]);
   const [selectedTestName, setSelectedTestName] = useState<string>('');
@@ -413,7 +431,8 @@ export default function TestReportPage() {
           answers,
           rawAnswers,
           testName: selectedTestName,
-          geneVariants: genesToSend
+          geneVariants: genesToSend,
+          reportVersion: requestedVersion
         }),
       });
 
@@ -426,6 +445,7 @@ export default function TestReportPage() {
       if (data.success) {
         setGenProgress(100);
         setReportResult(data.report);
+        setGeneratedVersion(requestedVersion);
         setReportGenes(genesToSend);
         // Briefly hold at 100% before revealing the result, so the number is
         // actually visible rather than jumping straight past it.
@@ -725,10 +745,31 @@ export default function TestReportPage() {
             <FileText className="text-[#3FC2AC]" />
             <div>
               <h2 className="text-xl font-bold text-[#1A1A19]">AI Report Preview</h2>
-              <p className="text-sm text-[#8B8B86]">Generated JSON output</p>
+              <p className="text-sm text-[#8B8B86]">
+                Generated JSON output{reportResult && ` · Version ${reportSchemaVersion(reportResult)} report`}
+              </p>
+              {/* The backend decides the report's actual version; until it supports
+                  generating both, asking for one can return the other. */}
+              {reportResult && reportSchemaVersion(reportResult) !== generatedVersion && (
+                <p className="text-xs font-semibold text-[#B45309] mt-0.5">
+                  Asked for Version {generatedVersion}, but the backend returned Version {reportSchemaVersion(reportResult)}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center bg-white border border-[#E8E8E5] rounded-lg p-1 text-xs font-bold" title="Report version to generate">
+              {([1, 2] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setRequestedVersion(v)}
+                  disabled={generating}
+                  className={`px-2.5 py-1 rounded-md transition-all ${requestedVersion === v ? 'bg-[#1A1A19] text-white' : 'text-[#8B8B86] hover:text-[#1A1A19]'}`}
+                >
+                  Version {v}
+                </button>
+              ))}
+            </div>
             {/* Lives here (not tied to the last question in the questionnaire) so
                 Randomize-filling every answer doesn't also require paging all the
                 way to the end just to generate. */}
@@ -751,7 +792,11 @@ export default function TestReportPage() {
                   const testId = selectedTestName.split(' ')[0].toLowerCase();
                   // Drives the WhatsApp/Instagram share text below - "Caffeine"/"Muscle"/"Hair".
                   const categoryLabel = testId.charAt(0).toUpperCase() + testId.slice(1);
-                  const res = await fetch(`/templates/${testId}-sample.html`);
+                  // A report renders with the template of its own schema version, never
+                  // the requested one - v1 data can't fill the v2 layout or vice versa.
+                  const reportVersion = reportSchemaVersion(reportResult);
+                  const reportData = toV1FieldLayout(reportResult);
+                  const res = await fetch(reportTemplateUrl(testId, reportVersion));
                   if (!res.ok) throw new Error('Template not found');
                   let html = await res.text();
 
@@ -856,23 +901,23 @@ export default function TestReportPage() {
 
                     const nextEl = el.nextElementSibling as HTMLElement | null;
                     if (nextEl && nextEl.id) {
-                      targetText = getDynamicTitleFromAI(nextEl.id, reportResult);
+                      targetText = getDynamicTitleFromAI(nextEl.id, reportData);
                     }
                     if (!targetText && el.parentElement) {
                       const parentNext = el.parentElement.nextElementSibling as HTMLElement | null;
                       if (parentNext) {
                         if (parentNext.id) {
-                          targetText = getDynamicTitleFromAI(parentNext.id, reportResult);
+                          targetText = getDynamicTitleFromAI(parentNext.id, reportData);
                         } else {
                           const childWithId = parentNext.querySelector('[id]') as HTMLElement | null;
                           if (childWithId && childWithId.id) {
-                            targetText = getDynamicTitleFromAI(childWithId.id, reportResult);
+                            targetText = getDynamicTitleFromAI(childWithId.id, reportData);
                           }
                         }
                       }
                     }
                     if (!targetText && nextEl && nextEl.tagName === 'SPAN' && nextEl.id) {
-                      targetText = getDynamicTitleFromAI(nextEl.id, reportResult);
+                      targetText = getDynamicTitleFromAI(nextEl.id, reportData);
                     }
 
                     if (targetText) {
@@ -980,7 +1025,7 @@ export default function TestReportPage() {
                   // Perform a simple injection by passing the JSON data to the window
                   const scriptString = `
                     <script>
-                      window.REPORT_DATA = ${JSON.stringify(reportResult)};
+                      window.REPORT_DATA = ${JSON.stringify(reportData)};
                       window.GENE_VARIANTS = ${JSON.stringify(reportGenes)};
                       window.USER_GENDER = ${JSON.stringify(selectedGender || '')};
                       console.log("Report Data loaded:", window.REPORT_DATA);
@@ -1565,6 +1610,56 @@ export default function TestReportPage() {
                             setText('page4-coach-recommendation', data.page_4.coach_recommendation);
                         }
 
+                        // VERSION 2 ONLY - fields with no v1 equivalent, filled into the
+                        // v2 template's data-v2="..." slots. v1 reports have no v2_pages.
+                        if (data.v2_pages) {
+                            const setV2 = (key, text) => {
+                                const el = document.querySelector('[data-v2="' + key + '"]');
+                                if (el && text) el.textContent = text;
+                            };
+                            const v2 = data.v2_pages;
+                            const alignment = v2.page_2 || {};
+                            setV2('alignment-heading', alignment.heading);
+                            // Both lists are matched to their slots by step id, never by order.
+                            [['framework', alignment.alignment_framework], ['box', alignment.explanation_boxes]].forEach(([slot, steps]) => {
+                                (Array.isArray(steps) ? steps : []).forEach(step => {
+                                    if (!step || !step.id) return;
+                                    setV2(slot + '-' + step.id + '-title', step.title);
+                                    setV2(slot + '-' + step.id + '-desc', step.description);
+                                });
+                            });
+                            // Highlight chips under each step: the template's first chip is the
+                            // style to clone, so colours stay per-step without repeating them here.
+                            (Array.isArray(alignment.explanation_boxes) ? alignment.explanation_boxes : []).forEach(step => {
+                                if (!step || !step.id || !Array.isArray(step.points)) return;
+                                const row = document.querySelector('[data-v2-points="box-' + step.id + '-points"]');
+                                const chip = row && row.firstElementChild;
+                                const points = step.points.filter(p => typeof p === 'string' && p.trim()).slice(0, 3);
+                                if (!chip || points.length === 0) return;
+                                row.innerHTML = '';
+                                points.forEach(p => {
+                                    const c = chip.cloneNode(false);
+                                    c.textContent = p.trim();
+                                    row.appendChild(c);
+                                });
+                            });
+                            const formula = alignment.success_formula;
+                            if (formula) {
+                                setV2('success-formula-title', formula.title);
+                                setV2('success-formula-footer', formula.footer);
+                                (formula.steps || []).forEach((label, i) => setV2('success-formula-step-' + (i+1), label));
+                            }
+                            const learnMore = v2.page_3 && v2.page_3.learn_more;
+                            if (learnMore) {
+                                setV2('learn-more-title', learnMore.title);
+                                setV2('learn-more-description', learnMore.description);
+                                (learnMore.topics || []).forEach((topic, i) => {
+                                    setV2('learn-more-topic-title-' + (i+1), topic.title);
+                                    setV2('learn-more-topic-desc-' + (i+1), topic.description);
+                                });
+                            }
+                        }
+
                         console.log("Successfully injected massive AI data into HTML layout.");
                       } catch (err) {
                         console.error("Injection error:", err);
@@ -1781,6 +1876,36 @@ export default function TestReportPage() {
                               zoomCleanupFns.push(() => { overlay.remove(); });
                           };
 
+                          // Page 1 has a fixed designed height but AI-written text of varying
+                          // length, so its content can end a few px past the page - which html2pdf
+                          // spills onto a near-blank extra PDF page. When the overflow is small,
+                          // scale page 1's inner flex wrapper down to fit the page exactly instead;
+                          // genuinely long content still paginates as before. Runs after
+                          // neutralizeZoom, whose measurements a transform would distort.
+                          const MAX_FIT_SHRINK = 0.12;
+                          const fitToPage = (page) => {
+                              const heights = window.__originalPageHeights;
+                              const inner = heights && Array.from(page.children).find((c) => heights.has(c));
+                              const designHeight = heights && parseFloat(heights.get(page));
+                              if (!inner || !designHeight) return;
+                              const natural = inner.offsetHeight;
+                              const scale = designHeight / natural;
+                              if (natural <= designHeight + 1 || scale < 1 - MAX_FIT_SHRINK) return;
+
+                              const innerStyle = inner.getAttribute('style');
+                              const pageStyle = page.getAttribute('style');
+                              inner.style.minHeight = '';
+                              inner.style.height = natural + 'px';
+                              inner.style.transform = 'scale(' + scale + ')';
+                              inner.style.transformOrigin = 'top center';
+                              page.style.minHeight = '';
+                              page.style.height = designHeight + 'px';
+                              zoomCleanupFns.push(() => {
+                                  inner.setAttribute('style', innerStyle);
+                                  page.setAttribute('style', pageStyle);
+                              });
+                          };
+
                           const opt = {
                             margin:       0,
                             filename:     filename || 'report.pdf',
@@ -1850,6 +1975,7 @@ export default function TestReportPage() {
                                       // only be measured/patched now.
                                       neutralizeZoom(pages[i]);
                                       addHeroFadeOverlay(pages[i]);
+                                      fitToPage(pages[i]);
                                       return new Promise(r => setTimeout(r, 100)); // allow DOM to settle
                                   });
 
