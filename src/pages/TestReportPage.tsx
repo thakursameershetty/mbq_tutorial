@@ -1440,7 +1440,7 @@ export default function TestReportPage() {
                                 setText('page1-share-title', toTitleCase(shareTitle));
 
                                 const highlightEl = document.getElementById('page1-share-highlight');
-                                if (highlightEl) {
+                                if (highlightEl && data.page_1.share_card.highlight) {
                                     const highlightText = toSentenceCase(data.page_1.share_card.highlight);
                                     const bullets = highlightText.split('.').map(s => s.trim()).filter(Boolean);
                                     highlightEl.innerHTML = bullets.map(b => '<div>&bull; ' + b + '.</div>').join('');
